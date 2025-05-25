@@ -1,0 +1,122 @@
+{
+  "info": {
+    "name": "RIA Hunter API",
+    "description": "API endpoints for the RIA Hunter application",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "health"]
+        },
+        "description": "Check the health status of the API"
+      }
+    },
+    {
+      "name": "List Listings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{apiKey}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/listings?page=1&limit=10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number (default: 1)"
+            },
+            {
+              "key": "limit",
+              "value": "10",
+              "description": "Items per page (default: 10, max: 100)"
+            },
+            {
+              "key": "category",
+              "value": "",
+              "description": "Filter by category",
+              "disabled": true
+            },
+            {
+              "key": "minPrice",
+              "value": "",
+              "description": "Minimum price filter",
+              "disabled": true
+            },
+            {
+              "key": "maxPrice",
+              "value": "",
+              "description": "Maximum price filter",
+              "disabled": true
+            },
+            {
+              "key": "tags",
+              "value": "",
+              "description": "Filter by tags (comma-separated)",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Retrieve a paginated list of listings with optional filters"
+      }
+    },
+    {
+      "name": "Create Listing",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{apiKey}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Sample Listing\",\n  \"description\": \"A detailed description of the listing\",\n  \"price\": 100,\n  \"category\": \"electronics\",\n  \"tags\": [\"new\", \"featured\"],\n  \"metadata\": {\n    \"condition\": \"new\",\n    \"brand\": \"Example Brand\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/listings",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "listings"]
+        },
+        "description": "Create a new listing"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://riahunter.vercel.app",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "your-api-key-here",
+      "type": "string"
+    }
+  ]
+}
