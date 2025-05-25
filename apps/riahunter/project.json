@@ -1,0 +1,55 @@
+{
+  "name": "riahunter",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/riahunter/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/next:build",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/riahunter"
+      },
+      "configurations": {
+        "development": {
+          "outputPath": "apps/riahunter"
+        },
+        "production": {}
+      }
+    },
+    "serve": {
+      "executor": "@nx/next:server",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "riahunter:build",
+        "dev": true
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "riahunter:build:development",
+          "dev": true
+        },
+        "production": {
+          "buildTarget": "riahunter:build:production",
+          "dev": false
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/riahunter/**/*.{ts,tsx,js,jsx}"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "apps/riahunter/jest.config.js"
+      }
+    }
+  },
+  "tags": []
+}
