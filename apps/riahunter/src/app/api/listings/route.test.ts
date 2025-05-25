@@ -6,7 +6,9 @@ import { CreateListingPayload } from '@appfoundation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Helper to convert Node.js IncomingMessage to a Web API Request object
-async function toWebRequest(nodeReq: http.IncomingMessage): Promise<Request> {
+// Returns a plain NextRequest. Inside route handlers, this will cause
+// (request as AxiomRequest).log to be undefined, falling back to console for tests.
+async function toWebRequest(nodeReq: http.IncomingMessage): Promise<NextRequest> {
   const { method, url, headers } = nodeReq;
   const controller = new AbortController();
   nodeReq.on('close', () => controller.abort());
@@ -18,14 +20,14 @@ async function toWebRequest(nodeReq: http.IncomingMessage): Promise<Request> {
 
   const fullUrl = new URL(url || '/', 'http://localhost');
 
-  return new NextRequest(fullUrl.toString(), {
-    method: method || 'GET', // Provide default for method
+  const nextReqInstance = new NextRequest(fullUrl.toString(), {
+    method: method || 'GET',
     headers: new Headers(headers as HeadersInit),
     body,
     signal: controller.signal,
-    // @ts-ignore // Axiom specific, might not be needed for basic NextRequest
-    log: console,
   });
+
+  return nextReqInstance;
 }
 
 // Helper to send a NextResponse via http.ServerResponse
@@ -53,17 +55,19 @@ async function sendNextResponse(res: http.ServerResponse, nextRes: Response): Pr
 
 describe('API - /api/listings (supertest)', () => {
   let server: http.Server;
-  let request: supertest.SuperAgentTest;
+  let request: supertest.SuperTest<supertest.Test>; // Using SuperTest<Test>
 
   beforeAll((done) => {
     server = http.createServer(async (req, res) => {
-      const webReq = await toWebRequest(req);
+      const webReq: NextRequest = await toWebRequest(req); // webReq is NextRequest
       try {
         if (req.url === '/api/listings' && req.method === 'GET') {
-          const nextRes = await listingsApi.GET(webReq as any, { params: {} } as any);
+          // Pass webReq (NextRequest) directly. Type system should handle it via Request | AxiomRequest.
+          const nextRes = await listingsApi.GET(webReq, { params: {} });
           await sendNextResponse(res, nextRes);
         } else if (req.url === '/api/listings' && req.method === 'POST') {
-          const nextRes = await listingsApi.POST(webReq as any, { params: {} } as any);
+          // Pass webReq (NextRequest) directly.
+          const nextRes = await listingsApi.POST(webReq, { params: {} });
           await sendNextResponse(res, nextRes);
         } else {
           res.statusCode = 404;
@@ -76,7 +80,7 @@ describe('API - /api/listings (supertest)', () => {
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ message: 'Test harness server error', error: (err as Error).message }));
         } else {
-          if (!res.writableEnded) res.end(); // Attempt to end if headers sent but not ended
+          if (!res.writableEnded) res.end();
         }
       }
     });

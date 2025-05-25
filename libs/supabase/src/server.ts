@@ -1,2 +1,3 @@
-// Use this file to export React server components
-export * from './lib/hello-server';
+// Use this file to export server-side Supabase utilities
+export * from './lib/supabase-server';
+// export * from './lib/hello-server'; // Removed or comment out if hello-server is not needed here

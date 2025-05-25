@@ -1,31 +1,22 @@
 import { NextResponse } from 'next/server';
-import { AxiomRequest, withAxiom, log } from 'next-axiom';
+import { AxiomRequest, withAxiom, log as axiomLog } from 'next-axiom';
 import { IdSchema, UpdateListingSchema } from '@appfoundation/schemas';
+import { getServerSupabaseClient } from '@appfoundation/supabase/server';
 
-// Mock database - replace with actual database logic later
-let listingsStore: Record<string, any> = {
-  '2d44393c-45e3-492c-8292-0d4bb42651b1': {
-    id: '2d44393c-45e3-492c-8292-0d4bb42651b1',
-    title: 'Historic Anvil',
-    description: 'A very old anvil, perfect for collectors.',
-    price: 150.75,
-    email: 'seller@example.com'
-  },
-  'a81b5b8e-7cbe-4f89-8915-2b592969c6b2': {
-    id: 'a81b5b8e-7cbe-4f89-8915-2b592969c6b2',
-    title: 'Vintage Typewriter',
-    description: 'A beautifully preserved typewriter from the 1940s.',
-    price: 220.00,
-    email: 'another.seller@example.com'
+// Helper to get the correct logger
+function getLoggerForRequest(request: Request | AxiomRequest) {
+  if (process.env.NODE_ENV === 'test') {
+    return console;
   }
-};
+  return (request as AxiomRequest).log || axiomLog;
+}
 
-// Define logger based on environment
-const routeLog = process.env.NODE_ENV === 'test' ? console : log;
+interface HandlerContext { params: { id: string } }
 
-async function handleGetId(request: Request | AxiomRequest, { params }: { params: { id: string } }) {
-  const currentLog = (request as AxiomRequest).log || routeLog;
+async function handleGetId(request: Request | AxiomRequest, { params }: HandlerContext) {
+  const currentLog = getLoggerForRequest(request);
   currentLog.info('Received GET request for /api/listings/[id]', { params });
+  const supabase = getServerSupabaseClient();
 
   const paramsValidation = IdSchema.safeParse(params);
   if (!paramsValidation.success) {
@@ -35,21 +26,42 @@ async function handleGetId(request: Request | AxiomRequest, { params }: { params
       { status: 400 }
     );
   }
+  const { id } = paramsValidation.data;
 
-  const listing = listingsStore[paramsValidation.data.id];
+  try {
+    const { data: listing, error } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('id', id)
+      .single(); // Expect a single record or null
 
-  if (!listing) {
-    currentLog.info('Listing not found', { id: paramsValidation.data.id });
-    return NextResponse.json({ message: 'Listing not found' }, { status: 404 });
+    if (error) {
+      // Check if error is due to no rows found, which should be a 404
+      if (error.code === 'PGRST116') { // PostgREST error code for "Searched item was not found"
+        currentLog.info('Listing not found in database', { id });
+        return NextResponse.json({ message: 'Listing not found' }, { status: 404 });
+      }
+      currentLog.error('Supabase error fetching listing by ID', { id, error: error.message });
+      return NextResponse.json({ error: 'Error fetching listing', details: error.message }, { status: 500 });
+    }
+
+    if (!listing) { // Should be caught by PGRST116, but as a fallback
+      currentLog.info('Listing not found in database (no data returned)', { id });
+      return NextResponse.json({ message: 'Listing not found' }, { status: 404 });
+    }
+
+    currentLog.info('Returning listing by ID', { listing });
+    return NextResponse.json(listing);
+  } catch (error: any) {
+    currentLog.error('Error fetching listing by ID (catch block)', { id, errorMessage: error.message, errorObj: error });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  currentLog.info('Returning listing', { listing });
-  return NextResponse.json(listing);
 }
 
-async function handlePutId(request: Request | AxiomRequest, { params }: { params: { id: string } }) {
-  const currentLog = (request as AxiomRequest).log || routeLog;
+async function handlePutId(request: Request | AxiomRequest, { params }: HandlerContext) {
+  const currentLog = getLoggerForRequest(request);
   currentLog.info('Received PUT request for /api/listings/[id]', { params });
+  const supabase = getServerSupabaseClient();
 
   const paramsValidation = IdSchema.safeParse(params);
   if (!paramsValidation.success) {
@@ -59,11 +71,7 @@ async function handlePutId(request: Request | AxiomRequest, { params }: { params
       { status: 400 }
     );
   }
-
-  if (!listingsStore[paramsValidation.data.id]) {
-    currentLog.info('Listing not found for PUT', { id: paramsValidation.data.id });
-    return NextResponse.json({ message: 'Listing not found' }, { status: 404 });
-  }
+  const { id } = paramsValidation.data;
 
   try {
     const requestBody = await request.json();
@@ -78,25 +86,42 @@ async function handlePutId(request: Request | AxiomRequest, { params }: { params
       );
     }
 
-    listingsStore[paramsValidation.data.id] = {
-      ...listingsStore[paramsValidation.data.id],
-      ...validationResult.data,
-    };
+    if (Object.keys(validationResult.data).length === 0) {
+      return NextResponse.json({ message: 'No fields to update' }, { status: 400 });
+    }
 
-    currentLog.info('Listing updated successfully', { id: paramsValidation.data.id, data: validationResult.data });
-    return NextResponse.json({ message: 'Listing updated successfully', data: listingsStore[paramsValidation.data.id] });
-  } catch (error) {
-    currentLog.error('Error processing PUT request', { error });
-    if (error instanceof SyntaxError) {
+    const { data: updatedListings, error: updateError } = await supabase
+      .from('listings')
+      .update(validationResult.data)
+      .eq('id', id)
+      .select();
+
+    if (updateError) {
+      currentLog.error('Supabase error updating listing', { id, error: updateError.message });
+      return NextResponse.json({ error: 'Error updating listing', details: updateError.message }, { status: 500 });
+    }
+
+    const updatedListing = updatedListings?.[0];
+    if (!updatedListing) {
+        currentLog.warn('Listing not found for PUT update, or no change', { id });
+        return NextResponse.json({ message: 'Listing not found or no change made' }, { status: 404 });
+    }
+
+    currentLog.info('Listing updated successfully in database', { id, data: updatedListing });
+    return NextResponse.json({ message: 'Listing updated successfully', data: updatedListing });
+  } catch (error: any) {
+    currentLog.error('Error processing PUT request (catch block)', { id, errorMessage: error.message, errorObj: error });
+    if (error?.name === 'SyntaxError') {
       return NextResponse.json({ message: "Invalid JSON payload" }, { status: 400 });
     }
     return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-async function handleDeleteId(request: Request | AxiomRequest, { params }: { params: { id: string } }) {
-  const currentLog = (request as AxiomRequest).log || routeLog;
+async function handleDeleteId(request: Request | AxiomRequest, { params }: HandlerContext) {
+  const currentLog = getLoggerForRequest(request);
   currentLog.info('Received DELETE request for /api/listings/[id]', { params });
+  const supabase = getServerSupabaseClient();
 
   const paramsValidation = IdSchema.safeParse(params);
   if (!paramsValidation.success) {
@@ -106,18 +131,33 @@ async function handleDeleteId(request: Request | AxiomRequest, { params }: { par
       { status: 400 }
     );
   }
+  const { id } = paramsValidation.data;
 
-  if (!listingsStore[paramsValidation.data.id]) {
-    currentLog.info('Listing not found for DELETE', { id: paramsValidation.data.id });
-    return NextResponse.json({ message: 'Listing not found' }, { status: 404 });
+  try {
+    const { error: deleteError, count } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      currentLog.error('Supabase error deleting listing', { id, error: deleteError.message });
+      return NextResponse.json({ error: 'Error deleting listing', details: deleteError.message }, { status: 500 });
+    }
+
+    if (count === 0) {
+      currentLog.info('Listing not found for DELETE in database', { id });
+      return NextResponse.json({ message: 'Listing not found' }, { status: 404 });
+    }
+
+    currentLog.info('Listing deleted successfully from database', { id });
+    return NextResponse.json({ message: 'Listing deleted successfully' }, { status: 200 }); // Or 204 No Content
+  } catch (error: any) {
+    currentLog.error('Error deleting listing (catch block)', { id, errorMessage: error.message, errorObj: error });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  delete listingsStore[paramsValidation.data.id];
-  currentLog.info('Listing deleted successfully', { id: paramsValidation.data.id });
-  return NextResponse.json({ message: 'Listing deleted successfully' }, { status: 200 });
 }
 
-// Conditionally wrap for non-test environments
+// withAxiom wrapping remains unchanged
 const getHandler = process.env.NODE_ENV === 'test' ? handleGetId : withAxiom(handleGetId as any);
 const putHandler = process.env.NODE_ENV === 'test' ? handlePutId : withAxiom(handlePutId as any);
 const deleteHandler = process.env.NODE_ENV === 'test' ? handleDeleteId : withAxiom(handleDeleteId as any);

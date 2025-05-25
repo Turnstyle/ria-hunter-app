@@ -30,6 +30,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'], // Ensure this file exists or is created
   moduleNameMapper: {
     ...importPaths, // Spread the mapped paths
+    // Add a more specific mapping for @appfoundation/schemas
+    '^@appfoundation/schemas$': '<rootDir>/../../libs/schemas/src/index.ts',
     // Handle module aliases (if you configured any in tsconfig.json)
     '^@/(.*)$': '<rootDir>/src/$1', // This might be specific to app, ensure it's still needed or correct
   },
