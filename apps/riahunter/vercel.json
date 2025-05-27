@@ -4,6 +4,9 @@
   "outputDirectory": "dist/apps/riahunter/.next",
   "framework": "nextjs",
   "regions": ["iad1"],
+  "includeFiles": [
+    "public/**"
+  ],
   "functions": {
     "app/api/**": {
       "memory": 1024,
