@@ -27,6 +27,11 @@ export async function POST(request: NextRequest) {
       .from('sec_advisers_test') // <--- Updated with actual table name
       .select('org_pk:id, managesprivatefunds, is_private_fund_related'); // <--- Updated with specific columns, aliasing org_pk to id
 
+    // Search by org_pk if searchQuery is provided
+    if (searchQuery) {
+      queryBuilder = queryBuilder.eq('org_pk', searchQuery);
+    }
+
     // Example: Basic text search on a hypothetical 'firm_name' column
     // You might want to use .ilike() for case-insensitive search or .textSearch() for FTS
     // The 'firm_name' column is not directly available in 'sec_advisers_test'.
