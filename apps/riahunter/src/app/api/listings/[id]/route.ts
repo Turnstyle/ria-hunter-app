@@ -162,4 +162,6 @@ const getHandler = process.env.NODE_ENV === 'test' ? handleGetId : withAxiom(han
 const putHandler = process.env.NODE_ENV === 'test' ? handlePutId : withAxiom(handlePutId as any);
 const deleteHandler = process.env.NODE_ENV === 'test' ? handleDeleteId : withAxiom(handleDeleteId as any);
 
-export { getHandler as GET, putHandler as PUT, deleteHandler as DELETE };
+export const GET = getHandler;
+export const PUT = putHandler;
+export const DELETE = deleteHandler;
