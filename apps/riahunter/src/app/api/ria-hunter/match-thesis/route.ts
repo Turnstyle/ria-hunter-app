@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     // 2. Search your ChromaDB collection.
     //    The ETL process should have already populated this collection.
     // TODO: Replace 'your_chroma_collection_name' with your actual collection name.
-    const collectionName = 'your_chroma_collection_name';
+    const collectionName = 'appfoundation-rag-collection'; // Updated collection name
     let matchedRiaNarratives = [];
     try {
       const collection = await chromaClient.getCollection({ name: collectionName });
@@ -78,9 +78,9 @@ export async function POST(request: NextRequest) {
       const supabase = getServerSupabaseClient();
       // TODO: Replace 'your_ria_table_name' and column names with your actual Supabase schema
       const { data: riaDetails, error: supabaseError } = await supabase
-        .from('your_ria_table_name') // <--- REPLACE with your actual table name
-        .select('id, firm_name, city, state, private_fund_assets') // <--- REPLACE with desired columns
-        .in('id', riaIdsToFetch); // Corrected: removed semicolon from line above
+        .from('sec_advisers_test') // <--- Updated with actual table name
+        .select('org_pk:id, managesprivatefunds, is_private_fund_related') // <--- Updated with actual columns, aliasing org_pk to id
+        .in('org_pk', riaIdsToFetch); // <--- Updated to use org_pk for filtering
 
       if (supabaseError) {
         console.error('Supabase error fetching RIA details:', supabaseError);
@@ -90,7 +90,9 @@ export async function POST(request: NextRequest) {
         // Merge Supabase details back into the matched narratives
         detailedMatches = matchedRiaNarratives.map(match => ({
           ...match,
-          details: riaDetails.find(detail => detail.id === match.riaId) || null,
+          // Assumes match.riaId from ChromaDB corresponds to org_pk
+          // Supabase result will have org_pk as the key, even with aliasing for the final structure
+          details: riaDetails.find(detail => detail.org_pk === match.riaId) || null,
         }));
       }
     }

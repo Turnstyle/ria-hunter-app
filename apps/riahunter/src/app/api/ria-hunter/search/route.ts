@@ -24,14 +24,16 @@ export async function POST(request: NextRequest) {
     //  - Pagination and limiting results (.range())
 
     let queryBuilder = supabase
-      .from('your_ria_table_name') // <--- REPLACE with your actual table name
-      .select('*'); // <--- REPLACE with specific columns if needed, e.g., 'id, name, city, main_private_investment_indicator'
+      .from('sec_advisers_test') // <--- Updated with actual table name
+      .select('org_pk:id, managesprivatefunds, is_private_fund_related'); // <--- Updated with specific columns, aliasing org_pk to id
 
     // Example: Basic text search on a hypothetical 'firm_name' column
     // You might want to use .ilike() for case-insensitive search or .textSearch() for FTS
-    if (searchQuery) {
-      queryBuilder = queryBuilder.ilike('firm_name', `%${searchQuery}%`); // <--- REPLACE 'firm_name' with your relevant column
-    }
+    // The 'firm_name' column is not directly available in 'sec_advisers_test'.
+    // Text search needs to be re-evaluated based on available columns and requirements.
+    // if (searchQuery) {
+    //   queryBuilder = queryBuilder.ilike('some_column_to_search', `%${searchQuery}%`);
+    // }
 
     // Example: Add a filter for St. Louis MSA ZIP codes (you'll need your list of ZIPs)
     // const stLouisMSAZipCodes = ['63101', '63102', '...']; // <--- POPULATE this list
