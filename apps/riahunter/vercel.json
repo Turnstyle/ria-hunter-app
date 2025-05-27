@@ -1,7 +1,7 @@
 {
   "version": 2,
   "buildCommand": "npx nx build riahunter --prod --skip-nx-cache",
-  "outputDirectory": "dist/apps/riahunter/.next",
+  "outputDirectory": ".next",
   "framework": "nextjs",
   "regions": ["iad1"],
   "functions": {
