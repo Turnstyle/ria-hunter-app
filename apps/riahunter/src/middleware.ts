@@ -29,8 +29,6 @@ if (AUTH0_ISSUER_BASE_URL) {
 async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   const authHeader = requestHeaders.get('authorization');
-
-  // Add correlation ID for request tracing
   const correlationId = request.headers.get('x-correlation-id') || crypto.randomUUID();
   requestHeaders.set('x-correlation-id', correlationId);
 
@@ -39,16 +37,16 @@ async function middleware(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/api/health') &&
     !request.nextUrl.pathname.startsWith('/api/public')
   ) {
-    if (!jwksClient || !AUTH0_ISSUER_BASE_URL || !AUTH0_AUDIENCE) {
+    // Initial check for configuration completeness for early exit
+    if (!jwksClient || !process.env.AUTH0_ISSUER_BASE_URL || !process.env.AUTH0_AUDIENCE) {
       console.error(
-        'Auth0 configuration is incomplete. JWT validation cannot proceed. Check AUTH0_ISSUER_BASE_URL and AUTH0_AUDIENCE.'
+        'Auth0 configuration is incomplete. JWT validation cannot proceed. Check AUTH0_ISSUER_BASE_URL and AUTH0_AUDIENCE in environment variables.'
       );
       return NextResponse.json(
         { error: 'Auth0 configuration error, unable to validate token' },
         { status: 500 }
       );
     }
-    // AUTH0_ISSUER_BASE_URL and AUTH0_AUDIENCE are guaranteed to be strings here.
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
@@ -60,10 +58,14 @@ async function middleware(request: NextRequest) {
     const token = authHeader.split(' ')[1];
 
     try {
-      // Use non-null assertion operator as the variables are guaranteed to be defined and strings by the check above.
-      const { payload, protectedHeader } = await jose.jwtVerify(token, jwksClient, {
-        issuer: AUTH0_ISSUER_BASE_URL!,
-        audience: AUTH0_AUDIENCE!,
+      // Re-assign to new constants inside the try block to ensure TypeScript sees them as strings post-check.
+      // The initial check for process.env.AUTH0_ISSUER_BASE_URL and process.env.AUTH0_AUDIENCE already passed.
+      const issuer = process.env.AUTH0_ISSUER_BASE_URL!;
+      const audience = process.env.AUTH0_AUDIENCE!;
+
+      const { payload } = await jose.jwtVerify(token, jwksClient, {
+        issuer: issuer,
+        audience: audience,
       });
 
       console.log('Auth0 JWT validated successfully for user:', payload.sub);
@@ -78,16 +80,13 @@ async function middleware(request: NextRequest) {
       } else if (error.code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
         errorMessage = `Token claim validation failed: ${error.message}`;
       }
-      // Other error codes include ERR_JWKS_NO_MATCHING_KEY, ERR_JWK_INVALID, etc.
-
       return NextResponse.json(
         { error: errorMessage },
-        { status: 401 } // Or 403 if authentication succeeded but authorization failed based on claims
+        { status: 401 }
       );
     }
   }
 
-  // Clone the request headers and create a new response
   const response = NextResponse.next({
     request: {
       headers: requestHeaders,
