@@ -22,12 +22,7 @@
       {
         "name": "next"
       }
-    ],
-    "baseUrl": ".",
-    "paths": {
-      "@appfoundation/schemas": ["../../libs/schemas/src/index.ts"],
-      "@appfoundation/supabase/server": ["../../libs/supabase/src/server.ts"]
-    }
+    ]
   },
   "include": [
     "next-env.d.ts",

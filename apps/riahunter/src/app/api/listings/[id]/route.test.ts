@@ -1,9 +1,39 @@
-import supertest from 'supertest';
+import supertest, { SuperTest, Test } from 'supertest';
 import http from 'http';
 import { Readable } from 'stream';
-import * as individualListingApi from './route';
-import { UpdateListingPayload } from '@appfoundation/schemas';
-import { NextRequest } from 'next/server';
+import { GET as actualGET, PUT as actualPUT, DELETE as actualDELETE } from './route';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { AxiomRequest, withAxiom } from 'next-axiom';
+import { Logger } from 'next-axiom';
+import { IdSchema, UpdateListingSchema } from '@appfoundation/schemas';
+
+// Define a type for the handlers
+type AppRouteHandler = (req: NextRequest | AxiomRequest, context: { params: { id: string } }) => Promise<NextResponse>;
+
+// Cast the imported handlers
+const GET: AppRouteHandler = actualGET as unknown as AppRouteHandler;
+const PUT: AppRouteHandler = actualPUT as unknown as AppRouteHandler;
+const DELETE: AppRouteHandler = actualDELETE as unknown as AppRouteHandler;
+
+// Mock Supabase
+const mockSupabaseFrom = jest.fn().mockReturnThis();
+const mockSupabaseSelect = jest.fn();
+const mockSupabaseUpdate = jest.fn().mockReturnThis();
+const mockSupabaseDelete = jest.fn().mockReturnThis();
+const mockSupabaseEq = jest.fn().mockReturnThis(); // For .eq()
+const mockSupabaseSingle = jest.fn(); // For .single()
+
+jest.mock('@appfoundation/supabase/server', () => ({
+  getServerSupabaseClient: () => ({
+    from: mockSupabaseFrom,
+    select: mockSupabaseSelect,
+    update: mockSupabaseUpdate,
+    delete: mockSupabaseDelete,
+    eq: mockSupabaseEq,
+    single: mockSupabaseSingle,
+  }),
+}));
 
 // Existing mock IDs from the route file
 const MOCK_EXISTING_ID = '2d44393c-45e3-492c-8292-0d4bb42651b1';
@@ -12,7 +42,7 @@ const NON_EXISTENT_ID = '00000000-0000-0000-0000-000000000000';
 const INVALID_ID_FORMAT = 'not-a-uuid';
 
 // Helper to convert Node.js IncomingMessage to a Web API Request object
-async function toWebRequest(nodeReq: http.IncomingMessage): Promise<Request> {
+async function toWebRequest(nodeReq: http.IncomingMessage): Promise<NextRequest> {
   const { method, url, headers } = nodeReq;
   const controller = new AbortController();
   nodeReq.on('close', () => controller.abort());
@@ -52,47 +82,52 @@ async function sendNextResponse(res: http.ServerResponse, nextRes: Response): Pr
 const API_BASE_PATH = '/api/listings';
 
 describe('API - /api/listings/[id] (supertest)', () => {
+  let agent: any; // Using any to bypass persistent type issue
   let server: http.Server;
-  let request: supertest.SuperAgentTest;
+
+  beforeEach(() => {
+    // Reset all mocks before each test
+    jest.clearAllMocks();
+    mockSupabaseFrom.mockReturnThis();
+    mockSupabaseSelect.mockReturnThis(); // from().select() itself returns the chainable object
+    mockSupabaseUpdate.mockReturnThis();
+    mockSupabaseDelete.mockReturnThis();
+    mockSupabaseEq.mockReturnThis();
+    mockSupabaseSingle.mockReset(); // This is often the one returning the final data/error
+  });
 
   beforeAll((done) => {
     server = http.createServer(async (req, res) => {
       const webReq = await toWebRequest(req);
-      const url = req.url || '';
-      const method = req.method;
-
-      const idMatch = url.match(new RegExp(`^${API_BASE_PATH}/([a-zA-Z0-9-]+)$`));
-
-      if (idMatch) {
-        const id = idMatch[1];
-        const context = { params: { id } };
-        try {
-          if (method === 'GET') {
-            const nextRes = await individualListingApi.GET(webReq as any, context as any);
-            await sendNextResponse(res, nextRes);
-          } else if (method === 'PUT') {
-            const nextRes = await individualListingApi.PUT(webReq as any, context as any);
-            await sendNextResponse(res, nextRes);
-          } else if (method === 'DELETE') {
-            const nextRes = await individualListingApi.DELETE(webReq as any, context as any);
-            await sendNextResponse(res, nextRes);
+      const idMatch = req.url?.match(/\/api\/listings\/(.+)/);
+      const id = idMatch ? idMatch[1] : null;
+      try {
+        if (id) {
+          if (req.method === 'GET') {
+            await sendNextResponse(res, await GET(webReq, { params: { id } }));
+          } else if (req.method === 'PUT') {
+            await sendNextResponse(res, await PUT(webReq, { params: { id } }));
+          } else if (req.method === 'DELETE') {
+            await sendNextResponse(res, await DELETE(webReq, { params: { id } }));
           } else {
-            res.statusCode = 405;
-            res.end('Method Not Allowed');
+            res.statusCode = 405; res.end('Method Not Allowed');
           }
-        } catch (err) {
-          console.error('Handler error:', err);
-          res.statusCode = 500;
-          res.end('Internal Server Error in Test Harness');
+        } else {
+          res.statusCode = 404; res.end('Not Found - No ID in Test Harness');
         }
-      } else {
-        res.statusCode = 404;
-        res.end('Not Found in Test Harness');
+      } catch (err) {
+        console.error('Error in test server request handling:', err);
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ message: 'Test harness server error' }));
+        } else if (!res.writableEnded) {
+          res.end();
+        }
       }
     });
     server.listen(() => {
-      const port = (server.address() as import('net').AddressInfo).port;
-      request = supertest(server);
+      agent = supertest(server);
       done();
     });
   });
@@ -103,74 +138,127 @@ describe('API - /api/listings/[id] (supertest)', () => {
 
   describe('GET /api/listings/[id]', () => {
     it('should return the listing for a valid ID with 200 status', async () => {
-      const res = await request.get(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`);
+      const mockListing = { id: MOCK_EXISTING_ID, title: 'Test Anvil', price: 99.99 };
+      mockSupabaseFrom.mockReturnValue({ select: mockSupabaseSelect });
+      mockSupabaseSelect.mockReturnValue({ eq: mockSupabaseEq });
+      mockSupabaseEq.mockReturnValue({ single: mockSupabaseSingle });
+      mockSupabaseSingle.mockResolvedValue({ data: mockListing, error: null });
+
+      const res = await agent.get(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`);
       expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty('id', MOCK_EXISTING_ID);
-      expect(res.body).toHaveProperty('title');
+      expect(res.body).toEqual(mockListing);
+      expect(mockSupabaseFrom).toHaveBeenCalledWith('listings');
+      expect(mockSupabaseEq).toHaveBeenCalledWith('id', MOCK_EXISTING_ID);
+      expect(mockSupabaseSingle).toHaveBeenCalled();
     });
 
     it('should return 404 for a non-existent ID', async () => {
-      const res = await request.get(`${API_BASE_PATH}/${NON_EXISTENT_ID}`);
+      mockSupabaseFrom.mockReturnValue({ select: mockSupabaseSelect });
+      mockSupabaseSelect.mockReturnValue({ eq: mockSupabaseEq });
+      mockSupabaseEq.mockReturnValue({ single: mockSupabaseSingle });
+      mockSupabaseSingle.mockResolvedValue({ data: null, error: null }); // Simulate not found
+
+      const res = await agent.get(`${API_BASE_PATH}/${NON_EXISTENT_ID}`);
       expect(res.status).toBe(404);
       expect(res.body).toHaveProperty('message', 'Listing not found');
     });
 
-    it('should return 400 for an invalid ID format', async () => {
-      const res = await request.get(`${API_BASE_PATH}/${INVALID_ID_FORMAT}`);
+    it('should return 400 for an invalid ID format (not UUID)', async () => {
+      const res = await agent.get(`${API_BASE_PATH}/not-a-uuid`);
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('message', 'Invalid ID format');
       expect(res.body.errors).toHaveProperty('id');
     });
+
+    it('should return 500 if supabase select fails', async () => {
+      mockSupabaseFrom.mockReturnValue({ select: mockSupabaseSelect });
+      mockSupabaseSelect.mockReturnValue({ eq: mockSupabaseEq });
+      mockSupabaseEq.mockReturnValue({ single: mockSupabaseSingle });
+      mockSupabaseSingle.mockResolvedValue({ data: null, error: { message: 'Supabase error' } });
+
+      const res = await agent.get(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`);
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error', 'Error fetching listing');
+    });
   });
 
   describe('PUT /api/listings/[id]', () => {
-    const updateData: UpdateListingPayload = {
-      title: 'Updated Supertest Anvil Title',
-      price: 199.99,
-    };
+    const updateData = { title: 'Updated Supertest Anvil Title', price: 199.99 };
 
     it('should update the listing for a valid ID and data, returning 200 status', async () => {
-      const res = await request
-        .put(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`)
-        .send(updateData)
-        .set('Content-Type', 'application/json');
+      const updatedListing = { id: MOCK_EXISTING_ID, ...updateData };
+      mockSupabaseFrom.mockReturnValue({ update: mockSupabaseUpdate });
+      mockSupabaseUpdate.mockReturnValue({ eq: mockSupabaseEq });
+      mockSupabaseEq.mockReturnValue({ select: mockSupabaseSelect }); // .update().eq().select()
+      // select() after update returns an array of updated records
+      mockSupabaseSelect.mockResolvedValue({ data: [updatedListing], error: null });
 
+      const res = await agent.put(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`).send(updateData);
       expect(res.status).toBe(200);
-      expect(res.body.data.id).toBe(MOCK_EXISTING_ID);
-      expect(res.body.data.title).toBe(updateData.title);
-      expect(res.body.data.price).toBe(updateData.price);
+      expect(res.body.data).toEqual(updatedListing);
     });
 
-    it('should return 400 for invalid update data', async () => {
-      const invalidUpdateData = { price: -50 };
-      const res = await request
-        .put(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`)
-        .send(invalidUpdateData)
-        .set('Content-Type', 'application/json');
-
+    it('should return 400 for invalid update data (e.g., negative price)', async () => {
+      const res = await agent.put(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`).send({ price: -50 });
       expect(res.status).toBe(400);
       expect(res.body.errors).toHaveProperty('price');
     });
 
     it('should return 404 when trying to update a non-existent ID', async () => {
-      const res = await request
-        .put(`${API_BASE_PATH}/${NON_EXISTENT_ID}`)
-        .send(updateData)
-        .set('Content-Type', 'application/json');
+      mockSupabaseFrom.mockReturnValue({ update: mockSupabaseUpdate });
+      mockSupabaseUpdate.mockReturnValue({ eq: mockSupabaseEq });
+      mockSupabaseEq.mockReturnValue({ select: mockSupabaseSelect });
+      // Simulate not found for update target - select returns empty array
+      mockSupabaseSelect.mockResolvedValue({ data: [], error: null });
+
+      const res = await agent.put(`${API_BASE_PATH}/${NON_EXISTENT_ID}`).send(updateData);
       expect(res.status).toBe(404);
+    });
+
+     it('should return 500 if supabase update fails', async () => {
+      mockSupabaseFrom.mockReturnValue({ update: mockSupabaseUpdate });
+      mockSupabaseUpdate.mockReturnValue({ eq: mockSupabaseEq });
+      // The select() part of the chain is where the error would manifest from Supabase
+      mockSupabaseEq.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ data: null, error: { message: 'Supabase update error' } })
+      });
+
+      const res = await agent.put(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`).send(updateData);
+      expect(res.status).toBe(500);
     });
   });
 
   describe('DELETE /api/listings/[id]', () => {
     it('should delete the listing for a valid ID and return 200 status', async () => {
-      const res = await request.delete(`${API_BASE_PATH}/${MOCK_EXISTING_ID_2}`);
+      mockSupabaseFrom.mockReturnValue({ delete: mockSupabaseDelete });
+      mockSupabaseDelete.mockReturnValue({ eq: mockSupabaseEq });
+      // Successful delete returns count: 1 (or more if multiple matched, though ID is unique)
+      mockSupabaseEq.mockResolvedValue({ error: null, count: 1 });
+
+      const res = await agent.delete(`${API_BASE_PATH}/${MOCK_EXISTING_ID_2}`);
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('message', 'Listing deleted successfully');
     });
 
     it('should return 404 when trying to delete a non-existent ID', async () => {
-      const res = await request.delete(`${API_BASE_PATH}/${NON_EXISTENT_ID}`);
+      mockSupabaseFrom.mockReturnValue({ delete: mockSupabaseDelete });
+      mockSupabaseDelete.mockReturnValue({ eq: mockSupabaseEq });
+      // Non-existent ID means delete operation affects 0 rows, no error.
+      mockSupabaseEq.mockResolvedValue({ error: null, count: 0 });
+
+      const res = await agent.delete(`${API_BASE_PATH}/${NON_EXISTENT_ID}`);
       expect(res.status).toBe(404);
     });
+
+    it('should return 500 if supabase delete fails generically', async () => {
+      mockSupabaseFrom.mockReturnValue({ delete: mockSupabaseDelete });
+      mockSupabaseDelete.mockReturnValue({ eq: mockSupabaseEq });
+      // Simulate a generic Supabase error during delete
+      mockSupabaseEq.mockResolvedValue({ error: { message: 'Generic Supabase delete error' }, count: null });
+
+      const res = await agent.delete(`${API_BASE_PATH}/${MOCK_EXISTING_ID}`);
+      expect(res.status).toBe(500);
+    });
+
   });
 });

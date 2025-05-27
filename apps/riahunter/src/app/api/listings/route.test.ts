@@ -1,9 +1,35 @@
-import supertest from 'supertest';
+import supertest, { SuperTest, Test } from 'supertest';
 import http from 'http';
 import { Readable } from 'stream';
-import * as listingsApi from './route';
+// Attempt to import internal handlers, assuming they are exported in test environment
+import { GET as actualGET_ANY, POST as actualPOST_ANY } from './route';
 import { CreateListingPayload } from '@appfoundation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
+import { AxiomRequest } from 'next-axiom';
+
+// Define the expected shape of the raw handlers (handleGet, handlePost)
+type RawHandler = (req: NextRequest | AxiomRequest) => Promise<NextResponse>;
+
+// Cast the imported handlers to the defined type
+const actualGET: RawHandler = actualGET_ANY as RawHandler;
+const actualPOST: RawHandler = actualPOST_ANY as RawHandler;
+
+// Cast for usage in tests if needed, or use actualGET/actualPOST directly if their signature is suitable
+const GET: RawHandler = actualGET;
+const POST: RawHandler = actualPOST;
+
+// Mock Supabase
+const mockSupabaseFrom = jest.fn().mockReturnThis(); // Ensure 'from' is chainable
+const mockSupabaseSelect = jest.fn();
+const mockSupabaseInsert = jest.fn().mockReturnThis(); // Ensure 'insert' is chainable for .select()
+
+jest.mock('@appfoundation/supabase/server', () => ({
+  getServerSupabaseClient: () => ({
+    from: mockSupabaseFrom,
+    select: mockSupabaseSelect, // Used after from('...').select('...')
+    insert: mockSupabaseInsert, // Used after from('...').insert('...').select()
+  }),
+}));
 
 // Helper to convert Node.js IncomingMessage to a Web API Request object
 // Returns a plain NextRequest. Inside route handlers, this will cause
@@ -54,20 +80,23 @@ async function sendNextResponse(res: http.ServerResponse, nextRes: Response): Pr
 }
 
 describe('API - /api/listings (supertest)', () => {
+  let agent: any; // Using any to bypass persistent type issue
   let server: http.Server;
-  let request: supertest.SuperTest<supertest.Test>; // Using SuperTest<Test>
 
   beforeAll((done) => {
+    // Reset mocks before each test suite run (though beforeAll runs once per describe block)
+    mockSupabaseFrom.mockReturnThis(); // Ensure chaining for .select/.insert
+    mockSupabaseSelect.mockReset();
+    mockSupabaseInsert.mockReturnThis(); // Ensure chaining for .select on insert
+
     server = http.createServer(async (req, res) => {
-      const webReq: NextRequest = await toWebRequest(req); // webReq is NextRequest
+      const webReq: NextRequest = await toWebRequest(req);
       try {
         if (req.url === '/api/listings' && req.method === 'GET') {
-          // Pass webReq (NextRequest) directly. Type system should handle it via Request | AxiomRequest.
-          const nextRes = await listingsApi.GET(webReq, { params: {} });
+          const nextRes = await GET(webReq);
           await sendNextResponse(res, nextRes);
         } else if (req.url === '/api/listings' && req.method === 'POST') {
-          // Pass webReq (NextRequest) directly.
-          const nextRes = await listingsApi.POST(webReq, { params: {} });
+          const nextRes = await POST(webReq);
           await sendNextResponse(res, nextRes);
         } else {
           res.statusCode = 404;
@@ -86,7 +115,7 @@ describe('API - /api/listings (supertest)', () => {
     });
     server.listen(() => {
       const port = (server.address() as import('net').AddressInfo).port;
-      request = supertest(server);
+      agent = supertest(server); // Assign to agent
       done();
     });
   });
@@ -97,34 +126,57 @@ describe('API - /api/listings (supertest)', () => {
 
   describe('GET /api/listings', () => {
     it('should return all listings with a 200 status', async () => {
-      const res = await request.get('/api/listings');
+      const mockListings = [
+        { id: '1', title: 'Test Listing 1', price: 100 },
+        { id: '2', title: 'Test Listing 2', price: 200 },
+      ];
+      // Ensure from().select() is mocked for this test case
+      mockSupabaseFrom.mockReturnValueOnce({ select: mockSupabaseSelect });
+      mockSupabaseSelect.mockResolvedValueOnce({ data: mockListings, error: null });
+
+      const res = await agent.get('/api/listings');
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('data');
-      expect(res.body).toHaveProperty('total');
-      expect(Array.isArray(res.body.data)).toBe(true);
-      expect(res.body.data.length).toBeGreaterThanOrEqual(2);
+      expect(res.body.data).toEqual(mockListings);
+      expect(res.body.total).toBe(mockListings.length);
+      expect(mockSupabaseFrom).toHaveBeenCalledWith('listings');
+      expect(mockSupabaseSelect).toHaveBeenCalledWith('*');
+    });
+
+    it('should return 500 if supabase select fails', async () => {
+      mockSupabaseFrom.mockReturnValueOnce({ select: mockSupabaseSelect });
+      mockSupabaseSelect.mockResolvedValueOnce({ data: null, error: { message: 'Supabase select error' } });
+      const res = await agent.get('/api/listings');
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error', 'Error fetching listings');
     });
   });
 
   describe('POST /api/listings', () => {
-    it('should create a new listing with valid data and return 201 status', async () => {
-      const newListingData: CreateListingPayload = {
-        title: 'Supertest New Item',
-        description: 'This is a test item created by Supertest!',
-        price: 199.99,
-        email: 'supertest@example.com',
-      };
+    const newListingData: CreateListingPayload = {
+      title: 'Supertest New Item',
+      description: 'This is a test item created by Supertest!',
+      price: 199.99,
+      email: 'supertest@example.com',
+    };
 
-      const res = await request
+    it('should create a new listing with valid data and return 201 status', async () => {
+      const createdListing = { ...newListingData, id: 'mock-id-123' };
+      // Mock for from('...').insert('...').select()
+      mockSupabaseFrom.mockReturnValueOnce({ insert: mockSupabaseInsert });
+      mockSupabaseInsert.mockReturnValueOnce({ select: mockSupabaseSelect });
+      mockSupabaseSelect.mockResolvedValueOnce({ data: [createdListing], error: null });
+
+      const res = await agent
         .post('/api/listings')
         .send(newListingData)
         .set('Content-Type', 'application/json');
 
       expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty('id');
-      expect(res.body.title).toBe(newListingData.title);
-      expect(res.body.price).toBe(newListingData.price);
-      expect(res.body.email).toBe(newListingData.email);
+      expect(res.body).toEqual(createdListing);
+      expect(mockSupabaseFrom).toHaveBeenCalledWith('listings');
+      expect(mockSupabaseInsert).toHaveBeenCalledWith([newListingData]);
+      expect(mockSupabaseSelect).toHaveBeenCalled();
     });
 
     it('should return 400 status for invalid data (e.g., missing title)', async () => {
@@ -133,7 +185,7 @@ describe('API - /api/listings (supertest)', () => {
         price: 10.00,
         email: 'invalid@supertest.com',
       };
-      const res = await request
+      const res = await agent
         .post('/api/listings')
         .send(invalidData)
         .set('Content-Type', 'application/json');
@@ -145,13 +197,27 @@ describe('API - /api/listings (supertest)', () => {
     });
 
     it('should return 400 status for invalid JSON payload', async () => {
-      const res = await request
+      const res = await agent
         .post('/api/listings')
         .send('{\"title\": \"Unfinished JSON') // Sending malformed JSON string
         .set('Content-Type', 'application/json');
 
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('message', 'Invalid JSON payload');
+    });
+
+    it('should return 500 if supabase insert fails', async () => {
+      mockSupabaseFrom.mockReturnValueOnce({ insert: mockSupabaseInsert });
+      mockSupabaseInsert.mockReturnValueOnce({ select: mockSupabaseSelect });
+      mockSupabaseSelect.mockResolvedValueOnce({ data: null, error: { message: 'Supabase insert error' } });
+
+      const res = await agent
+        .post('/api/listings')
+        .send(newListingData)
+        .set('Content-Type', 'application/json');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toHaveProperty('error', 'Error creating listing');
     });
   });
 });
