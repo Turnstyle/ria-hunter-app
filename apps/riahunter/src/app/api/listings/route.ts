@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { CreateListingSchema } from '@appfoundation/schemas';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { AxiomRequest, withAxiom, log as axiomLog } from 'next-axiom';
 import { getServerSupabaseClient } from '@appfoundation/supabase/server';
 
@@ -99,5 +100,14 @@ async function handlePost(request: Request | AxiomRequest, context?: HandlerCont
   }
 }
 
-// Conditionally wrap for non-test environments
-// The `as any`
+let GET, POST;
+
+if (process.env.NODE_ENV === 'test') {
+  GET = handleGet;
+  POST = handlePost;
+} else {
+  GET = withAxiom(handleGet as any);
+  POST = withAxiom(handlePost as any);
+}
+
+export { GET, POST };
