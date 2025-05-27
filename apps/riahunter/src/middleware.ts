@@ -5,6 +5,7 @@ import * as jose from 'jose';
 
 // Environment variables for Auth0 - these should be set in your .env files
 const AUTH0_ISSUER_BASE_URL = process.env.AUTH0_ISSUER_BASE_URL;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE;
 
 // Create a JWKS client to fetch signing keys from Auth0
@@ -56,6 +57,14 @@ async function middleware(request: NextRequest) {
     }
 
     const token = authHeader.split(' ')[1];
+
+    if (!token) {
+      console.error('Auth0 token is missing after splitting header');
+      return NextResponse.json(
+        { error: 'Malformed authorization header' },
+        { status: 401 }
+      );
+    }
 
     try {
       // Re-assign to new constants inside the try block to ensure TypeScript sees them as strings post-check.
