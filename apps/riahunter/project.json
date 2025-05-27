@@ -9,7 +9,7 @@
       "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
       "options": {
-        "outputPath": "apps/riahunter"
+        "outputPath": "dist/apps/riahunter"
       },
       "configurations": {
         "development": {
