@@ -1,71 +1,179 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from 'supabase/server'; // Import the server-side Supabase client
 // import { someAIServiceFunction } from 'ai-services'; // Adjusted placeholder for AI services
+import { z } from 'zod';
+import { google } from 'ai-services'; // Corrected import path
+import { generateText } from 'ai'; // Vercel AI SDK helper
+
+// Define Zod schema for query parameters for GET requests
+const getSearchParamsSchema = z.object({
+  location: z.string().optional(),
+  privateInvestment: z.string().optional(),
+});
+
+// Define Zod schema for the POST request body
+const postBodySchema = z.object({
+  query: z.string().min(1, { message: "Search query cannot be empty" }),
+});
+
+interface ExtractedSearchParams {
+  location?: string;
+  privateInvestmentInterest?: boolean;
+  keywords?: string[]; // For other general keywords
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const searchQuery = body.query; // Assuming the frontend sends a JSON with a 'query' field
+    const validation = postBodySchema.safeParse(body);
 
-    if (!searchQuery || typeof searchQuery !== 'string') { // Ensure searchQuery is a string
-      return NextResponse.json({ error: 'Search query (string) is required' }, { status: 400 });
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Invalid request body', issues: validation.error.issues }, { status: 400 });
     }
+
+    const { query: naturalLanguageQuery } = validation.data;
+    let extractedParams: ExtractedSearchParams = {};
+
+    if (google) {
+      try {
+        const prompt = `Given the user query: "${naturalLanguageQuery}", extract the following information and return it as a JSON object:
+        1. "location": The geographical area mentioned (e.g., city, state, ZIP code). If not specified, omit this field.
+        2. "privateInvestmentInterest": A boolean indicating if the user is interested in private investments, private funds, or similar concepts. If not specified, assume false or omit.
+        3. "keywords": An array of other relevant keywords or proper nouns from the query that might be useful for searching, excluding common stop words. If none, provide an empty array.
+
+        Example Query: "Find RIAs in St. Louis that focus on private equity"
+        Expected JSON Output: {"location": "St. Louis", "privateInvestmentInterest": true, "keywords": ["private equity"]}
+
+        Example Query: "Show me investment advisors"
+        Expected JSON Output: {"keywords": ["investment advisors"]}
+
+        Example Query: "Advisors in New York City"
+        Expected JSON Output: {"location": "New York City", "keywords": []}
+        Output ONLY the JSON object.`;
+
+        // Using the generic generateText from Vercel AI SDK with the Google model
+        const { text: aiResponse } = await generateText({
+          model: google('gemini-pro'), // Specifying a Gemini model
+          prompt: prompt,
+        });
+
+        console.log('AI Raw Response:', aiResponse);
+
+        // Attempt to parse the AI response as JSON
+        // The AI is instructed to return ONLY JSON, but good to be safe.
+        let parsedAiResponse: ExtractedSearchParams | null = null;
+        try {
+            // Clean the response to ensure it's valid JSON before parsing
+            const cleanedResponse = aiResponse.replace(/```json\n|```/g, '').trim();
+            parsedAiResponse = JSON.parse(cleanedResponse) as ExtractedSearchParams;
+        } catch (e) {
+            console.error("Failed to parse AI response as JSON:", e, "Raw response:", aiResponse);
+            // Potentially fall back to simpler keyword extraction or return an error/clarification request
+        }
+
+        if (parsedAiResponse) {
+          extractedParams = parsedAiResponse;
+        }
+        console.log('Extracted Search Parameters by AI:', extractedParams);
+
+      } catch (aiError) {
+        console.error('Error processing query with AI:', aiError);
+        // Fallback or error handling if AI processing fails
+        // For now, we can try a very basic keyword extraction if AI fails
+        extractedParams.keywords = naturalLanguageQuery.split(' ').filter(k => k.length > 2); // Simple fallback
+      }
+    } else {
+      console.warn('Google AI client not available. Using basic keyword extraction.');
+      // Fallback to basic keyword extraction if Google client is not initialized
+      extractedParams.keywords = naturalLanguageQuery.split(' ').filter(k => k.length > 2);
+    }
+
+    // TODO: Use extractedParams (location, privateInvestmentInterest, keywords)
+    // to build a Supabase query.
+
+    // For now, just return the extracted params and the original query
+    // Replace with actual Supabase query and results later
 
     const supabase = getServerSupabaseClient();
-
-    // --- Supabase Query Logic ---
-    // TODO: Replace with your actual Supabase query logic.
-    // This is a very basic example. You'll need to adapt it to your schema and search requirements.
-    // Consider:
-    //  - Your actual table name (e.g., 'rias', 'form_adv_data')
-    //  - Columns for location filtering (e.g., 'zip_code', 'city', 'state')
-    //  - Columns for private investment indicators (e.g., 'invests_in_private_funds')
-    //  - How to use searchQuery (e.g., against a name, description, or using FTS)
-    //  - Pagination and limiting results (.range())
-
     let queryBuilder = supabase
-      .from('sec_advisers_test') // <--- Updated with actual table name
-      .select('org_pk:id, managesprivatefunds, is_private_fund_related'); // <--- Updated with specific columns, aliasing org_pk to id
+      .from('sec_advisers_test')
+      .select('org_pk:id, managesprivatefunds, is_private_fund_related');
 
-    // Search by org_pk if searchQuery is provided
-    if (searchQuery) {
-      queryBuilder = queryBuilder.eq('org_pk', searchQuery);
+    // Example: Basic filtering based on AI extracted params (NEEDS REFINEMENT AND ACTUAL COLUMN NAMES)
+    if (extractedParams.location) {
+      // This is a placeholder. Actual location filtering will be more complex (e.g., ZIPs in MSA)
+      // queryBuilder = queryBuilder.ilike('address_city', `%${extractedParams.location}%`);
+      console.log("AI suggested location for query (not yet used):", extractedParams.location);
+    }
+    if (extractedParams.privateInvestmentInterest === true) {
+      // queryBuilder = queryBuilder.is('managesprivatefunds', true); // Example, use actual column
+      console.log("AI suggested private investment interest for query (not yet used).");
+    }
+    // You might also use extractedParams.keywords for .textSearch() or .ilike() on relevant columns
+
+    // Fallback: if AI didn't provide specific params, try using the original query for basic search
+    // This is a placeholder for the old direct org_pk search if no AI params are useful
+    if (Object.keys(extractedParams).length === 0 || (extractedParams.keywords && extractedParams.keywords.includes(naturalLanguageQuery))) {
+        console.log("Attempting direct org_pk lookup as fallback or if query matches keyword list exactly")
+        queryBuilder = queryBuilder.eq('org_pk', naturalLanguageQuery); // Original logic if query is an org_pk
     }
 
-    // Example: Basic text search on a hypothetical 'firm_name' column
-    // You might want to use .ilike() for case-insensitive search or .textSearch() for FTS
-    // The 'firm_name' column is not directly available in 'sec_advisers_test'.
-    // Text search needs to be re-evaluated based on available columns and requirements.
-    // if (searchQuery) {
-    //   queryBuilder = queryBuilder.ilike('some_column_to_search', `%${searchQuery}%`);
-    // }
-
-    // Example: Add a filter for St. Louis MSA ZIP codes (you'll need your list of ZIPs)
-    // const stLouisMSAZipCodes = ['63101', '63102', '...']; // <--- POPULATE this list
-    // queryBuilder = queryBuilder.in('zip_code', stLouisMSAZipCodes); // <--- REPLACE 'zip_code' with your ZIP code column
-
-    // Example: Add a filter for private investment indicators
-    // queryBuilder = queryBuilder.eq('has_private_fund_activity', true); // <--- REPLACE with your actual column and logic
-
-    const { data: supabaseResults, error: supabaseError } = await queryBuilder.limit(100); // Example limit
+    const { data: supabaseResults, error: supabaseError } = await queryBuilder.limit(10); // Example limit
 
     if (supabaseError) {
       console.error('Supabase error:', supabaseError);
       return NextResponse.json({ error: 'Error fetching data from Supabase', details: supabaseError.message }, { status: 500 });
     }
-    // --- End Supabase Query Logic ---
 
-    // Placeholder for AI processing (e.g., Google Gemini) if needed for this search endpoint
-    const aiProcessedResults = supabaseResults; // Replace or augment with AI processing
-
-    return NextResponse.json(aiProcessedResults);
+    return NextResponse.json({
+      naturalLanguageQuery,
+      aiExtractedParams: extractedParams,
+      results: supabaseResults,
+      // aiProcessedResults: supabaseResults, // Keep if you want to differentiate
+    });
 
   } catch (error) {
-    console.error('Error in /api/ria-hunter/search:', error);
+    console.error('Error in /api/ria-hunter/search POST:', error);
     let errorMessage = 'Internal Server Error';
     if (error instanceof Error) {
       errorMessage = error.message;
     }
     return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const params = {
+    location: searchParams.get('location') || undefined,
+    privateInvestment: searchParams.get('privateInvestment') || undefined,
+  };
+
+  const validation = getSearchParamsSchema.safeParse(params);
+
+  if (!validation.success) {
+    return NextResponse.json({ error: 'Invalid query parameters', issues: validation.error.issues }, { status: 400 });
+  }
+
+  // Validated parameters
+  const { location, privateInvestment } = validation.data;
+
+  console.log('Search API called with (validated):', { location, privateInvestment });
+
+  // TODO: Implement actual Supabase query logic using validated parameters
+  // 1. Construct Supabase query based on location and privateInvestment
+  // 2. Execute query
+  // 3. Handle potential errors
+  // 4. Return search results or error response
+
+  // Placeholder response
+  return NextResponse.json({
+    message: 'Search API endpoint for RIA Hunter',
+    receivedParams: {
+      location,
+      privateInvestment,
+    },
+    // TODO: Replace with actual search results
+    data: [],
+  });
 }
