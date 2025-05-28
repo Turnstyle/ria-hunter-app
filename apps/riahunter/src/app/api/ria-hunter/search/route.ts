@@ -4,6 +4,7 @@ import { getServerSupabaseClient } from 'supabase/server'; // Import the server-
 import { z } from 'zod';
 import { google } from 'ai-services'; // Corrected import path
 import { generateText } from 'ai'; // Vercel AI SDK helper
+import * as Sentry from "@sentry/nextjs";
 
 // Define Zod schema for query parameters for GET requests
 const getSearchParamsSchema = z.object({
@@ -14,6 +15,34 @@ const getSearchParamsSchema = z.object({
 // Define Zod schema for the POST request body
 const postBodySchema = z.object({
   query: z.string().min(1, { message: "Search query cannot be empty" }),
+});
+
+// Zod schema for a single item in the search results array from Supabase
+const riaSearchResultItemSchema = z.object({
+  // Define based on the actual columns you select and expect
+  // Example using fields from the POST handler's select:
+  id: z.any(), // org_pk can be number or string, using z.any() for flexibility here
+  managesprivatefunds: z.boolean().nullable().optional(),
+  is_private_fund_related: z.boolean().nullable().optional(),
+  // If using select('*'), you'd list all expected columns and their types
+  // For now, keeping it minimal or more generic if columns are unknown for GET's select('*')
+  // If select('*') is used, it's safer to make the object more open or define all fields
+});
+
+// Zod schema for the array of search results
+const riaSearchResponseDataSchema = z.array(z.record(z.any())); // More generic for select('*')
+// For a more strictly typed response based on known selected columns:
+// const riaSearchResponseDataSchema = z.array(riaSearchResultItemSchema);
+
+// Zod schema for the POST request's response data
+const postResponseDataSchema = z.object({
+  naturalLanguageQuery: z.string(),
+  aiExtractedParams: z.object({ // Based on ExtractedSearchParams interface
+    location: z.string().optional(),
+    privateInvestmentInterest: z.boolean().optional(),
+    keywords: z.array(z.string()).optional(),
+  }).optional(), // Making aiExtractedParams itself optional if AI fails or is not used
+  results: riaSearchResponseDataSchema, // Reuse the schema for Supabase results
 });
 
 interface ExtractedSearchParams {
@@ -125,15 +154,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Error fetching data from Supabase', details: supabaseError.message }, { status: 500 });
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       naturalLanguageQuery,
       aiExtractedParams: extractedParams,
-      results: supabaseResults,
-      // aiProcessedResults: supabaseResults, // Keep if you want to differentiate
-    });
+      results: supabaseResults || [], // Ensure results is always an array
+    };
+
+    // Validate the response payload
+    const validationResult = postResponseDataSchema.safeParse(responsePayload);
+
+    if (!validationResult.success) {
+      console.error('POST response data validation error:', validationResult.error.issues);
+      // Potentially return a generic error or the data as is, depending on policy
+      // For now, returning an error to prevent sending malformed data
+      Sentry.captureException(new Error('POST response data validation failed'), {
+        extra: { issues: validationResult.error.issues, originalPayload: responsePayload },
+      });
+      return NextResponse.json(
+        {
+          error: 'Invalid data structure for POST response',
+          details: validationResult.error.issues,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(validationResult.data);
 
   } catch (error) {
     console.error('Error in /api/ria-hunter/search POST:', error);
+    Sentry.captureException(error);
     let errorMessage = 'Internal Server Error';
     if (error instanceof Error) {
       errorMessage = error.message;
@@ -160,20 +210,68 @@ export async function GET(request: NextRequest) {
 
   console.log('Search API called with (validated):', { location, privateInvestment });
 
-  // TODO: Implement actual Supabase query logic using validated parameters
-  // 1. Construct Supabase query based on location and privateInvestment
-  // 2. Execute query
-  // 3. Handle potential errors
-  // 4. Return search results or error response
+  try {
+    const supabase = getServerSupabaseClient();
+    // Assuming 'sec_advisers_test' is the table name and it has relevant columns.
+    // Adjust table and column names as per the actual schema.
+    let queryBuilder = supabase
+      .from('sec_advisers_test') // Replace with your actual table name
+      .select('*'); // Select all columns for now, adjust as needed
 
-  // Placeholder response
-  return NextResponse.json({
-    message: 'Search API endpoint for RIA Hunter',
-    receivedParams: {
-      location,
-      privateInvestment,
-    },
-    // TODO: Replace with actual search results
-    data: [],
-  });
+    if (location) {
+      // Placeholder for location filtering. This needs to be more robust.
+      // Example: searching in a city column. Adjust 'address_city' to your actual column name.
+      queryBuilder = queryBuilder.ilike('address_city', `%${location}%`);
+    }
+
+    if (privateInvestment === 'true') {
+      // Example: filtering for advisers that manage private funds.
+      // Adjust 'managesprivatefunds' to your actual boolean column name.
+      queryBuilder = queryBuilder.eq('managesprivatefunds', true);
+    } else if (privateInvestment === 'false') {
+      queryBuilder = queryBuilder.eq('managesprivatefunds', false);
+    }
+
+    // Add a limit to prevent accidentally fetching too much data
+    queryBuilder = queryBuilder.limit(50);
+
+    const { data, error } = await queryBuilder;
+
+    if (error) {
+      console.error('Supabase error in GET /api/ria-hunter/search:', error);
+      return NextResponse.json({ error: 'Error fetching data from Supabase', details: error.message }, { status: 500 });
+    }
+
+    // Validate the structure of the data from Supabase before sending it in the response
+    const validationResult = riaSearchResponseDataSchema.safeParse(data);
+    if (!validationResult.success) {
+      console.error('Supabase response data validation error:', validationResult.error);
+      // Decide if to send potentially malformed data, an error, or an empty array
+      return NextResponse.json(
+        {
+          error: 'Invalid data structure from database',
+          details: validationResult.error.issues
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      message: 'Search results for RIA Hunter',
+      receivedParams: {
+        location,
+        privateInvestment,
+      },
+      data: validationResult.data, // Send the validated data
+    });
+
+  } catch (error) {
+    console.error('Error in GET /api/ria-hunter/search:', error);
+    Sentry.captureException(error);
+    let errorMessage = 'Internal Server Error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
+  }
 }

@@ -2,34 +2,54 @@ import supertest, { SuperTest, Test } from 'supertest';
 import http from 'http';
 import { Readable } from 'stream';
 // Attempt to import internal handlers, assuming they are exported in test environment
-import { GET as actualGET_ANY, POST as actualPOST_ANY } from './route';
-import { CreateListingPayload } from '@appfoundation/schemas';
+import { GET as routeGET, POST as routePOST } from './route';
+import { CreateListingPayload, CreateListingSchema } from '@appfoundation/schemas';
 import { NextRequest, NextResponse } from 'next/server';
 import { AxiomRequest } from 'next-axiom';
+import { z } from 'zod';
 
-// Define the expected shape of the raw handlers (handleGet, handlePost)
-type RawHandler = (req: NextRequest | AxiomRequest) => Promise<NextResponse>;
+// Define Zod schema for a single listing item in the response (mirror from route.ts for test data generation)
+const TestListingResponseItemSchema = CreateListingSchema.extend({
+  id: z.string().uuid(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
+});
+// For GET response, data can have optional created_at/updated_at from DB if not all records have it
+// but for mock generation, it's easier to make them required and then strip if needed.
+// The route's Zod schema makes them optional, which is correct.
 
-// Cast the imported handlers to the defined type
-const actualGET: RawHandler = actualGET_ANY as RawHandler;
-const actualPOST: RawHandler = actualPOST_ANY as RawHandler;
-
-// Cast for usage in tests if needed, or use actualGET/actualPOST directly if their signature is suitable
-const GET: RawHandler = actualGET;
-const POST: RawHandler = actualPOST;
+// Define the expected shape of the handlers from route.ts
+// These handlers (handleGet, handlePost) take an optional second context argument.
+interface HandlerContext { params?: Record<string, string | string[]>; [key: string]: any; }
+type AppRouteHandler = (
+  req: NextRequest | AxiomRequest,
+  context?: HandlerContext // context is optional in the actual handlers
+) => Promise<NextResponse>;
 
 // Mock Supabase
-const mockSupabaseFrom = jest.fn().mockReturnThis(); // Ensure 'from' is chainable
+const mockSupabaseFrom = jest.fn();
 const mockSupabaseSelect = jest.fn();
-const mockSupabaseInsert = jest.fn().mockReturnThis(); // Ensure 'insert' is chainable for .select()
+const mockSupabaseInsert = jest.fn();
+const mockSupabaseSingle = jest.fn(); // For .single()
 
-jest.mock('@appfoundation/supabase/server', () => ({
+jest.mock('supabase/server', () => ({
   getServerSupabaseClient: () => ({
     from: mockSupabaseFrom,
-    select: mockSupabaseSelect, // Used after from('...').select('...')
-    insert: mockSupabaseInsert, // Used after from('...').insert('...').select()
   }),
 }));
+
+// Setup mock implementations
+mockSupabaseFrom.mockImplementation(() => ({
+  select: mockSupabaseSelect,
+  insert: mockSupabaseInsert,
+}));
+
+mockSupabaseInsert.mockImplementation(() => ({ // insert(...).select().single()
+  select: jest.fn(() => ({ // This select is after insert
+    single: mockSupabaseSingle,
+  })),
+}));
+// mockSupabaseSelect is for the GET case: from(...).select()
 
 // Helper to convert Node.js IncomingMessage to a Web API Request object
 // Returns a plain NextRequest. Inside route handlers, this will cause
@@ -84,19 +104,16 @@ describe('API - /api/listings (supertest)', () => {
   let server: http.Server;
 
   beforeAll((done) => {
-    // Reset mocks before each test suite run (though beforeAll runs once per describe block)
-    mockSupabaseFrom.mockReturnThis(); // Ensure chaining for .select/.insert
-    mockSupabaseSelect.mockReset();
-    mockSupabaseInsert.mockReturnThis(); // Ensure chaining for .select on insert
-
     server = http.createServer(async (req, res) => {
       const webReq: NextRequest = await toWebRequest(req);
       try {
         if (req.url === '/api/listings' && req.method === 'GET') {
-          const nextRes = await GET(webReq);
+          // @ts-expect-error Type inference challenge with conditional exports
+          const nextRes = await (routeGET as AppRouteHandler)(webReq);
           await sendNextResponse(res, nextRes);
         } else if (req.url === '/api/listings' && req.method === 'POST') {
-          const nextRes = await POST(webReq);
+          // @ts-expect-error Type inference challenge with conditional exports
+          const nextRes = await (routePOST as AppRouteHandler)(webReq);
           await sendNextResponse(res, nextRes);
         } else {
           res.statusCode = 404;
@@ -124,66 +141,103 @@ describe('API - /api/listings (supertest)', () => {
     server.close(done);
   });
 
+  beforeEach(() => {
+    // Reset all mock implementations and calls before each test
+    mockSupabaseFrom.mockClear().mockImplementation(() => ({
+        select: mockSupabaseSelect,
+        insert: mockSupabaseInsert,
+    }));
+    mockSupabaseSelect.mockClear();
+    mockSupabaseInsert.mockClear().mockImplementation(() => ({
+        select: jest.fn(() => ({
+            single: mockSupabaseSingle,
+        })),
+    }));
+    mockSupabaseSingle.mockClear();
+  });
+
   describe('GET /api/listings', () => {
-    it('should return all listings with a 200 status', async () => {
-      const mockListings = [
-        { id: '1', title: 'Test Listing 1', price: 100 },
-        { id: '2', title: 'Test Listing 2', price: 200 },
+    it('should return all listings with a 200 status and correct structure', async () => {
+      const now = new Date().toISOString();
+      const mockListingsData = [
+        { id: '11111111-1111-1111-1111-111111111111', title: 'Test Listing 1', description: 'Desc 1', price: 100, email: 'test1@example.com', created_at: now, updated_at: now },
+        { id: '22222222-2222-2222-2222-222222222222', title: 'Test Listing 2', description: 'Desc 2', price: 200, email: 'test2@example.com', created_at: now, updated_at: now },
       ];
-      // Ensure from().select() is mocked for this test case
-      mockSupabaseFrom.mockReturnValueOnce({ select: mockSupabaseSelect });
-      mockSupabaseSelect.mockResolvedValueOnce({ data: mockListings, error: null });
+      // Ensure Zod schema for response items is satisfied by mock data
+      mockListingsData.forEach(item => TestListingResponseItemSchema.parse(item));
+
+
+      // Mock for from('listings').select('*', { count: 'exact' })
+      mockSupabaseSelect.mockResolvedValueOnce({ data: mockListingsData, error: null, count: mockListingsData.length });
 
       const res = await agent.get('/api/listings');
+
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('data');
-      expect(res.body.data).toEqual(mockListings);
-      expect(res.body.total).toBe(mockListings.length);
+      expect(res.body.data).toEqual(mockListingsData);
+      expect(res.body.total).toBe(mockListingsData.length);
       expect(mockSupabaseFrom).toHaveBeenCalledWith('listings');
-      expect(mockSupabaseSelect).toHaveBeenCalledWith('*');
+      // Check select arguments: first is '*', second is { count: 'exact' }
+      expect(mockSupabaseSelect).toHaveBeenCalledWith('*', { count: 'exact' });
     });
 
     it('should return 500 if supabase select fails', async () => {
-      mockSupabaseFrom.mockReturnValueOnce({ select: mockSupabaseSelect });
-      mockSupabaseSelect.mockResolvedValueOnce({ data: null, error: { message: 'Supabase select error' } });
+      mockSupabaseSelect.mockResolvedValueOnce({ data: null, error: { message: 'Supabase select error' }, count: 0 });
       const res = await agent.get('/api/listings');
       expect(res.status).toBe(500);
       expect(res.body).toHaveProperty('error', 'Error fetching listings');
     });
+
+    it('should return 500 if response data is not as expected by Zod (mocked validation failure)', async () => {
+      const malformedListing = { id: '123', title: 'Bad ID' }; // id is not UUID
+      mockSupabaseSelect.mockResolvedValueOnce({ data: [malformedListing], error: null, count: 1 });
+
+      const res = await agent.get('/api/listings');
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('Internal server error: Invalid response structure');
+    });
   });
 
   describe('POST /api/listings', () => {
-    const newListingData: CreateListingPayload = {
+    const now = new Date().toISOString();
+    const newListingPayload: CreateListingPayload = {
       title: 'Supertest New Item',
       description: 'This is a test item created by Supertest!',
       price: 199.99,
       email: 'supertest@example.com',
     };
 
-    it('should create a new listing with valid data and return 201 status', async () => {
-      const createdListing = { ...newListingData, id: 'mock-id-123' };
-      // Mock for from('...').insert('...').select()
-      mockSupabaseFrom.mockReturnValueOnce({ insert: mockSupabaseInsert });
-      mockSupabaseInsert.mockReturnValueOnce({ select: mockSupabaseSelect });
-      mockSupabaseSelect.mockResolvedValueOnce({ data: [createdListing], error: null });
+    const expectedCreatedListing = {
+      ...newListingPayload,
+      id: '33333333-3333-3333-3333-333333333333', // Example UUID
+      created_at: now,
+      updated_at: now,
+    };
+    // Ensure Zod schema for response item is satisfied
+    TestListingResponseItemSchema.parse(expectedCreatedListing);
+
+
+    it('should create a new listing with valid data and return 201 status with correct structure', async () => {
+      // Mock for from('listings').insert(...).select().single()
+      mockSupabaseSingle.mockResolvedValueOnce({ data: expectedCreatedListing, error: null });
 
       const res = await agent
         .post('/api/listings')
-        .send(newListingData)
+        .send(newListingPayload)
         .set('Content-Type', 'application/json');
 
       expect(res.status).toBe(201);
-      expect(res.body).toEqual(createdListing);
+      expect(res.body).toEqual(expectedCreatedListing);
       expect(mockSupabaseFrom).toHaveBeenCalledWith('listings');
-      expect(mockSupabaseInsert).toHaveBeenCalledWith([newListingData]);
-      expect(mockSupabaseSelect).toHaveBeenCalled();
+      expect(mockSupabaseInsert).toHaveBeenCalledWith([newListingPayload]);
+      expect(mockSupabaseSingle).toHaveBeenCalled();
     });
 
     it('should return 400 status for invalid data (e.g., missing title)', async () => {
-      const invalidData = {
+      const invalidData = { // Missing title, price not positive, email invalid
         description: 'This item is missing a title',
-        price: 10.00,
-        email: 'invalid@supertest.com',
+        price: -10.00,
+        email: 'invalid-email',
       };
       const res = await agent
         .post('/api/listings')
@@ -194,6 +248,8 @@ describe('API - /api/listings (supertest)', () => {
       expect(res.body).toHaveProperty('message', 'Invalid request data');
       expect(res.body).toHaveProperty('errors');
       expect(res.body.errors).toHaveProperty('title');
+      expect(res.body.errors).toHaveProperty('price');
+      expect(res.body.errors).toHaveProperty('email');
     });
 
     it('should return 400 status for invalid JSON payload', async () => {
@@ -207,17 +263,33 @@ describe('API - /api/listings (supertest)', () => {
     });
 
     it('should return 500 if supabase insert fails', async () => {
-      mockSupabaseFrom.mockReturnValueOnce({ insert: mockSupabaseInsert });
-      mockSupabaseInsert.mockReturnValueOnce({ select: mockSupabaseSelect });
-      mockSupabaseSelect.mockResolvedValueOnce({ data: null, error: { message: 'Supabase insert error' } });
+      mockSupabaseSingle.mockResolvedValueOnce({ data: null, error: { message: 'Supabase insert error' } });
 
       const res = await agent
         .post('/api/listings')
-        .send(newListingData)
+        .send(newListingPayload)
         .set('Content-Type', 'application/json');
 
       expect(res.status).toBe(500);
       expect(res.body).toHaveProperty('error', 'Error creating listing');
+    });
+
+    it('should return 500 if created listing data from Supabase is not as expected by Zod', async () => {
+      const malformedCreatedListing = {
+        ...newListingPayload,
+        id: 'not-a-uuid', // Invalid ID
+        created_at: now,
+        updated_at: now,
+      };
+      mockSupabaseSingle.mockResolvedValueOnce({ data: malformedCreatedListing, error: null });
+
+      const res = await agent
+        .post('/api/listings')
+        .send(newListingPayload)
+        .set('Content-Type', 'application/json');
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('Internal server error: Invalid response structure for created listing');
     });
   });
 });

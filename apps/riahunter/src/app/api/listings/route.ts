@@ -2,7 +2,21 @@ import { NextResponse } from 'next/server';
 import { CreateListingSchema } from '@appfoundation/schemas';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { AxiomRequest, withAxiom, log as axiomLog } from 'next-axiom';
-import { getServerSupabaseClient } from '@appfoundation/supabase/server';
+import { getServerSupabaseClient } from 'supabase/server';
+import { z } from 'zod';
+
+// Define Zod schema for a single listing item in the response
+const ListingResponseItemSchema = CreateListingSchema.extend({
+  id: z.string().uuid(), // Assuming ID is a UUID, adjust if it's a number or other string format
+  created_at: z.string().datetime().optional(), // Supabase typically adds these
+  updated_at: z.string().datetime().optional(), // Supabase typically adds these
+});
+
+// Define Zod schema for the GET /api/listings response
+const GetListingsResponseSchema = z.object({
+  data: z.array(ListingResponseItemSchema),
+  total: z.number().int().nonnegative(),
+});
 
 // Helper to get the correct logger based on environment and request type
 function getLoggerForRequest(request: Request | AxiomRequest) {
@@ -27,15 +41,31 @@ async function handleGet(request: Request | AxiomRequest, context?: HandlerConte
   const supabase = getServerSupabaseClient();
 
   try {
-    const { data: listings, error } = await supabase.from('listings').select('*');
+    const { data: listings, error, count } = await supabase
+      .from('listings')
+      .select('*', { count: 'exact' }); // Request count for pagination
 
     if (error) {
       currentLog.error('Supabase error fetching listings', { error: error.message });
       return NextResponse.json({ error: 'Error fetching listings', details: error.message }, { status: 500 });
     }
 
-    currentLog.info('Returning all listings from database', { count: listings?.length || 0 });
-    return NextResponse.json({ data: listings || [], total: listings?.length || 0 });
+    const responsePayload = {
+      data: listings || [],
+      total: count ?? listings?.length ?? 0, // Use Supabase count if available
+    };
+
+    const validationResult = GetListingsResponseSchema.safeParse(responsePayload);
+    if (!validationResult.success) {
+      currentLog.error('GET /api/listings response validation error', { error: validationResult.error.flatten() });
+      return NextResponse.json(
+        { error: 'Internal server error: Invalid response structure', details: validationResult.error.issues },
+        { status: 500 }
+      );
+    }
+
+    currentLog.info('Returning all listings from database', { count: validationResult.data.total });
+    return NextResponse.json(validationResult.data);
   } catch (error: any) {
     currentLog.error('Error fetching listings (catch block)', { errorMessage: error.message, errorObj: error });
     return NextResponse.json(
@@ -79,21 +109,32 @@ async function handlePost(request: Request | AxiomRequest, context?: HandlerCont
     const { data: createdListings, error: insertError } = await supabase
       .from('listings')
       .insert([newListingData]) // Supabase insert expects an array of objects
-      .select(); // Return the inserted record(s)
+      .select() // Return the inserted record(s)
+      .single(); // Expecting a single record back after insert
 
     if (insertError) {
       currentLog.error('Supabase error creating listing', { error: insertError.message, details: insertError.details });
       return NextResponse.json({ error: 'Error creating listing', details: insertError.message }, { status: 500 });
     }
 
-    const createdListing = createdListings?.[0];
+    // const createdListing = createdListings?.[0]; // No longer an array due to .single()
+    const createdListing = createdListings;
     if (!createdListing) {
       currentLog.error('Supabase created listing but returned no data');
       return NextResponse.json({ error: 'Failed to retrieve created listing data' }, { status: 500 });
     }
 
-    currentLog.info('New listing created successfully in database', { newListing: createdListing });
-    return NextResponse.json(createdListing, { status: 201 });
+    const responseValidationResult = ListingResponseItemSchema.safeParse(createdListing);
+    if (!responseValidationResult.success) {
+      currentLog.error('POST /api/listings response validation error', { error: responseValidationResult.error.flatten(), data: createdListing });
+      return NextResponse.json(
+        { error: 'Internal server error: Invalid response structure for created listing', details: responseValidationResult.error.issues },
+        { status: 500 }
+      );
+    }
+
+    currentLog.info('New listing created successfully in database', { newListing: responseValidationResult.data });
+    return NextResponse.json(responseValidationResult.data, { status: 201 });
   } catch (error: any) {
     currentLog.error('Internal server error during POST /api/listings processing (catch block)', { errorMessage: error.message, errorObj: error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
