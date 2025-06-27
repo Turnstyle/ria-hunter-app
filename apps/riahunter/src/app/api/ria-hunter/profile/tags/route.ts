@@ -1,90 +1,159 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from 'supabase/server';
+import { getSession } from '@auth0/nextjs-auth0';
 import { z } from 'zod';
 import * as Sentry from "@sentry/nextjs";
 
-// Placeholder for user authentication
-const getAuthenticatedUserId = async (): Promise<string | null> => {
-  return 'mock-user-id-123';
-};
+// Zod schema for POST request body
+const postBodySchema = z.object({
+  ria_id: z.union([z.string(), z.number()]).transform(val => String(val)), // Convert to string for consistency
+  tag_text: z.string().min(1, { message: "Tag text cannot be empty" }).max(50, { message: "Tag text too long" }),
+});
 
+// Zod schema for individual tag
 const tagSchema = z.object({
-  id: z.string().uuid(), // Assuming UUID for tag ID from DB
+  id: z.string(),
   ria_id: z.string(),
-  user_id: z.string().uuid(),
   tag_text: z.string(),
-  created_at: z.string().datetime(),
+  created_at: z.string(),
 });
 
-const createTagBodySchema = z.object({
-  ria_id: z.string({ required_error: "RIA ID is required" }),
-  tag_text: z.string().min(1, { message: "Tag text cannot be empty" }).max(50, { message: "Tag text cannot exceed 50 characters" }),
-});
+// Zod schema for GET response
+const getResponseSchema = z.array(tagSchema);
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const riaId = searchParams.get('ria_id');
+
+    if (!riaId) {
+      return NextResponse.json({ error: 'ria_id parameter is required' }, { status: 400 });
+    }
+
+    const supabase = getServerSupabaseClient();
+
+    // Verify the RIA exists
+    const { data: riaExists, error: riaError } = await supabase
+      .from('advisers')
+      .select('cik')
+      .eq('cik', parseInt(riaId))
+      .single();
+
+    if (riaError || !riaExists) {
+      return NextResponse.json({ error: 'RIA not found' }, { status: 404 });
+    }
+
+    // Fetch user's tags for this RIA
+    const { data: tags, error: tagsError } = await supabase
+      .from('user_tags')
+      .select('*')
+      .eq('user_id', session.user.sub)
+      .eq('ria_id', riaId)
+      .order('created_at', { ascending: false });
+
+    if (tagsError) {
+      console.error('Error fetching tags:', tagsError);
+      Sentry.captureException(tagsError);
+      return NextResponse.json({ error: 'Failed to fetch tags' }, { status: 500 });
+    }
+
+    // Validate response
+    const validationResult = getResponseSchema.safeParse(tags || []);
+    if (!validationResult.success) {
+      console.error('Tags response validation error:', validationResult.error.issues);
+      Sentry.captureException(new Error('Tags response validation failed'), {
+        extra: { issues: validationResult.error.issues, originalData: tags },
+      });
+      return NextResponse.json({ error: 'Invalid tags data structure' }, { status: 500 });
+    }
+
+    return NextResponse.json(validationResult.data);
+
+  } catch (error) {
+    console.error('Error in GET /api/ria-hunter/profile/tags:', error);
+    Sentry.captureException(error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const session = await getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    const validation = createTagBodySchema.safeParse(body);
+    const validation = postBodySchema.safeParse(body);
 
     if (!validation.success) {
       return NextResponse.json({ error: 'Invalid request body', issues: validation.error.issues }, { status: 400 });
     }
 
     const { ria_id, tag_text } = validation.data;
+
     const supabase = getServerSupabaseClient();
 
-    // Optional: Check if the exact same tag already exists for this user and RIA to prevent duplicates
-    const { data: existingTag, error: existingTagError } = await supabase
-        .from('user_ria_tags')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('ria_id', ria_id)
-        .ilike('tag_text', tag_text) // Case-insensitive check for tag text
-        .maybeSingle();
+    // Verify the RIA exists
+    const { data: riaExists, error: riaError } = await supabase
+      .from('advisers')
+      .select('cik')
+      .eq('cik', parseInt(ria_id))
+      .single();
 
-    if (existingTagError && existingTagError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine here
-        console.error('Supabase error checking for existing tag:', existingTagError);
-        Sentry.captureException(existingTagError, { extra: { ria_id, userId, tag_text } });
-        return NextResponse.json({ error: 'Failed to check for existing tag', details: existingTagError.message }, { status: 500 });
+    if (riaError || !riaExists) {
+      return NextResponse.json({ error: 'RIA not found' }, { status: 404 });
     }
+
+    // Check if tag already exists for this user and RIA (prevent duplicates)
+    const { data: existingTag, error: existingError } = await supabase
+      .from('user_tags')
+      .select('id')
+      .eq('user_id', session.user.sub)
+      .eq('ria_id', ria_id)
+      .eq('tag_text', tag_text)
+      .single();
 
     if (existingTag) {
-        return NextResponse.json({ error: 'Tag already exists for this RIA by this user.', tag_id: existingTag.id }, { status: 409 }); // Conflict
+      return NextResponse.json({ error: 'Tag already exists for this RIA' }, { status: 409 });
     }
 
-    const { data, error } = await supabase
-      .from('user_ria_tags')
+    // Create the tag
+    const { data: newTag, error: insertError } = await supabase
+      .from('user_tags')
       .insert({
+        user_id: session.user.sub,
         ria_id: ria_id,
-        user_id: userId,
-        tag_text: tag_text, // Store the original case, or normalize (e.g., toLowerCase())
+        tag_text: tag_text,
       })
       .select()
       .single();
 
-    if (error) {
-      console.error('Supabase error creating tag:', error);
-      Sentry.captureException(error, { extra: { ria_id, userId, tag_text } });
-      return NextResponse.json({ error: 'Failed to create tag', details: error.message }, { status: 500 });
+    if (insertError) {
+      console.error('Error creating tag:', insertError);
+      Sentry.captureException(insertError);
+      return NextResponse.json({ error: 'Failed to create tag' }, { status: 500 });
     }
 
-    const responseValidation = tagSchema.safeParse(data);
-    if (!responseValidation.success) {
-        console.error('Tag POST response data validation error:', responseValidation.error.issues);
-        Sentry.captureException(new Error('Tag POST response data validation failed'), {
-            extra: { issues: responseValidation.error.issues, originalData: data },
-        });
-        return NextResponse.json(
-            { error: 'Invalid data structure for created tag response' },
-            { status: 500 }
-        );
+    // Validate response
+    const validationResult = tagSchema.safeParse(newTag);
+    if (!validationResult.success) {
+      console.error('Tag creation response validation error:', validationResult.error.issues);
+      Sentry.captureException(new Error('Tag creation response validation failed'), {
+        extra: { issues: validationResult.error.issues, originalData: newTag },
+      });
+      return NextResponse.json({ error: 'Invalid tag data structure' }, { status: 500 });
     }
-    return NextResponse.json(responseValidation.data, { status: 201 });
+
+    return NextResponse.json(validationResult.data, { status: 201 });
+
   } catch (error) {
     console.error('Error in POST /api/ria-hunter/profile/tags:', error);
     Sentry.captureException(error);
@@ -92,58 +161,40 @@ export async function POST(request: NextRequest) {
   }
 }
 
-const getTagsQuerySchema = z.object({
-  ria_id: z.string({ required_error: "RIA ID is required as a query parameter" }),
-});
-
-const tagsListResponseSchema = z.array(tagSchema);
-
-export async function GET(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const session = await getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const queryParamsValidation = getTagsQuerySchema.safeParse({
-      ria_id: searchParams.get('ria_id'),
-    });
+    const tagId = searchParams.get('tag_id');
 
-    if (!queryParamsValidation.success) {
-      return NextResponse.json({ error: 'Invalid query parameters', issues: queryParamsValidation.error.issues }, { status: 400 });
+    if (!tagId) {
+      return NextResponse.json({ error: 'tag_id parameter is required' }, { status: 400 });
     }
 
-    const { ria_id } = queryParamsValidation.data;
     const supabase = getServerSupabaseClient();
 
-    const { data, error } = await supabase
-      .from('user_ria_tags')
-      .select('*')
-      .eq('ria_id', ria_id)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true }); // Or order by tag_text
+    // Delete the tag (with user ownership check)
+    const { error: deleteError } = await supabase
+      .from('user_tags')
+      .delete()
+      .eq('id', tagId)
+      .eq('user_id', session.user.sub);
 
-    if (error) {
-      console.error('Supabase error fetching tags:', error);
-      Sentry.captureException(error, { extra: { ria_id, userId } });
-      return NextResponse.json({ error: 'Failed to fetch tags', details: error.message }, { status: 500 });
+    if (deleteError) {
+      console.error('Error deleting tag:', deleteError);
+      Sentry.captureException(deleteError);
+      return NextResponse.json({ error: 'Failed to delete tag' }, { status: 500 });
     }
 
-    const responseValidation = tagsListResponseSchema.safeParse(data);
-    if (!responseValidation.success) {
-        console.error('Tags GET response data validation error:', responseValidation.error.issues);
-        Sentry.captureException(new Error('Tags GET response data validation failed'), {
-            extra: { issues: responseValidation.error.issues, originalData: data },
-        });
-        return NextResponse.json(
-            { error: 'Invalid data structure for tags list response' },
-            { status: 500 }
-        );
-    }
-    return NextResponse.json(responseValidation.data);
+    return NextResponse.json({ message: 'Tag deleted successfully' });
+
   } catch (error) {
-    console.error('Error in GET /api/ria-hunter/profile/tags:', error);
+    console.error('Error in DELETE /api/ria-hunter/profile/tags:', error);
     Sentry.captureException(error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

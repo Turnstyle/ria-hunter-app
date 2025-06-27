@@ -17,22 +17,31 @@ const postBodySchema = z.object({
   query: z.string().min(1, { message: "Search query cannot be empty" }),
 });
 
-// Zod schema for a single item in the search results array from Supabase
+// Zod schema for a single RIA in the search results using real schema
 const riaSearchResultItemSchema = z.object({
-  // Define based on the actual columns you select and expect
-  // Example using fields from the POST handler's select:
-  id: z.any(), // org_pk can be number or string, using z.any() for flexibility here
-  managesprivatefunds: z.boolean().nullable().optional(),
-  is_private_fund_related: z.boolean().nullable().optional(),
-  // If using select('*'), you'd list all expected columns and their types
-  // For now, keeping it minimal or more generic if columns are unknown for GET's select('*')
-  // If select('*') is used, it's safer to make the object more open or define all fields
+  cik: z.number(),
+  crd_number: z.number().nullable(),
+  legal_name: z.string(),
+  main_addr_street1: z.string().nullable(),
+  main_addr_street2: z.string().nullable(),
+  main_addr_city: z.string().nullable(),
+  main_addr_state: z.string().nullable(),
+  main_addr_zip: z.string().nullable(),
+  main_addr_country: z.string().nullable(),
+  phone_number: z.string().nullable(),
+  fax_number: z.string().nullable(),
+  website: z.string().nullable(),
+  is_st_louis_msa: z.boolean().nullable(),
+  // Include latest filing info if joined
+  latest_filing: z.object({
+    filing_date: z.string(),
+    total_aum: z.number().nullable(),
+    manages_private_funds_flag: z.boolean().nullable(),
+  }).nullable().optional(),
 });
 
 // Zod schema for the array of search results
-const riaSearchResponseDataSchema = z.array(z.record(z.any())); // More generic for select('*')
-// For a more strictly typed response based on known selected columns:
-// const riaSearchResponseDataSchema = z.array(riaSearchResultItemSchema);
+const riaSearchResponseDataSchema = z.array(riaSearchResultItemSchema);
 
 // Zod schema for the POST request's response data
 const postResponseDataSchema = z.object({
@@ -89,75 +98,106 @@ export async function POST(request: NextRequest) {
         console.log('AI Raw Response:', aiResponse);
 
         // Attempt to parse the AI response as JSON
-        // The AI is instructed to return ONLY JSON, but good to be safe.
         let parsedAiResponse: ExtractedSearchParams | null = null;
         try {
-            // Clean the response to ensure it's valid JSON before parsing
-            const cleanedResponse = aiResponse.replace(/```json\n|```/g, '').trim();
-            parsedAiResponse = JSON.parse(cleanedResponse) as ExtractedSearchParams;
-        } catch (e) {
-            console.error("Failed to parse AI response as JSON:", e, "Raw response:", aiResponse);
-            // Potentially fall back to simpler keyword extraction or return an error/clarification request
+          parsedAiResponse = JSON.parse(aiResponse.trim());
+          console.log('AI Parsed Response:', parsedAiResponse);
+          extractedParams = parsedAiResponse || {};
+        } catch (parseError) {
+          console.warn('Failed to parse AI response as JSON:', parseError);
+          // Fallback: extract basic keywords from the query
+          extractedParams.keywords = naturalLanguageQuery
+            .toLowerCase()
+            .replace(/[^\w\s]/g, ' ')
+            .split(/\s+/)
+            .filter(word => word.length > 2);
         }
-
-        if (parsedAiResponse) {
-          extractedParams = parsedAiResponse;
-        }
-        console.log('Extracted Search Parameters by AI:', extractedParams);
-
       } catch (aiError) {
-        console.error('Error processing query with AI:', aiError);
-        // Fallback or error handling if AI processing fails
-        // For now, we can try a very basic keyword extraction if AI fails
-        extractedParams.keywords = naturalLanguageQuery.split(' ').filter(k => k.length > 2); // Simple fallback
+        console.warn('AI processing failed:', aiError);
+        // Fallback: extract basic keywords from the query
+        extractedParams.keywords = naturalLanguageQuery
+          .toLowerCase()
+          .replace(/[^\w\s]/g, ' ')
+          .split(/\s+/)
+          .filter(word => word.length > 2);
       }
-    } else {
-      console.warn('Google AI client not available. Using basic keyword extraction.');
-      // Fallback to basic keyword extraction if Google client is not initialized
-      extractedParams.keywords = naturalLanguageQuery.split(' ').filter(k => k.length > 2);
     }
-
-    // TODO: Use extractedParams (location, privateInvestmentInterest, keywords)
-    // to build a Supabase query.
-
-    // For now, just return the extracted params and the original query
-    // Replace with actual Supabase query and results later
 
     const supabase = getServerSupabaseClient();
+
+    // Build query with joins to get latest filing information
     let queryBuilder = supabase
-      .from('sec_advisers_test')
-      .select('org_pk:id, managesprivatefunds, is_private_fund_related');
+      .from('advisers')
+      .select(`
+        cik,
+        crd_number,
+        legal_name,
+        main_addr_street1,
+        main_addr_street2,
+        main_addr_city,
+        main_addr_state,
+        main_addr_zip,
+        main_addr_country,
+        phone_number,
+        fax_number,
+        website,
+        is_st_louis_msa,
+        filings:filings!inner(
+          filing_date,
+          total_aum,
+          manages_private_funds_flag
+        )
+      `);
 
-    // Example: Basic filtering based on AI extracted params (NEEDS REFINEMENT AND ACTUAL COLUMN NAMES)
+    // Apply filters based on AI extracted params
     if (extractedParams.location) {
-      // This is a placeholder. Actual location filtering will be more complex (e.g., ZIPs in MSA)
-      // queryBuilder = queryBuilder.ilike('address_city', `%${extractedParams.location}%`);
-      console.log("AI suggested location for query (not yet used):", extractedParams.location);
+      const location = extractedParams.location.toLowerCase();
+      // Search in city, state, or zip
+      queryBuilder = queryBuilder.or(
+        `main_addr_city.ilike.%${location}%,main_addr_state.ilike.%${location}%,main_addr_zip.like.${location}%`
+      );
     }
+
     if (extractedParams.privateInvestmentInterest === true) {
-      // queryBuilder = queryBuilder.is('managesprivatefunds', true); // Example, use actual column
-      console.log("AI suggested private investment interest for query (not yet used).");
-    }
-    // You might also use extractedParams.keywords for .textSearch() or .ilike() on relevant columns
-
-    // Fallback: if AI didn't provide specific params, try using the original query for basic search
-    // This is a placeholder for the old direct org_pk search if no AI params are useful
-    if (Object.keys(extractedParams).length === 0 || (extractedParams.keywords && extractedParams.keywords.includes(naturalLanguageQuery))) {
-        console.log("Attempting direct org_pk lookup as fallback or if query matches keyword list exactly")
-        queryBuilder = queryBuilder.eq('org_pk', naturalLanguageQuery); // Original logic if query is an org_pk
+      // Filter for advisers that manage private funds based on latest filing
+      queryBuilder = queryBuilder.eq('filings.manages_private_funds_flag', true);
     }
 
-    const { data: supabaseResults, error: supabaseError } = await queryBuilder.limit(10); // Example limit
+    // If keywords include firm name searches
+    if (extractedParams.keywords && extractedParams.keywords.length > 0) {
+      const firmNameKeywords = extractedParams.keywords.filter(k =>
+        k.length > 3 && !['fund', 'private', 'investment', 'advisor', 'adviser'].includes(k)
+      );
+      if (firmNameKeywords.length > 0) {
+        const nameSearch = firmNameKeywords.map(k => `legal_name.ilike.%${k}%`).join(',');
+        queryBuilder = queryBuilder.or(nameSearch);
+      }
+    }
+
+    // Order by most recent filing and limit results
+    queryBuilder = queryBuilder
+      .order('filing_date', { referencedTable: 'filings', ascending: false })
+      .limit(20);
+
+    const { data: supabaseResults, error: supabaseError } = await queryBuilder;
 
     if (supabaseError) {
       console.error('Supabase error:', supabaseError);
+      Sentry.captureException(supabaseError);
       return NextResponse.json({ error: 'Error fetching data from Supabase', details: supabaseError.message }, { status: 500 });
     }
+
+    // Transform the data to match our schema (get latest filing per adviser)
+    const transformedResults = supabaseResults?.map(adviser => ({
+      ...adviser,
+      latest_filing: adviser.filings && adviser.filings.length > 0 ? adviser.filings[0] : null,
+      filings: undefined, // Remove the filings array from response
+    })) || [];
 
     const responsePayload = {
       naturalLanguageQuery,
       aiExtractedParams: extractedParams,
-      results: supabaseResults || [], // Ensure results is always an array
+      results: transformedResults,
     };
 
     // Validate the response payload
@@ -165,8 +205,6 @@ export async function POST(request: NextRequest) {
 
     if (!validationResult.success) {
       console.error('POST response data validation error:', validationResult.error.issues);
-      // Potentially return a generic error or the data as is, depending on policy
-      // For now, returning an error to prevent sending malformed data
       Sentry.captureException(new Error('POST response data validation failed'), {
         extra: { issues: validationResult.error.issues, originalPayload: responsePayload },
       });
@@ -212,41 +250,72 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = getServerSupabaseClient();
-    // Assuming 'sec_advisers_test' is the table name and it has relevant columns.
-    // Adjust table and column names as per the actual schema.
+
+    // Build query using real database schema with joins
     let queryBuilder = supabase
-      .from('sec_advisers_test') // Replace with your actual table name
-      .select('*'); // Select all columns for now, adjust as needed
+      .from('advisers')
+      .select(`
+        cik,
+        crd_number,
+        legal_name,
+        main_addr_street1,
+        main_addr_street2,
+        main_addr_city,
+        main_addr_state,
+        main_addr_zip,
+        main_addr_country,
+        phone_number,
+        fax_number,
+        website,
+        is_st_louis_msa,
+        filings:filings!inner(
+          filing_date,
+          total_aum,
+          manages_private_funds_flag
+        )
+      `);
 
     if (location) {
-      // Placeholder for location filtering. This needs to be more robust.
-      // Example: searching in a city column. Adjust 'address_city' to your actual column name.
-      queryBuilder = queryBuilder.ilike('address_city', `%${location}%`);
+      // Search in city, state, or ZIP code
+      queryBuilder = queryBuilder.or(
+        `main_addr_city.ilike.%${location}%,main_addr_state.ilike.%${location}%,main_addr_zip.like.${location}%`
+      );
     }
 
     if (privateInvestment === 'true') {
-      // Example: filtering for advisers that manage private funds.
-      // Adjust 'managesprivatefunds' to your actual boolean column name.
-      queryBuilder = queryBuilder.eq('managesprivatefunds', true);
+      // Filter for advisers that manage private funds
+      queryBuilder = queryBuilder.eq('filings.manages_private_funds_flag', true);
     } else if (privateInvestment === 'false') {
-      queryBuilder = queryBuilder.eq('managesprivatefunds', false);
+      queryBuilder = queryBuilder.eq('filings.manages_private_funds_flag', false);
     }
 
-    // Add a limit to prevent accidentally fetching too much data
-    queryBuilder = queryBuilder.limit(50);
+    // Order by most recent filing date and limit results
+    queryBuilder = queryBuilder
+      .order('filing_date', { referencedTable: 'filings', ascending: false })
+      .limit(50);
 
     const { data, error } = await queryBuilder;
 
     if (error) {
       console.error('Supabase error in GET /api/ria-hunter/search:', error);
+      Sentry.captureException(error);
       return NextResponse.json({ error: 'Error fetching data from Supabase', details: error.message }, { status: 500 });
     }
 
+    // Transform the data to match our schema (get latest filing per adviser)
+    const transformedData = data?.map(adviser => ({
+      ...adviser,
+      latest_filing: adviser.filings && adviser.filings.length > 0 ? adviser.filings[0] : null,
+      filings: undefined, // Remove the filings array from response
+    })) || [];
+
     // Validate the structure of the data from Supabase before sending it in the response
-    const validationResult = riaSearchResponseDataSchema.safeParse(data);
+    const validationResult = riaSearchResponseDataSchema.safeParse(transformedData);
     if (!validationResult.success) {
       console.error('Supabase response data validation error:', validationResult.error);
-      // Decide if to send potentially malformed data, an error, or an empty array
+      Sentry.captureException(new Error('GET response data validation failed'), {
+        extra: { issues: validationResult.error.issues, originalData: transformedData },
+      });
       return NextResponse.json(
         {
           error: 'Invalid data structure from database',
@@ -262,7 +331,7 @@ export async function GET(request: NextRequest) {
         location,
         privateInvestment,
       },
-      data: validationResult.data, // Send the validated data
+      data: validationResult.data,
     });
 
   } catch (error) {

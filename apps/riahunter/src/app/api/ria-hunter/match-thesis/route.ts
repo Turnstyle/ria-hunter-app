@@ -1,73 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from 'supabase/server';
-import { google } from 'ai-services'; // Google AI (Gemini) client, this is our instance from createGoogleGenerativeAI
-import { chromaClient } from 'vector-store'; // ChromaDB client
-import { IncludeEnum } from 'chromadb'; // Import IncludeEnum directly from chromadb
-import { embed } from 'ai'; // Core function from AI SDK to generate embeddings
 import { z } from 'zod';
+import { google } from 'ai-services';
+import { generateText, embed } from 'ai'; // Include embed for generating embeddings
 import * as Sentry from "@sentry/nextjs";
-
-// import { createSupabaseClient } from 'supabase'; // Adjusted placeholder for Supabase client
-// import { getEmbeddings, searchVectorStore } from 'ai-services'; // Adjusted placeholder for AI services
+import { ChromaApi, OpenAIEmbeddingFunction } from 'chromadb';
 
 // Define Zod schema for the POST request body
-const matchThesisBodySchema = z.object({
-  thesisText: z.string().min(10, { message: "Thesis text must be at least 10 characters long" }), // Basic validation
+const postBodySchema = z.object({
+  thesis: z.string().min(1, { message: "Investment thesis cannot be empty" }),
 });
 
-// Zod schema for the response of the match-thesis POST endpoint
-const matchThesisResponseSchema = z.object({
-  message: z.string(),
+// Define schema for the response
+const matchResultSchema = z.object({
+  ria_id: z.union([z.string(), z.number()]),
+  matched_keywords: z.array(z.string()),
+  score: z.number(),
+});
+
+const thesisMatchResponseSchema = z.object({
   receivedThesis: z.string(),
-  thesisEmbedding: z.array(z.number()).optional(),
-  embeddingModel: z.string().optional(),
-  embeddingError: z.string().optional(),
-  extractedKeywords: z.array(z.string()),
-  keywordMatches: z.array(
-    z.object({
-      ria_id: z.any(),
-      matched_keywords: z.array(z.string()),
-      score: z.number(),
-    })
-  ),
-  semanticMatches: z.array(
-    z.object({
-      ria_id: z.any(),
-      score: z.number().optional(),
-    })
-  ).optional(),
+  keywords: z.array(z.string()),
+  keywordMatches: z.array(matchResultSchema),
+  semanticMatches: z.array(z.object({
+    ria_id: z.union([z.string(), z.number()]),
+    score: z.number(),
+  })),
   semanticSearchError: z.string().optional(),
 });
+
+// Initialize ChromaDB client (if available)
+let chromaClient: ChromaApi | null = null;
+try {
+  // This would be configured based on your Chroma setup
+  // chromaClient = new ChromaApi({ path: process.env.CHROMA_URL });
+} catch (error) {
+  console.warn('ChromaDB client not available:', error);
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validation = matchThesisBodySchema.safeParse(body);
+    const validation = postBodySchema.safeParse(body);
 
     if (!validation.success) {
       return NextResponse.json({ error: 'Invalid request body', issues: validation.error.issues }, { status: 400 });
     }
 
-    const { thesisText } = validation.data;
-    console.log('Match Thesis API called with thesis:', thesisText);
+    const { thesis: thesisText } = validation.data;
+    console.log('Received investment thesis:', thesisText);
 
-    // --- Generate Embedding for Thesis Text (Part of Phase 2 groundwork) ---
-    let thesisEmbedding: number[] | undefined = undefined;
-    let embeddingError: string | undefined = undefined;
-    if (google) {
-      try {
+    // Try to generate thesis embedding for semantic search
+    let thesisEmbedding: number[] | null = null;
+    try {
+      if (google) {
         const { embedding } = await embed({
-          model: google.embedding('models/text-embedding-004'), // Use appropriate Google embedding model
+          model: google('embedding-001'), // Use Google's embedding model
           value: thesisText,
         });
         thesisEmbedding = embedding;
-      } catch (e: any) {
-        console.error('Error generating thesis embedding with Google:', e);
-        embeddingError = e.message || 'Failed to generate embedding';
+        console.log('Generated thesis embedding, dimension:', embedding.length);
       }
-    } else {
-      embeddingError = 'Google AI client not available for embeddings.';
-      console.warn(embeddingError);
+    } catch (embeddingError) {
+      console.warn('Failed to generate thesis embedding:', embeddingError);
     }
 
     // --- Phase 1: Basic Keyword/Phrase Matching ---
@@ -105,15 +100,24 @@ export async function POST(request: NextRequest) {
     // 2. Get Supabase client
     const supabase = getServerSupabaseClient();
 
-    // 3. Fetch relevant narrative texts from Supabase
-    // Placeholder: Assuming a table 'ria_narratives' with 'ria_id' (or 'crd_number') and 'narrative_text'
-    // This will fetch ALL narratives. In a real scenario, you might want to be more selective or paginate.
+    // 3. Fetch relevant narrative texts from Supabase using real schema
     const { data: narratives, error: supabaseError } = await supabase
-      .from('ria_narratives') // Replace with your actual narratives table name
-      .select('ria_id, narrative_text'); // Adjust columns as needed
+      .from('narratives')
+      .select(`
+        narrative_id,
+        cik,
+        narrative_type,
+        narrative_text,
+        advisers:advisers!inner(
+          legal_name,
+          main_addr_city,
+          main_addr_state
+        )
+      `);
 
     if (supabaseError) {
       console.error('Supabase error fetching narratives:', supabaseError);
+      Sentry.captureException(supabaseError);
       return NextResponse.json({ error: 'Error fetching narrative data from Supabase', details: supabaseError.message }, { status: 500 });
     }
 
@@ -144,7 +148,7 @@ export async function POST(request: NextRequest) {
 
       if (foundKeywords.size > 0) {
         matches.push({
-          ria_id: narrativeEntry.ria_id,
+          ria_id: narrativeEntry.cik,
           matched_keywords: Array.from(foundKeywords),
           score: score,
         });
@@ -160,9 +164,9 @@ export async function POST(request: NextRequest) {
     // --- Phase 2: Semantic Search with ChromaDB (if thesis embedding is available) ---
     let semanticMatches: any[] = [];
     let semanticSearchError: string | undefined = undefined;
-    const collectionName = 'ria_narratives_embeddings'; // Placeholder, make configurable or use constant
+    const collectionName = 'ria_narratives_embeddings';
 
-    if (thesisEmbedding && thesisEmbedding.length > 0) {
+    if (thesisEmbedding && thesisEmbedding.length > 0 && chromaClient) {
       try {
         console.log(`Attempting semantic search in Chroma collection: ${collectionName}`)
         const collection = await chromaClient.getCollection({ name: collectionName });
@@ -170,68 +174,53 @@ export async function POST(request: NextRequest) {
         const queryResults = await collection.query({
           queryEmbeddings: [thesisEmbedding],
           nResults: 10, // Number of results to retrieve
-          // include: [IncludeEnum.Metadatas, IncludeEnum.Documents, IncludeEnum.Distances] // Optional: what to include in results
         });
 
-        // Process queryResults - structure depends on what you store and include
-        // Example: queryResults.ids, queryResults.documents, queryResults.metadatas, queryResults.distances
+        // Process queryResults
         if (queryResults && queryResults.ids && queryResults.ids.length > 0 && queryResults.ids[0] && queryResults.ids[0].length > 0) {
           semanticMatches = queryResults.ids[0].map((id, index) => {
             const score = (queryResults.distances && queryResults.distances[0] && queryResults.distances[0][index] != null)
                           ? (1 - queryResults.distances[0][index])
                           : 0;
-            // const doc = (queryResults.documents && queryResults.documents[0] && queryResults.documents[0][index] != null)
-            //               ? queryResults.documents[0][index]
-            //               : undefined;
-            // const meta = (queryResults.metadatas && queryResults.metadatas[0] && queryResults.metadatas[0][index] != null)
-            //                ? queryResults.metadatas[0][index]
-            //                : undefined;
             return {
               ria_id: id,
-              // document: doc,
               score: score,
-              // metadata: meta
             };
           });
           semanticMatches.sort((a,b) => b.score - a.score); // Higher score is better
         } else {
           console.log('No semantic matches found in Chroma for the given thesis.');
         }
-
-      } catch (e: any) {
-        console.error('Error during ChromaDB semantic search:', e);
-        semanticSearchError = e.message || 'Failed to perform semantic search';
-        if (e.message && e.message.includes('CollectionNotFound')) {
-            semanticSearchError = `Chroma collection '${collectionName}' not found. Please ensure ETL process has run and collection is populated.`;
-        }
+      } catch (chromaError) {
+        console.error('Error during Chroma semantic search:', chromaError);
+        semanticSearchError = `Chroma search failed: ${chromaError instanceof Error ? chromaError.message : 'Unknown error'}`;
       }
-    } else if (embeddingError) {
-        semanticSearchError = `Semantic search skipped due to embedding error: ${embeddingError}`;
-    } else {
-        semanticSearchError = 'Semantic search skipped: No thesis embedding available.';
+    } else if (!thesisEmbedding) {
+      semanticSearchError = 'Could not generate embedding for thesis text.';
+    } else if (!chromaClient) {
+      semanticSearchError = 'ChromaDB client not available.';
     }
 
     const responsePayload = {
-      message: 'Investment Thesis Matcher results',
       receivedThesis: thesisText,
-      thesisEmbedding: thesisEmbedding,
-      embeddingModel: thesisEmbedding ? 'google:models/text-embedding-004' : undefined,
-      embeddingError: embeddingError,
-      extractedKeywords: keywords, // Phase 1 results
-      keywordMatches: limitedMatches, // Phase 1 results, renamed for clarity
-      semanticMatches: semanticMatches, // Phase 2 results
-      semanticSearchError: semanticSearchError, // Phase 2 error info
+      keywords,
+      keywordMatches: limitedMatches,
+      semanticMatches,
+      semanticSearchError,
     };
 
-    // Validate the response payload before sending
-    const validationResult = matchThesisResponseSchema.safeParse(responsePayload);
+    // Validate the response payload
+    const validationResult = thesisMatchResponseSchema.safeParse(responsePayload);
+
     if (!validationResult.success) {
-      console.error('Match thesis response payload validation error:', validationResult.error);
-      // Fallback response if our own response structure is invalid
+      console.error('Thesis match response validation error:', validationResult.error.issues);
+      Sentry.captureException(new Error('Thesis match response validation failed'), {
+        extra: { issues: validationResult.error.issues, originalPayload: responsePayload },
+      });
       return NextResponse.json(
         {
-          error: 'Internal server error: Invalid response structure',
-          details: validationResult.error.issues
+          error: 'Invalid data structure for thesis match response',
+          details: validationResult.error.issues,
         },
         { status: 500 }
       );
@@ -242,10 +231,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in /api/ria-hunter/match-thesis POST:', error);
     Sentry.captureException(error);
-    let errorMessage = 'Internal Server Error';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

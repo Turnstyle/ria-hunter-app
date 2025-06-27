@@ -1,93 +1,161 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from 'supabase/server';
+import { getSession } from '@auth0/nextjs-auth0';
 import { z } from 'zod';
 import * as Sentry from "@sentry/nextjs";
 
-// Placeholder for user authentication
-const getAuthenticatedUserId = async (): Promise<string | null> => {
-  return 'mock-user-id-123';
-};
+// Zod schema for POST request body
+const postBodySchema = z.object({
+  ria_id: z.union([z.string(), z.number()]).transform(val => String(val)), // Convert to string for consistency
+  link_url: z.string().url({ message: "Must be a valid URL" }),
+  link_description: z.string().optional().nullable(),
+});
 
+// Zod schema for individual link
 const linkSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   ria_id: z.string(),
-  user_id: z.string().uuid(),
-  link_url: z.string().url({ message: "Invalid URL format" }),
-  link_description: z.string().optional().nullable(), // Optional description
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  link_url: z.string(),
+  link_description: z.string().nullable(),
+  created_at: z.string(),
 });
 
-const createLinkBodySchema = z.object({
-  ria_id: z.string({ required_error: "RIA ID is required" }),
-  link_url: z.string().url({ message: "Valid URL is required" }),
-  link_description: z.string().max(255, { message: "Description cannot exceed 255 characters" }).optional().nullable(),
-});
+// Zod schema for GET response
+const getResponseSchema = z.array(linkSchema);
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const riaId = searchParams.get('ria_id');
+
+    if (!riaId) {
+      return NextResponse.json({ error: 'ria_id parameter is required' }, { status: 400 });
+    }
+
+    const supabase = getServerSupabaseClient();
+
+    // Verify the RIA exists
+    const { data: riaExists, error: riaError } = await supabase
+      .from('advisers')
+      .select('cik')
+      .eq('cik', parseInt(riaId))
+      .single();
+
+    if (riaError || !riaExists) {
+      return NextResponse.json({ error: 'RIA not found' }, { status: 404 });
+    }
+
+    // Fetch user's links for this RIA
+    const { data: links, error: linksError } = await supabase
+      .from('user_links')
+      .select('*')
+      .eq('user_id', session.user.sub)
+      .eq('ria_id', riaId)
+      .order('created_at', { ascending: false });
+
+    if (linksError) {
+      console.error('Error fetching links:', linksError);
+      Sentry.captureException(linksError);
+      return NextResponse.json({ error: 'Failed to fetch links' }, { status: 500 });
+    }
+
+    // Validate response
+    const validationResult = getResponseSchema.safeParse(links || []);
+    if (!validationResult.success) {
+      console.error('Links response validation error:', validationResult.error.issues);
+      Sentry.captureException(new Error('Links response validation failed'), {
+        extra: { issues: validationResult.error.issues, originalData: links },
+      });
+      return NextResponse.json({ error: 'Invalid links data structure' }, { status: 500 });
+    }
+
+    return NextResponse.json(validationResult.data);
+
+  } catch (error) {
+    console.error('Error in GET /api/ria-hunter/profile/links:', error);
+    Sentry.captureException(error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const session = await getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    const validation = createLinkBodySchema.safeParse(body);
+    const validation = postBodySchema.safeParse(body);
 
     if (!validation.success) {
       return NextResponse.json({ error: 'Invalid request body', issues: validation.error.issues }, { status: 400 });
     }
 
     const { ria_id, link_url, link_description } = validation.data;
+
     const supabase = getServerSupabaseClient();
 
-    // Optional: Check for duplicate link URL for the same user and RIA
-    const { data: existingLink, error: existingLinkError } = await supabase
-        .from('user_ria_links')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('ria_id', ria_id)
-        .eq('link_url', link_url)
-        .maybeSingle();
+    // Verify the RIA exists
+    const { data: riaExists, error: riaError } = await supabase
+      .from('advisers')
+      .select('cik')
+      .eq('cik', parseInt(ria_id))
+      .single();
 
-    if (existingLinkError && existingLinkError.code !== 'PGRST116') {
-        console.error('Supabase error checking for existing link:', existingLinkError);
-        Sentry.captureException(existingLinkError, { extra: { ria_id, userId, link_url } });
-        return NextResponse.json({ error: 'Failed to check for existing link'}, { status: 500 });
+    if (riaError || !riaExists) {
+      return NextResponse.json({ error: 'RIA not found' }, { status: 404 });
     }
+
+    // Check if link already exists for this user and RIA (prevent duplicates)
+    const { data: existingLink, error: existingError } = await supabase
+      .from('user_links')
+      .select('id')
+      .eq('user_id', session.user.sub)
+      .eq('ria_id', ria_id)
+      .eq('link_url', link_url)
+      .single();
+
     if (existingLink) {
-        return NextResponse.json({ error: 'This URL has already been added for this RIA by you.', link_id: existingLink.id }, { status: 409 });
+      return NextResponse.json({ error: 'Link already exists for this RIA' }, { status: 409 });
     }
 
-    const { data, error } = await supabase
-      .from('user_ria_links')
+    // Create the link
+    const { data: newLink, error: insertError } = await supabase
+      .from('user_links')
       .insert({
+        user_id: session.user.sub,
         ria_id: ria_id,
-        user_id: userId,
         link_url: link_url,
         link_description: link_description,
       })
       .select()
       .single();
 
-    if (error) {
-      console.error('Supabase error creating link:', error);
-      Sentry.captureException(error, { extra: { ria_id, userId, link_url } });
-      return NextResponse.json({ error: 'Failed to create link', details: error.message }, { status: 500 });
+    if (insertError) {
+      console.error('Error creating link:', insertError);
+      Sentry.captureException(insertError);
+      return NextResponse.json({ error: 'Failed to create link' }, { status: 500 });
     }
 
-    const responseValidation = linkSchema.safeParse(data);
-    if (!responseValidation.success) {
-        console.error('Link POST response data validation error:', responseValidation.error.issues);
-        Sentry.captureException(new Error('Link POST response data validation failed'), {
-            extra: { issues: responseValidation.error.issues, originalData: data },
-        });
-        return NextResponse.json(
-            { error: 'Invalid data structure for created link response' },
-            { status: 500 }
-        );
+    // Validate response
+    const validationResult = linkSchema.safeParse(newLink);
+    if (!validationResult.success) {
+      console.error('Link creation response validation error:', validationResult.error.issues);
+      Sentry.captureException(new Error('Link creation response validation failed'), {
+        extra: { issues: validationResult.error.issues, originalData: newLink },
+      });
+      return NextResponse.json({ error: 'Invalid link data structure' }, { status: 500 });
     }
-    return NextResponse.json(responseValidation.data, { status: 201 });
+
+    return NextResponse.json(validationResult.data, { status: 201 });
 
   } catch (error) {
     console.error('Error in POST /api/ria-hunter/profile/links:', error);
@@ -96,59 +164,40 @@ export async function POST(request: NextRequest) {
   }
 }
 
-const getLinksQuerySchema = z.object({
-  ria_id: z.string({ required_error: "RIA ID is required as a query parameter" }),
-});
-
-const linksListResponseSchema = z.array(linkSchema);
-
-export async function GET(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const session = await getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const queryParamsValidation = getLinksQuerySchema.safeParse({
-      ria_id: searchParams.get('ria_id'),
-    });
+    const linkId = searchParams.get('link_id');
 
-    if (!queryParamsValidation.success) {
-      return NextResponse.json({ error: 'Invalid query parameters', issues: queryParamsValidation.error.issues }, { status: 400 });
+    if (!linkId) {
+      return NextResponse.json({ error: 'link_id parameter is required' }, { status: 400 });
     }
 
-    const { ria_id } = queryParamsValidation.data;
     const supabase = getServerSupabaseClient();
 
-    const { data, error } = await supabase
-      .from('user_ria_links')
-      .select('*')
-      .eq('ria_id', ria_id)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    // Delete the link (with user ownership check)
+    const { error: deleteError } = await supabase
+      .from('user_links')
+      .delete()
+      .eq('id', linkId)
+      .eq('user_id', session.user.sub);
 
-    if (error) {
-      console.error('Supabase error fetching links:', error);
-      Sentry.captureException(error, { extra: { ria_id, userId } });
-      return NextResponse.json({ error: 'Failed to fetch links', details: error.message }, { status: 500 });
+    if (deleteError) {
+      console.error('Error deleting link:', deleteError);
+      Sentry.captureException(deleteError);
+      return NextResponse.json({ error: 'Failed to delete link' }, { status: 500 });
     }
 
-    const responseValidation = linksListResponseSchema.safeParse(data);
-     if (!responseValidation.success) {
-        console.error('Links GET response data validation error:', responseValidation.error.issues);
-        Sentry.captureException(new Error('Links GET response data validation failed'), {
-            extra: { issues: responseValidation.error.issues, originalData: data },
-        });
-        return NextResponse.json(
-            { error: 'Invalid data structure for links list response'},
-            { status: 500 }
-        );
-    }
-    return NextResponse.json(responseValidation.data);
+    return NextResponse.json({ message: 'Link deleted successfully' });
 
   } catch (error) {
-    console.error('Error in GET /api/ria-hunter/profile/links:', error);
+    console.error('Error in DELETE /api/ria-hunter/profile/links:', error);
     Sentry.captureException(error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
