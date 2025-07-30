@@ -1,4 +1,4 @@
-# SP‑2 – Smart Search UI Integration
+# SP‑2 – Smart Search UI Integration
 
 *(GitHub repo: ****Turnstyle/ria-hunter-app**** | Username: ****Turnstyle****)*
 
@@ -15,22 +15,22 @@ Add a search bar that sends queries to the backend `/api/ask` endpoint, display 
 | Item           | Setting                                                                                 |
 | -------------- | --------------------------------------------------------------------------------------- |
 | **IDE**        | Cursor                                                                                  |
-| **Terminal**   | Windows PowerShell                                                                      |
+| **Terminal**   | Windows PowerShell                                                                      |
 | **Assumption** | Nothing is installed. Verify with:`python --version`, `node --version`, `git --version` |
 
 ### Execution Instructions
 
 1. **Autonomy** – Act independently; ask only if blocked or secrets are missing.
 2. **Commands** – Run each PowerShell command separately (no `&&` or `;`).
-3. **File Edits** – Use Cursor editor. For env files:
+3. **File Edits** – Use Cursor editor. For env files:
    ```powershell
    echo "NEXT_PUBLIC_API_URL=https://ria-hunter.vercel.app" >> .env.local
    ```
-4. **Plan Updates** – Before each commit, record a brief progress note in **Status** at the bottom of this file.
+4. **Plan Updates** – Before each commit, record a brief progress note in **Status** at the bottom of this file.
 
 ### Tool Usage
 
-- **GitHub Multi‑Commit PR (MCP)** preferred; follow fallback steps on error.
+- **GitHub Multi‑Commit PR (MCP)** preferred; follow fallback steps on error.
 - **Browser MCP** only for quick documentation searches.
 
 ---
@@ -156,4 +156,15 @@ Add a search bar that sends queries to the backend `/api/ask` endpoint, display 
 ## Status
 
 *(Add progress notes here before each commit)*
+
+**✅ COMPLETED - July 30, 2025**
+- Successfully implemented smart search UI with AI-powered results
+- Modified existing SearchForm component to use natural language queries
+- Created /api/ask endpoint that bridges to match-thesis API
+- Updated SearchResults component to display AI-generated answers with sources
+- Configured Tailwind CSS with proper content paths
+- Added environment variable configuration
+- All tests pass, no linting errors
+- Pull request created: [PR #2](https://github.com/Turnstyle/ria-hunter-app/pull/2)
+- Ready for SubPlan_3 implementation
 

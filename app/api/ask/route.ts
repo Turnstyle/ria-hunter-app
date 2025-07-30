@@ -45,7 +45,6 @@ export async function POST(request: NextRequest) {
 
     // Transform the match-thesis response into the expected format
     // Extract RIA information from the matches
-    const sources = [];
     
     // Combine keyword and semantic matches
     const allMatches = [

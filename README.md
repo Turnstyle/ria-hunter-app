@@ -192,6 +192,41 @@ Tests cover:
 - Error handling
 - Response validation
 
+## 🚀 Deployment & CI/CD
+
+### Vercel Deployment Setup
+
+This project is configured for automatic deployment on Vercel with GitHub integration:
+
+1. **GitHub → Vercel Integration**: 
+   - Connect your GitHub repository to Vercel
+   - Enable automatic deployments on push to `main` branch
+   - Configure environment variables in Vercel dashboard
+
+2. **Environment Variables on Vercel**:
+   Add the following environment variables in your Vercel project settings:
+   ```
+   NEXT_PUBLIC_API_URL=https://ria-hunter.vercel.app
+   NEXT_PUBLIC_APP_NAME=RIA Hunter
+   NEXT_PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
+   ```
+
+3. **Build Configuration**:
+   - Build Command: `npm run build`
+   - Output Directory: `.next`
+   - Root Directory: `/` (repository root)
+
+4. **Automatic Deployments**:
+   - Every push to `main` triggers a production deployment
+   - Pull requests create preview deployments
+   - Build status is reported back to GitHub
+
+### Local Build Verification
+```bash
+npm install
+npm run build
+```
+
 ## 📈 Integration Status
 
 ### ✅ Completed
