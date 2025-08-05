@@ -1,6 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs",
-  "_comment": "Updated to trigger deployment with fixed Stripe dependencies"
+  "framework": "nextjs"
 }
