@@ -34,7 +34,8 @@ async function middleware(request: NextRequest) {
   if (
     request.nextUrl.pathname.startsWith('/api/') &&
     !request.nextUrl.pathname.startsWith('/api/health') &&
-    !request.nextUrl.pathname.startsWith('/api/public')
+    !request.nextUrl.pathname.startsWith('/api/public') &&
+    !request.nextUrl.pathname.startsWith('/api/ask')
   ) {
     // Initial check for configuration completeness for early exit
     if (!jwksClient || !process.env.AUTH0_ISSUER_BASE_URL || !process.env.AUTH0_AUDIENCE) {
