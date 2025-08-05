@@ -5,6 +5,7 @@ import { z } from 'zod';
 const askBodySchema = z.object({
   query: z.string().min(1, { message: "Query cannot be empty" }),
   limit: z.number().optional().default(5),
+  aiProvider: z.enum(['openai', 'vertex']).optional().default('openai'),
 });
 
 export async function POST(request: NextRequest) {
@@ -19,74 +20,62 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const { query, limit } = validation.data;
+    const { query, limit, aiProvider } = validation.data;
 
-    // Transform the natural language query into an investment thesis
-    // This is a simple transformation - in production, you might use AI to enhance this
-    const thesis = query;
+    // Get the backend API URL from environment variables
+    const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL;
+    
+    if (!backendApiUrl) {
+      console.error('Backend API URL not configured');
+      return NextResponse.json({ 
+        error: 'Backend API not configured. Please check environment variables.' 
+      }, { status: 500 });
+    }
 
-    // Call the match-thesis endpoint
-    const matchThesisResponse = await fetch(`${request.nextUrl.origin}/api/ria-hunter/match-thesis`, {
+    // Call the backend API
+    const backendResponse = await fetch(`${backendApiUrl}/api/ask`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ thesis }),
+      body: JSON.stringify({ 
+        query: query.trim(), 
+        limit, 
+        aiProvider 
+      }),
     });
 
-    if (!matchThesisResponse.ok) {
-      const errorData = await matchThesisResponse.json();
-      return NextResponse.json({ 
-        error: errorData.error || 'Failed to process query' 
-      }, { status: matchThesisResponse.status });
-    }
-
-    const matchData = await matchThesisResponse.json();
-
-    // Transform the match-thesis response into the expected format
-    // Extract RIA information from the matches
-    
-    // Combine keyword and semantic matches
-    const allMatches = [
-      ...(matchData.keywordMatches || []),
-      ...(matchData.semanticMatches || [])
-    ];
-
-    // Sort by score and take top results
-    const topMatches = allMatches
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-
-    // For now, we'll create a simple answer based on the query and matches
-    let answer = `Based on your query "${query}", `;
-    
-    if (topMatches.length === 0) {
-      answer += "I couldn't find any matching RIAs in our database.";
-    } else {
-      answer += `I found ${topMatches.length} relevant RIA${topMatches.length > 1 ? 's' : ''} that match your criteria.`;
-      
-      if (matchData.keywords && matchData.keywords.length > 0) {
-        answer += ` Key factors considered: ${matchData.keywords.join(', ')}.`;
+    if (!backendResponse.ok) {
+      let errorMessage = 'Failed to process query';
+      try {
+        const errorData = await backendResponse.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        // If we can't parse the error response, use the status text
+        errorMessage = `Backend error: ${backendResponse.status} ${backendResponse.statusText}`;
       }
+      
+      console.error('Backend API error:', errorMessage);
+      return NextResponse.json({ 
+        error: errorMessage
+      }, { status: backendResponse.status });
     }
 
-    // Transform matches into sources format
-    // Note: In a real implementation, you would fetch the actual RIA details
-    const sources = topMatches.map(match => ({
-      firm_name: `RIA ${match.ria_id}`, // Placeholder - would fetch real name
-      crd_number: match.ria_id.toString(),
-      city: "Unknown", // Would fetch from database
-      state: "Unknown", // Would fetch from database
-      aum: null, // Would fetch from database
-      matched_keywords: match.matched_keywords || [],
-      score: match.score
-    }));
+    const data = await backendResponse.json();
 
+    // Validate the backend response has the expected format
+    if (!data.answer || !Array.isArray(data.sources)) {
+      console.error('Unexpected backend response format:', data);
+      return NextResponse.json({ 
+        error: 'Received unexpected response format from backend'
+      }, { status: 500 });
+    }
+
+    // Return the data with additional metadata
     return NextResponse.json({
-      answer,
-      sources,
-      query,
-      keywords: matchData.keywords || []
+      ...data,
+      aiProvider, // Include which AI provider was used
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
