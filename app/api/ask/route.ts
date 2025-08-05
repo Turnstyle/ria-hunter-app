@@ -4,7 +4,7 @@ import { z } from 'zod';
 // Define Zod schema for the POST request body
 const askBodySchema = z.object({
   query: z.string().min(1, { message: "Query cannot be empty" }),
-  limit: z.number().optional().default(5),
+  limit: z.number().optional().default(10),
   aiProvider: z.enum(['openai', 'vertex']).optional().default('openai'),
 });
 
