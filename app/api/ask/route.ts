@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { query, limit, aiProvider } = validation.data;
 
     // Get the backend API URL from environment variables
-    const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL;
+    const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'https://ria-hunter.vercel.app';
     
     if (!backendApiUrl) {
       console.error('Backend API URL not configured');
