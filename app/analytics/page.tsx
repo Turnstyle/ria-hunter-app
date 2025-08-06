@@ -213,20 +213,17 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Contact/Feedback Section */}
+        {/* Stay Updated Section */}
         <div className="bg-white rounded-xl shadow-md p-8 text-center">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Help Shape Our Analytics</h3>
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Stay Updated on New Features</h3>
           <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-            What specific analytics and insights would be most valuable for your RIA research? 
-            We&apos;re building this dashboard based on user needs and would love your input.
+            We're continuously developing new analytics capabilities and insights for RIA research. 
+            Be the first to know when powerful new features and data visualizations become available.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all shadow-lg hover:shadow-xl">
-              Request Analytics Features
-            </button>
+          <div className="flex justify-center">
             <button 
               onClick={() => setShowNotifyModal(true)}
-              className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200/50 transition-all"
+              className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all shadow-lg hover:shadow-xl"
             >
               Get Notified When Ready
             </button>
