@@ -12,8 +12,13 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/health",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "health"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
         },
         "description": "Check the health status of the API"
       }
@@ -31,8 +36,13 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/listings?page=1&limit=10",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "listings"],
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "listings"
+          ],
           "query": [
             {
               "key": "page",
@@ -100,8 +110,13 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/listings",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "listings"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "listings"
+          ]
         },
         "description": "Create a new listing"
       }
@@ -110,7 +125,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://riahunter.vercel.app",
+      "value": "https://ria-hunter.app",
       "type": "string"
     },
     {

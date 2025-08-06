@@ -58,6 +58,10 @@ A comprehensive platform for searching, analyzing, and managing personal researc
 Create `.env.local` in the app root:
 
 ```bash
+# Application Information
+NEXT_PUBLIC_APP_URL=https://ria-hunter.app
+NEXT_PUBLIC_APP_NAME="RIA Hunter"
+
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -65,7 +69,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # Auth0
 AUTH0_SECRET=your_auth0_secret
-AUTH0_BASE_URL=http://localhost:3000
+AUTH0_BASE_URL=https://ria-hunter.app
 AUTH0_ISSUER_BASE_URL=your_auth0_domain
 AUTH0_CLIENT_ID=your_auth0_client_id
 AUTH0_CLIENT_SECRET=your_auth0_client_secret
@@ -206,9 +210,10 @@ This project is configured for automatic deployment on Vercel with GitHub integr
 2. **Environment Variables on Vercel**:
    Add the following environment variables in your Vercel project settings:
    ```
-   NEXT_PUBLIC_API_URL=https://ria-hunter.vercel.app
-   NEXT_PUBLIC_APP_NAME=RIA Hunter
-   NEXT_PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
+   NEXT_PUBLIC_APP_URL=https://ria-hunter.app
+   NEXT_PUBLIC_API_URL=https://ria-hunter.app
+   NEXT_PUBLIC_APP_NAME="RIA Hunter"
+   # Add other secrets from your .env.local file
    ```
 
 3. **Build Configuration**:

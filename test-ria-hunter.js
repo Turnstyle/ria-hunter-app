@@ -7,7 +7,7 @@
 
 const fetch = require('node-fetch').default || require('node-fetch');
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 // Test configurations
 const tests = [
