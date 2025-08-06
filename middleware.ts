@@ -18,7 +18,9 @@ async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/api/') &&
     !request.nextUrl.pathname.startsWith('/api/health') &&
     !request.nextUrl.pathname.startsWith('/api/public') &&
-    !request.nextUrl.pathname.startsWith('/api/ask')
+    !request.nextUrl.pathname.startsWith('/api/ask') &&
+    !request.nextUrl.pathname.startsWith('/api/browse-rias') &&
+    !request.nextUrl.pathname.startsWith('/api/subscription-status')
   ) {
     // Check for Supabase configuration
     if (!supabaseUrl || !supabaseAnonKey) {
