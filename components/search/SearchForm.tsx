@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, FormEvent, useEffect } from 'react';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 interface SearchFormProps {
   onResult?: (result: any, query: string) => void;
@@ -10,6 +11,7 @@ interface SearchFormProps {
 const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   const [query, setQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { user, signInWithGoogle } = useAuth();
   const [aiProvider, setAiProvider] = useState<'openai' | 'vertex'>('openai');
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [limit, setLimit] = useState<number>(10);
@@ -18,6 +20,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   const [showLinkedInModal, setShowLinkedInModal] = useState<boolean>(false);
   const [hasSharedOnLinkedIn, setHasSharedOnLinkedIn] = useState<boolean>(false);
   const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
+  const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
 
   // Initialize gamification state from localStorage
   useEffect(() => {
@@ -34,11 +37,11 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
   // Example queries that work well with the system and provide excellent user experiences
   const exampleQueries = [
-    "What are the largest RIAs by assets under management?",
+    "What are New York's 5 largest RIAs by assests under management?",
     "Show me RIAs located in New York",
-    "Show me the top 5 RIAs that have done a commercial real estate private placement or private fund",
+    "List the top 10 most active private equity fund RIA's in Chicago, IL",
     "Find investment advisors in Texas with over $1 billion AUM",
-    "Tell me about BlackRock and their advisory services",
+    "Which RIA's were most active in the last 12 months with Commercial Real Estate private funds?",
     "Which RIAs are located in California and what are their specialties?"
   ];
 
@@ -127,11 +130,39 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     setShowLinkedInModal(false);
   };
 
-  const handleAccountCreation = () => {
-    setShowAccountModal(false);
-    // For now, redirect to Google sign-in (in the future, add trial parameter)
-    // The header sign-in button should handle the Google OAuth flow
-    alert('Please use the "Sign in with Google" button in the header to create your account and start your 7-day Pro trial!');
+  const handleAccountCreation = async () => {
+    setIsCreatingSession(true);
+    if (!user) {
+      // If user is not signed in, sign them in first
+      await signInWithGoogle('/?checkout=true');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+          'x-user-email': user.email || '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const session = await response.json();
+      if (session.url) {
+        window.location.href = session.url;
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      // Handle error display to the user
+    } finally {
+      setIsCreatingSession(false);
+      setShowAccountModal(false);
+    }
   };
 
   return (
@@ -369,22 +400,22 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
           <div className="bg-white rounded-xl p-8 max-w-md mx-4 relative">
             <div className="text-center">
               <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
                   <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
               </div>
               
-              <h3 className="text-xl font-bold text-gray-900 mb-2">🚀 Ready for More?</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Upgrade to Pro</h3>
               <p className="text-gray-600 mb-4">
-                You&apos;ve reached your free query limit{hasSharedOnLinkedIn ? ' (including your LinkedIn bonus!)' : ''}. 
+                You&apos;ve reached your free query limit{hasSharedOnLinkedIn ? ' (including your LinkedIn bonus!)' : ''}.
               </p>
-              <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                <p className="text-sm font-medium text-blue-800">
-                  ✨ Create your free account and get:
+              <div className="bg-gray-100 p-4 rounded-lg mb-6 text-left">
+                <p className="text-sm font-medium text-gray-800">
+                  Create your free account and get:
                 </p>
-                <ul className="text-sm text-blue-700 mt-2 space-y-1 text-left">
+                <ul className="text-sm text-gray-700 mt-2 space-y-1">
                   <li>• 7-day Pro trial (unlimited queries)</li>
                   <li>• Access to Browse & Analytics features</li>
                   <li>• Advanced search filters</li>
@@ -395,9 +426,10 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
               <div className="space-y-3">
                 <button
                   onClick={handleAccountCreation}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-purple-500/20 transition-all shadow-lg hover:shadow-xl"
+                  disabled={isCreatingSession}
+                  className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all shadow-lg hover:shadow-xl"
                 >
-                  Start Free 7-Day Pro Trial
+                  {isCreatingSession ? 'Processing...' : 'Start Free 7-Day Pro Trial'}
                 </button>
                 <button
                   onClick={() => setShowAccountModal(false)}

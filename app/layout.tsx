@@ -6,6 +6,21 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "RIA Hunter - Investment Advisor Intelligence",
   description: "Search and analyze Registered Investment Advisors using AI-powered natural language queries",
+  openGraph: {
+    title: "RIA Hunter - Investment Advisor Intelligence",
+    description: "Search and analyze Registered Investment Advisors using AI-powered natural language queries",
+    url: "https://ria-hunter.app",
+    siteName: "RIA Hunter",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
