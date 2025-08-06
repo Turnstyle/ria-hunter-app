@@ -2,6 +2,7 @@
 
 import React, { useState, FormEvent, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
+import CreditsCounter from '@/app/components/credits/CreditsCounter';
 
 interface SearchFormProps {
   onResult?: (result: any, query: string) => void;
@@ -200,6 +201,9 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
   return (
     <div className="space-y-8">
+      {/* Credits Counter */}
+      <CreditsCounter className="max-w-2xl mx-auto" />
+
       {/* Main Search Form */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-6 sm:p-8">

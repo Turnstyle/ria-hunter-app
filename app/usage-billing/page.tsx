@@ -2,6 +2,7 @@
 
 import React from 'react';
 import SubscriptionDetails from '@/app/components/subscription/SubscriptionDetails';
+import ProblemReportForm from '@/app/components/support/ProblemReportForm';
 import { useAuth } from '@/app/contexts/AuthContext';
 
 export default function UsageBillingPage() {
@@ -50,7 +51,15 @@ export default function UsageBillingPage() {
         <p className="text-gray-600">Manage your subscription and view usage statistics</p>
       </div>
       
-      <SubscriptionDetails userId={user.id} />
+      <div className="space-y-8">
+        <SubscriptionDetails userId={user.id} />
+        
+        {/* Problem Report Section */}
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Support</h2>
+          <ProblemReportForm />
+        </div>
+      </div>
     </div>
   );
 }
