@@ -21,7 +21,7 @@ export default function AnalyticsPage() {
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard Coming Soon</h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            We're building comprehensive analytics to help you understand RIA trends, geographic distributions, 
+            We&apos;re building comprehensive analytics to help you understand RIA trends, geographic distributions, 
             AUM patterns, and market insights. Stay tuned for powerful data visualizations and industry analysis.
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
           <h3 className="text-xl font-semibold text-gray-900 mb-4">Help Shape Our Analytics</h3>
           <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
             What specific analytics and insights would be most valuable for your RIA research? 
-            We're building this dashboard based on user needs and would love your input.
+            We&apos;re building this dashboard based on user needs and would love your input.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all shadow-lg hover:shadow-xl">

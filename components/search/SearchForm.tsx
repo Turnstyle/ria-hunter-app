@@ -378,7 +378,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
               
               <h3 className="text-xl font-bold text-gray-900 mb-2">🚀 Ready for More?</h3>
               <p className="text-gray-600 mb-4">
-                You've reached your free query limit{hasSharedOnLinkedIn ? ' (including your LinkedIn bonus!)' : ''}. 
+                You&apos;ve reached your free query limit{hasSharedOnLinkedIn ? ' (including your LinkedIn bonus!)' : ''}. 
               </p>
               <div className="bg-blue-50 p-4 rounded-lg mb-6">
                 <p className="text-sm font-medium text-blue-800">
