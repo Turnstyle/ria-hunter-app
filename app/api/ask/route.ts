@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
+import { checkUserSubscription } from '@/app/lib/subscription-utils';
 
-// Define Zod schema for the POST request body
 const askBodySchema = z.object({
   query: z.string().min(1, { message: "Query cannot be empty" }),
   limit: z.number().optional().default(10),
   aiProvider: z.enum(['openai', 'vertex']).optional().default('openai'),
 });
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +26,20 @@ export async function POST(request: NextRequest) {
 
     const { query, limit, aiProvider } = validation.data;
 
-    // Get the backend API URL from environment variables
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader) {
+      const token = authHeader.split(' ')[1];
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      const { data: { user } } = await supabase.auth.getUser(token);
+
+      if (user) {
+        const subscriptionStatus = await checkUserSubscription(user.id);
+        if (!subscriptionStatus.hasActiveSubscription) {
+          return NextResponse.json({ error: 'Payment Required' }, { status: 402 });
+        }
+      }
+    }
+
     const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'https://ria-hunter.vercel.app';
     
     if (!backendApiUrl) {
@@ -32,7 +49,6 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Call the backend API
     const backendResponse = await fetch(`${backendApiUrl}/api/ask`, {
       method: 'POST',
       headers: {
@@ -51,7 +67,6 @@ export async function POST(request: NextRequest) {
         const errorData = await backendResponse.json();
         errorMessage = errorData.error || errorData.message || errorMessage;
       } catch (e) {
-        // If we can't parse the error response, use the status text
         errorMessage = `Backend error: ${backendResponse.status} ${backendResponse.statusText}`;
       }
       
@@ -63,7 +78,6 @@ export async function POST(request: NextRequest) {
 
     const data = await backendResponse.json();
 
-    // Validate the backend response has the expected format
     if (!data.answer || !Array.isArray(data.sources)) {
       console.error('Unexpected backend response format:', data);
       return NextResponse.json({ 
@@ -71,10 +85,9 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Return the data with additional metadata
     return NextResponse.json({
       ...data,
-      aiProvider, // Include which AI provider was used
+      aiProvider,
       timestamp: new Date().toISOString()
     });
 
@@ -85,4 +98,4 @@ export async function POST(request: NextRequest) {
       message: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-} 
+}

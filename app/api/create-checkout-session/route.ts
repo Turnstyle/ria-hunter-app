@@ -1,64 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-07-30.basil', // Reverted to the correct API version
+      apiVersion: '2025-07-30',
     })
   : null;
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
 export async function POST(request: NextRequest) {
+  console.log('Create checkout session request received');
   try {
     if (!stripe) {
+      console.error('Stripe not configured');
       return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
     }
 
-    const userId = request.headers.get('x-user-id');
-    const userEmail = request.headers.get('x-user-email');
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID not found' }, { status: 401 });
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('Authorization header missing');
+      return NextResponse.json({ error: 'Authorization header missing' }, { status: 401 });
     }
 
-    // Create Stripe checkout session
+    const token = authHeader.split(' ')[1];
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      console.error('Failed to get user from token:', userError);
+      return NextResponse.json({ error: 'Failed to authenticate user' }, { status: 401 });
+    }
+    
+    console.log('User authenticated:', user.id, user.email);
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'subscription',
       line_items: [
         {
-          // Use pre-configured price ID if available, otherwise use price_data
-          ...(process.env.STRIPE_PRICE_ID 
-            ? { price: process.env.STRIPE_PRICE_ID }
-            : {
-                price_data: {
-                  currency: 'usd',
-                  product_data: {
-                    name: process.env.STRIPE_PRODUCT_NAME || 'RIA Hunter Pro',
-                    description: process.env.STRIPE_PRODUCT_DESCRIPTION || 'Unlimited queries and premium features',
-                  },
-                  unit_amount: parseInt(process.env.STRIPE_UNIT_AMOUNT || '2000'), // $20.00 in cents
-                  recurring: {
-                    interval: 'month',
-                  },
-                },
-              }),
+          price: process.env.STRIPE_PRICE_ID!,
           quantity: 1,
         },
       ],
       subscription_data: {
-        trial_period_days: parseInt(process.env.STRIPE_TRIAL_DAYS || '7'),
+        trial_period_days: 7,
         metadata: {
-          user_id: userId,
+          user_id: user.id,
         },
       },
-      customer_email: userEmail || undefined,
+      customer_email: user.email,
       metadata: {
-        user_id: userId,
+        user_id: user.id,
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/subscription/cancel`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/`,
       allow_promotion_codes: true,
     });
+
+    console.log('Stripe session created:', session.id);
 
     return NextResponse.json({ 
       id: session.id,

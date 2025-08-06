@@ -10,12 +10,14 @@ interface UpgradeButtonProps {
   className?: string;
   variant?: 'primary' | 'secondary';
   size?: 'sm' | 'md' | 'lg';
+  buttonText?: string;
 }
 
 export default function UpgradeButton({ 
   className = '', 
   variant = 'primary',
-  size = 'md'
+  size = 'md',
+  buttonText = 'Upgrade to Pro'
 }: UpgradeButtonProps) {
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +31,6 @@ export default function UpgradeButton({
     setIsLoading(true);
 
     try {
-      // Create checkout session
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -43,17 +44,9 @@ export default function UpgradeButton({
         throw new Error(error.error || 'Failed to create checkout session');
       }
 
-      const { id } = await response.json();
-
-      // Redirect to Stripe Checkout
-      const stripe = await stripePromise;
-      if (!stripe) {
-        throw new Error('Stripe failed to load');
-      }
-
-      const { error } = await stripe.redirectToCheckout({ sessionId: id });
-      if (error) {
-        throw new Error(error.message);
+      const { url } = await response.json();
+      if (url) {
+        window.location.href = url;
       }
 
     } catch (error) {
@@ -67,8 +60,8 @@ export default function UpgradeButton({
   const baseClasses = 'inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variantClasses = {
-    primary: 'bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2',
-    secondary: 'bg-white text-green-600 border border-green-600 hover:bg-green-50 focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
+    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+    secondary: 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
   };
 
   const sizeClasses = {
@@ -90,7 +83,7 @@ export default function UpgradeButton({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
         </svg>
       )}
-      {isLoading ? 'Starting upgrade...' : 'Upgrade to Pro'}
+      {isLoading ? 'Processing...' : buttonText}
     </button>
   );
 }
