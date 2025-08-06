@@ -155,7 +155,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Profile Form */}
-        <div className="px-6 py-6">
+        <div className="px-6 py-6 rounded-b-lg">
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -238,34 +238,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Account Information */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-lg">
-          <h3 className="text-sm font-medium text-gray-900 mb-3">Account Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500">Account ID:</span>
-              <span className="ml-2 font-mono text-xs text-gray-700">{user.id}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Email Verified:</span>
-              <span className={`ml-2 ${user.email_confirmed_at ? 'text-green-600' : 'text-red-600'}`}>
-                {user.email_confirmed_at ? 'Yes' : 'No'}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-500">Last Sign In:</span>
-              <span className="ml-2 text-gray-700">
-                {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Never'}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-500">Provider:</span>
-              <span className="ml-2 text-gray-700 capitalize">
-                {user.app_metadata?.provider || 'Unknown'}
-              </span>
-            </div>
-          </div>
-        </div>
+
       </div>
     </div>
   );

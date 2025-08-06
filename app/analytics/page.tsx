@@ -1,8 +1,101 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useAuth } from '@/app/contexts/AuthContext';
+import { supabase } from '@/app/lib/supabase-client';
 
 export default function AnalyticsPage() {
+  const { user } = useAuth();
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [formData, setFormData] = useState({
+    companyName: '',
+    role: '',
+    phoneNumber: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.companyName.trim()) {
+      newErrors.companyName = 'Company name is required';
+    }
+    
+    if (!formData.role.trim()) {
+      newErrors.role = 'Role is required';
+    }
+    
+    // Phone number is optional, but if provided, do basic validation
+    if (formData.phoneNumber.trim() && !/^[\+]?[1-9][\d]{0,15}$/.test(formData.phoneNumber.replace(/[\s\-\(\)]/g, ''))) {
+      newErrors.phoneNumber = 'Please enter a valid phone number';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm() || !user) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Update or insert profile data in Supabase
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      const profileData = {
+        id: user.id,
+        company_name: formData.companyName,
+        role: formData.role,
+        phone_number: formData.phoneNumber || null,
+        marketing_emails: true, // Enable marketing emails
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingProfile) {
+        // Update existing profile
+        const { error } = await supabase
+          .from('profiles')
+          .update(profileData)
+          .eq('id', user.id);
+        
+        if (error) throw error;
+      } else {
+        // Insert new profile
+        const { error } = await supabase
+          .from('profiles')
+          .insert([{ ...profileData, created_at: new Date().toISOString() }]);
+        
+        if (error) throw error;
+      }
+
+      // Also update local settings to reflect marketing emails being enabled
+      const currentSettings = JSON.parse(localStorage.getItem('ria-hunter-settings') || '{}');
+      localStorage.setItem('ria-hunter-settings', JSON.stringify({
+        ...currentSettings,
+        marketingEmails: true
+      }));
+
+      alert('Thank you! We\'ll notify you when the analytics dashboard is ready.');
+      setShowNotifyModal(false);
+      setFormData({ companyName: '', role: '', phoneNumber: '' });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Failed to save your information. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -131,12 +224,111 @@ export default function AnalyticsPage() {
             <button className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all shadow-lg hover:shadow-xl">
               Request Analytics Features
             </button>
-            <button className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200/50 transition-all">
+            <button 
+              onClick={() => setShowNotifyModal(true)}
+              className="px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-200/50 transition-all"
+            >
               Get Notified When Ready
             </button>
           </div>
         </div>
       </div>
+
+      {/* Get Notified Modal */}
+      {showNotifyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Get Notified When Ready</h3>
+              <button
+                onClick={() => setShowNotifyModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-6">
+              Help us prioritize features by sharing a bit about your organization. We'll notify you when analytics are ready!
+            </p>
+
+            <form className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Company Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.companyName}
+                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.companyName ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter your company name"
+                />
+                {errors.companyName && (
+                  <p className="mt-1 text-sm text-red-600">{errors.companyName}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role/Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.role ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter your role or job title"
+                />
+                {errors.role && (
+                  <p className="mt-1 text-sm text-red-600">{errors.role}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone Number <span className="text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter your phone number"
+                />
+                {errors.phoneNumber && (
+                  <p className="mt-1 text-sm text-red-600">{errors.phoneNumber}</p>
+                )}
+              </div>
+            </form>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowNotifyModal(false)}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? 'Saving...' : 'Notify Me'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

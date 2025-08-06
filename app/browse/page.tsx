@@ -85,12 +85,23 @@ export default function BrowsePage() {
           setSubscriptionStatus(errorData.subscriptionStatus || null);
           setError('Subscription required to browse RIAs');
         } else {
-          setError(errorData.error || 'Failed to fetch RIAs');
+          // Handle specific Auth0 configuration error gracefully
+          if (errorData.error === 'Auth0 configuration error, unable to validate token') {
+            setError('Service temporarily unavailable. We\'re working on it - come back later!');
+          } else {
+            setError(errorData.error || 'Failed to fetch RIAs');
+          }
         }
         setRias([]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      // Handle specific Auth0 configuration error gracefully
+      if (errorMessage.includes('Auth0 configuration error')) {
+        setError('Closed for renovations, come back later.');
+      } else {
+        setError(errorMessage);
+      }
       setRias([]);
     } finally {
       setLoading(false);

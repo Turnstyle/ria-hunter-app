@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/app/lib/supabase-client';
 import { useAuth } from '@/app/contexts/AuthContext';
+import UpgradeButton from './UpgradeButton';
 
 interface SubscriptionDetailsProps {
   userId: string;
@@ -245,16 +246,11 @@ const SubscriptionDetails: React.FC<SubscriptionDetailsProps> = ({ userId }) => 
               Start your free 7-day trial to unlock unlimited queries and premium features.
             </p>
             <div className="mt-6">
-              <button
-                onClick={() => {
-                  // Trigger the upgrade flow
-                  const event = new CustomEvent('startTrial');
-                  window.dispatchEvent(event);
-                }}
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Start Free Trial
-              </button>
+              <UpgradeButton 
+                buttonText="Start Free Trial"
+                size="md"
+                className="shadow-sm"
+              />
             </div>
           </div>
         )}

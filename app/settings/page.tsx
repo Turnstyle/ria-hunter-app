@@ -2,33 +2,57 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
+import { checkUserSubscription, SubscriptionStatus } from '@/app/lib/subscription-utils';
+import UpgradeButton from '@/app/components/subscription/UpgradeButton';
 
 export default function SettingsPage() {
   const { user, loading, signOut } = useAuth();
   const [settings, setSettings] = useState({
-    emailNotifications: true,
     marketingEmails: false,
-    searchHistory: true,
-    autoSave: true,
+    searchHistory: false,
+    autoSave: false,
     defaultAIProvider: 'openai' as 'openai' | 'vertex',
     defaultResultLimit: 10,
     theme: 'light' as 'light' | 'dark' | 'system',
   });
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load settings from localStorage or API
-    const savedSettings = localStorage.getItem('ria-hunter-settings');
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings(prev => ({ ...prev, ...parsed }));
-      } catch (error) {
-        console.error('Error parsing saved settings:', error);
+    const loadSettingsAndSubscription = async () => {
+      // Load settings from localStorage or API
+      const savedSettings = localStorage.getItem('ria-hunter-settings');
+      if (savedSettings) {
+        try {
+          const parsed = JSON.parse(savedSettings);
+          setSettings(prev => ({ ...prev, ...parsed }));
+        } catch (error) {
+          console.error('Error parsing saved settings:', error);
+        }
       }
-    }
-  }, []);
+
+      // Load subscription status
+      if (user?.id) {
+        try {
+          const response = await fetch('/api/subscription-status', {
+            headers: {
+              'Authorization': `Bearer ${user.id}`,
+            },
+          });
+          if (response.ok) {
+            const status = await response.json();
+            setSubscriptionStatus(status);
+          }
+        } catch (error) {
+          console.error('Error loading subscription status:', error);
+        }
+      }
+    };
+
+    loadSettingsAndSubscription();
+  }, [user]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -63,6 +87,17 @@ export default function SettingsPage() {
     localStorage.removeItem('ria-hunter-query-count');
     localStorage.removeItem('ria-hunter-linkedin-shared');
     alert('Search history cleared successfully!');
+  };
+
+  const handleProFeatureToggle = (feature: 'searchHistory' | 'autoSave', value: boolean) => {
+    // If trying to enable and user doesn't have pro subscription
+    if (value && !subscriptionStatus?.hasActiveSubscription) {
+      setShowUpgradeModal(feature);
+      return;
+    }
+    
+    // Allow turning off or if user has pro subscription
+    setSettings(prev => ({ ...prev, [feature]: value }));
   };
 
   if (loading) {
@@ -114,26 +149,10 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-6">
-        {/* Notification Settings */}
+        {/* Marketing Settings */}
         <div className="bg-white shadow-lg rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Notifications</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Marketing</h2>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-gray-900">Email Notifications</h3>
-                <p className="text-sm text-gray-500">Receive notifications about your account activity</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.emailNotifications}
-                  onChange={(e) => setSettings(prev => ({ ...prev, emailNotifications: e.target.checked }))}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium text-gray-900">Marketing Emails</h3>
@@ -188,14 +207,19 @@ export default function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-900">Save Search History</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium text-gray-900">Save Search History</h3>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Pro
+                  </span>
+                </div>
                 <p className="text-sm text-gray-500">Keep track of your previous searches</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.searchHistory}
-                  onChange={(e) => setSettings(prev => ({ ...prev, searchHistory: e.target.checked }))}
+                  onChange={(e) => handleProFeatureToggle('searchHistory', e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -204,14 +228,19 @@ export default function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-900">Auto-save Results</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium text-gray-900">Auto-save Results</h3>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Pro
+                  </span>
+                </div>
                 <p className="text-sm text-gray-500">Automatically save search results to your account</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.autoSave}
-                  onChange={(e) => setSettings(prev => ({ ...prev, autoSave: e.target.checked }))}
+                  onChange={(e) => handleProFeatureToggle('autoSave', e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -313,6 +342,43 @@ export default function SettingsPage() {
               >
                 Delete Account
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">Pro Feature</h3>
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 mb-6">
+              {showUpgradeModal === 'searchHistory' 
+                ? 'Search History is a Pro feature that lets you keep track of your previous searches.'
+                : 'Auto-save Results is a Pro feature that automatically saves search results to your account.'
+              }
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowUpgradeModal(null)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+              >
+                Cancel
+              </button>
+              <UpgradeButton
+                buttonText="Upgrade to Pro"
+                size="sm"
+                className="px-4 py-2"
+              />
             </div>
           </div>
         </div>
