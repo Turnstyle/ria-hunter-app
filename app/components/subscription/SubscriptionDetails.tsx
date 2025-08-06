@@ -2,11 +2,21 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/app/lib/supabase-client';
-import { Subscription } from '@/app/lib/schemas';
 import { useAuth } from '@/app/contexts/AuthContext';
 
 interface SubscriptionDetailsProps {
   userId: string;
+}
+
+interface Subscription {
+  id: string;
+  user_id: string;
+  status: string;
+  plan_id: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  stripe_customer_id?: string;
 }
 
 interface UsageStats {
