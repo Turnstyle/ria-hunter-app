@@ -295,7 +295,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* Subscription Modal */}
       {showSubscriptionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999]">
           <div className="bg-white rounded-xl p-8 max-w-md mx-4 relative">
             <button
               onClick={() => setShowSubscriptionModal(false)}
@@ -346,7 +346,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* LinkedIn Share Modal */}
       {showLinkedInModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999]">
           <div className="bg-white rounded-xl p-8 max-w-md mx-4 relative">
             <button
               onClick={() => setShowLinkedInModal(false)}
@@ -396,7 +396,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* Account Creation Modal */}
       {showAccountModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999]">
           <div className="bg-white rounded-xl p-8 max-w-md mx-4 relative">
             <div className="text-center">
               <div className="flex justify-center mb-4">

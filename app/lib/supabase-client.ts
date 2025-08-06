@@ -1,17 +1,31 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (typeof window !== 'undefined' && (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
-  console.warn('Missing Supabase environment variables');
+let supabase: SupabaseClient;
+
+if (supabaseUrl && supabaseAnonKey) {
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
+} else {
+  console.warn('Supabase environment variables are not set. Using placeholder client.');
+  // Provide a placeholder client to avoid crashing the app
+  supabase = {
+    auth: {
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      getSession: () => Promise.resolve({ data: { session: null } }),
+      getUser: () => Promise.resolve({ data: { user: null } }),
+      signOut: () => Promise.resolve({ error: null }),
+      signInWithOAuth: () => Promise.resolve({ error: { message: "Supabase not configured" } }),
+    },
+  } as any;
 }
 
-// Create Supabase client for client-side usage
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export { supabase };
 
 // Helper function to get the current session
 export const getSession = () => supabase.auth.getSession();
+
 
 // Helper function to get the current user
 export const getUser = () => supabase.auth.getUser();
