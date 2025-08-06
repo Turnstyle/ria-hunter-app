@@ -1,28 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { withAxiom } from 'next-axiom';
-import * as jose from 'jose';
+import { createClient } from '@supabase/supabase-js';
 
-// Environment variables for Auth0 - these should be set in your .env files
-const AUTH0_ISSUER_BASE_URL = process.env.AUTH0_ISSUER_BASE_URL;
-
-// Create a JWKS client to fetch signing keys from Auth0
-// Ensure AUTH0_ISSUER_BASE_URL is defined before creating the JWKSet
-let jwksClient:
-  | ReturnType<typeof jose.createRemoteJWKSet>
-  | undefined = undefined;
-if (AUTH0_ISSUER_BASE_URL) {
-  try {
-    jwksClient = jose.createRemoteJWKSet(
-      new URL(`${AUTH0_ISSUER_BASE_URL}/.well-known/jwks.json`)
-    );
-  } catch (e) {
-    console.error('Failed to create JWKS client for Auth0. Ensure AUTH0_ISSUER_BASE_URL is a valid URL.', e);
-    // In a real scenario, you might want to prevent startup or have a clearer error handling strategy
-  }
-} else {
-  console.warn('AUTH0_ISSUER_BASE_URL is not defined. Auth0 JWT validation will be skipped.');
-}
+// Supabase configuration
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // This function can be marked `async` if using `await` inside
 async function middleware(request: NextRequest) {
@@ -37,13 +20,13 @@ async function middleware(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/api/public') &&
     !request.nextUrl.pathname.startsWith('/api/ask')
   ) {
-    // Initial check for configuration completeness for early exit
-    if (!jwksClient || !process.env.AUTH0_ISSUER_BASE_URL || !process.env.AUTH0_AUDIENCE) {
+    // Check for Supabase configuration
+    if (!supabaseUrl || !supabaseAnonKey) {
       console.error(
-        'Auth0 configuration is incomplete. JWT validation cannot proceed. Check AUTH0_ISSUER_BASE_URL and AUTH0_AUDIENCE in environment variables.'
+        'Supabase configuration is incomplete. JWT validation cannot proceed. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in environment variables.'
       );
       return NextResponse.json(
-        { error: 'Auth0 configuration error, unable to validate token' },
+        { error: 'Supabase configuration error, unable to validate token' },
         { status: 500 }
       );
     }
@@ -58,7 +41,7 @@ async function middleware(request: NextRequest) {
     const token = authHeader.split(' ')[1];
 
     if (!token) {
-      console.error('Auth0 token is missing after splitting header');
+      console.error('Supabase token is missing after splitting header');
       return NextResponse.json(
         { error: 'Malformed authorization header' },
         { status: 401 }
@@ -66,30 +49,24 @@ async function middleware(request: NextRequest) {
     }
 
     try {
-      // Re-assign to new constants inside the try block to ensure TypeScript sees them as strings post-check.
-      // The initial check for process.env.AUTH0_ISSUER_BASE_URL and process.env.AUTH0_AUDIENCE already passed.
-      const issuer = process.env.AUTH0_ISSUER_BASE_URL!;
-      const audience = process.env.AUTH0_AUDIENCE!;
+      // Create Supabase client and validate the JWT token
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+      const { data: { user }, error } = await supabase.auth.getUser(token);
 
-      const { payload } = await jose.jwtVerify(token, jwksClient, {
-        issuer: issuer,
-        audience: audience,
-      });
+      if (error || !user) {
+        console.error('Supabase JWT validation failed:', error?.message);
+        return NextResponse.json(
+          { error: 'Invalid or expired token' },
+          { status: 401 }
+        );
+      }
 
-      console.log('Auth0 JWT validated successfully for user:', payload.sub);
+      console.log('Supabase JWT validated successfully for user:', user.id, user.email);
 
     } catch (error: any) {
-      console.error('Auth0 JWT validation failed:', error.message, error.code ? `(${error.code})` : '');
-      let errorMessage = 'Invalid token';
-      if (error.code === 'ERR_JWT_EXPIRED') {
-        errorMessage = 'Token has expired';
-      } else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
-        errorMessage = 'Token signature verification failed';
-      } else if (error.code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
-        errorMessage = `Token claim validation failed: ${error.message}`;
-      }
+      console.error('Supabase JWT validation error:', error.message);
       return NextResponse.json(
-        { error: errorMessage },
+        { error: 'Invalid token' },
         { status: 401 }
       );
     }
