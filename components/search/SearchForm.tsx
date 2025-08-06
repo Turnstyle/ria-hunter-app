@@ -49,11 +49,11 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   // Example queries that work well with the system and provide excellent user experiences
   const exampleQueries = [
     "What are New York's 5 largest RIAs by assets under management?",
-    "Show me RIAs located in New York",
+    "Show me RIAs located in Florida with activity in Hedge Fund investments.",
     "List the top 10 most active private equity fund RIA's in Chicago, IL",
     "Find investment advisors in Texas with over $1 billion AUM",
     "Which RIA's were most active in the last 12 months with Commercial Real Estate private funds?",
-    "Which RIAs are located in California and what are their specialties?"
+    "What RIA's do private equity funds in Idaho?"
   ];
 
   const handleLimitChange = (newLimit: number) => {
