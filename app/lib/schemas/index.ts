@@ -31,7 +31,19 @@ export const ListingFilterSchema = z.object({
   ...PaginationSchema.shape,
 });
 
+export const SubscriptionSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  status: z.string(),
+  plan_id: z.string(),
+  current_period_start: z.string(),
+  current_period_end: z.string(),
+  cancel_at_period_end: z.boolean(),
+});
+
+
 // Types derived from schemas
 export type CreateListingDTO = z.infer<typeof CreateListingSchema>;
 export type UpdateListingDTO = z.infer<typeof UpdateListingSchema>;
 export type ListingFilterDTO = z.infer<typeof ListingFilterSchema>;
+export type Subscription = z.infer<typeof SubscriptionSchema>;
