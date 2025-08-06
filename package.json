@@ -24,6 +24,7 @@
     "axios": "^1.9.0",
     "chromadb": "^2.4.6",
     "dotenv": "^17.0.0",
+    "jose": "^6.0.12",
     "lucide-react": "^0.416.0",
     "next": "^15.3.2",
     "next-axiom": "^1.9.1",
