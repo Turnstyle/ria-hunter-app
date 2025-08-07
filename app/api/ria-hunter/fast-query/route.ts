@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/app/lib/supabase-server'
+import { getServerSupabaseClient } from '@/lib/supabase-server'
 import crypto from 'crypto'
 
 interface QueryResult {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { query, type = 'general' } = await request.json()
     const startTime = Date.now()
     
-    const supabase = createServerClient()
+    const supabase = getServerSupabaseClient()
     
     // Generate cache key
     const normalizedQuery = normalizeQuery(query)
