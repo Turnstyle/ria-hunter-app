@@ -129,15 +129,6 @@ const HeaderCredits: React.FC = () => {
     const handleStorageChange = () => {
       if (!mountedRef.current) return;
       
-      // Check if user has unlimited access (admin)
-      const isUnlimitedUser = user?.email === 'turnerpeters@gmail.com' || 
-                             subscriptionStatus.hasActiveSubscription;
-      
-      if (isUnlimitedUser) {
-        setCredits(999); // Show unlimited credits
-        return;
-      }
-      
       const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
       const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
       const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
@@ -206,17 +197,12 @@ const HeaderCredits: React.FC = () => {
   // Don't show anything while loading
   if (loading) return null;
 
-  // For authenticated users with active subscription or admin users
-  const isUnlimitedUser = user?.email === 'turnerpeters@gmail.com' || 
-                         (user && subscriptionStatus.hasActiveSubscription);
-                         
-  if (isUnlimitedUser) {
+  // For authenticated users with active subscription
+  if (user && subscriptionStatus.hasActiveSubscription) {
     return (
       <div className="flex items-center space-x-3">
         <div className="text-sm font-medium text-gray-700">
-          Credits <span className="text-green-600">{
-            user?.email === 'turnerpeters@gmail.com' ? 'Unlimited (Admin)' : 'Unlimited'
-          }</span>
+          Credits <span className="text-green-600">Unlimited</span>
         </div>
       </div>
     );

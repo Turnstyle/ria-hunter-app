@@ -164,27 +164,11 @@ async function querySubscriptionWithRetry(userId: string, retryCount = 0): Promi
   }
 }
 
-// Admin users with unlimited access
-const UNLIMITED_ACCESS_EMAILS = ['turnerpeters@gmail.com'];
-
 export async function checkUserSubscription(userId: string): Promise<SubscriptionStatus> {
   if (!userId) {
     return {
       hasActiveSubscription: false,
       status: null,
-      trialEnd: null,
-      currentPeriodEnd: null
-    };
-  }
-
-  // Check if this is an admin user with unlimited access
-  const supabase = getServerSupabaseClient();
-  const { data: user } = await supabase.auth.admin.getUserById(userId);
-  
-  if (user?.user?.email && UNLIMITED_ACCESS_EMAILS.includes(user.user.email)) {
-    return {
-      hasActiveSubscription: true,
-      status: 'unlimited_admin',
       trialEnd: null,
       currentPeriodEnd: null
     };
