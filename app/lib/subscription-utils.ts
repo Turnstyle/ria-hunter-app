@@ -54,13 +54,13 @@ export async function checkUserSubscription(userId: string): Promise<Subscriptio
     const now = new Date();
     const isActive = subscription.status === 'active' || 
                     subscription.status === 'trialing' ||
-                    (subscription.status === 'past_due' && subscription.current_period_end && new Date(subscription.current_period_end) > now);
+                    (subscription.status === 'past_due' && (subscription as any).current_period_end && new Date((subscription as any).current_period_end) > now);
 
     return {
       hasActiveSubscription: isActive,
       status: subscription.status,
-      trialEnd: subscription.trial_end || null,
-      currentPeriodEnd: subscription.current_period_end || null
+      trialEnd: (subscription as any).trial_end || null,
+      currentPeriodEnd: (subscription as any).current_period_end || null
     };
   } catch (error) {
     console.error('Error checking subscription status:', error);
