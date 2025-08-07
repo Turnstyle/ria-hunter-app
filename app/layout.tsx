@@ -30,8 +30,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+      </head>
       <AuthProvider>
-        <body className="bg-gray-50 min-h-screen">
+        <body className="bg-gray-50 min-h-screen overflow-x-hidden">
           <Header />
           <main className="flex-1">
             {children}

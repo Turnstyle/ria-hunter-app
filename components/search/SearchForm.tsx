@@ -199,40 +199,40 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Main Search Form */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <form onSubmit={handleSubmit} className="p-6 sm:p-8">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 lg:p-8">
           <div className="space-y-4">
-            <label htmlFor="query" className="block text-lg font-semibold text-gray-900">
+            <label htmlFor="query" className="block text-base sm:text-lg font-semibold text-gray-900">
               Ask about RIAs
             </label>
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-3">
               <input
                 type="text"
                 id="query"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="flex-1 border-2 border-gray-200 p-4 rounded-xl text-base sm:text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                className="w-full border-2 border-gray-200 p-3 sm:p-4 rounded-xl text-base focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 placeholder="What is the largest RIA in California?"
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={isLoading || !query.trim()}
-                className="px-6 sm:px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
               >
                 {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Searching...
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm sm:text-base">Searching...</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
-                    Search
+                    <span className="text-sm sm:text-base">Search</span>
                   </div>
                 )}
               </button>
@@ -240,14 +240,14 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
           </div>
 
           {/* Advanced Options */}
-          <div className="pt-4 border-t border-gray-100">
+          <div className="pt-3 sm:pt-4 border-t border-gray-100">
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 focus:outline-none transition-colors"
+              className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 hover:text-blue-600 focus:outline-none transition-colors"
             >
               <svg 
-                className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} 
+                className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -258,16 +258,16 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
             </button>
             
             {showAdvanced && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-xl space-y-4">
+              <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gray-50 rounded-xl space-y-3 sm:space-y-4">
                 <div>
-                  <label htmlFor="aiProvider" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="aiProvider" className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     AI Provider
                   </label>
                   <select
                     id="aiProvider"
                     value={aiProvider}
                     onChange={(e) => setAiProvider(e.target.value as 'openai' | 'vertex')}
-                    className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                    className="w-full border border-gray-300 p-2 sm:p-3 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
                     disabled={isLoading}
                   >
                     <option value="openai">OpenAI (GPT-4 Turbo)</option>
@@ -275,14 +275,14 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="maxResults" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="maxResults" className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     Max Results
                   </label>
                   <select
                     id="maxResults"
                     value={limit}
                     onChange={(e) => handleLimitChange(parseInt(e.target.value))}
-                    className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                    className="w-full border border-gray-300 p-2 sm:p-3 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
                     disabled={isLoading}
                   >
                     <option value={10}>10 results</option>
@@ -299,24 +299,24 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* Example Queries */}
       <div className="text-center">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Try these example queries:</h3>
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6 px-4">Try these example queries:</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-4xl mx-auto">
           {exampleQueries.map((example, index) => (
             <button
               key={index}
               type="button"
               onClick={() => handleExampleClick(example)}
-              className="group bg-white border-2 border-gray-200 p-4 rounded-xl hover:border-blue-300 hover:shadow-md focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="group bg-white border-2 border-gray-200 p-3 sm:p-4 rounded-xl hover:border-blue-300 hover:shadow-md focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-left"
               disabled={isLoading}
             >
               <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors">
-                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors">
+                  <svg className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <div className="text-left">
-                  <p className="text-sm font-medium text-gray-900 group-hover:text-blue-900 transition-colors">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-900 group-hover:text-blue-900 transition-colors break-words">
                     &ldquo;{example}&rdquo;
                   </p>
                 </div>
@@ -328,8 +328,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* Subscription Modal */}
       {showSubscriptionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
-          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-3 sm:p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 lg:p-8 max-w-md w-full mx-2 sm:mx-4 relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowSubscriptionModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -376,8 +376,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* LinkedIn Share Modal */}
       {showLinkedInModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
-          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-3 sm:p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 lg:p-8 max-w-md w-full mx-2 sm:mx-4 relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setShowLinkedInModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -426,8 +426,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* Account Creation Modal */}
       {showAccountModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
-          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-3 sm:p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 lg:p-8 max-w-md w-full mx-2 sm:mx-4 relative max-h-[90vh] overflow-y-auto">
             <div className="text-center">
               <div className="flex justify-center mb-4">
                 <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">

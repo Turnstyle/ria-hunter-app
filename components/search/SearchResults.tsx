@@ -121,16 +121,16 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* AI Answer */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+        <div className="flex items-center gap-2 mb-2 sm:mb-3">
+          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
           </svg>
-          <span className="font-semibold text-gray-900">AI Assistant</span>
+          <span className="text-sm sm:text-base font-semibold text-gray-900">AI Assistant</span>
           {result.sources && result.sources.length > 0 && (
-            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full ml-auto">
+            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full ml-auto flex-shrink-0">
               {result.sources.length} source{result.sources.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -138,7 +138,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
         
         <div className="prose prose-sm max-w-none text-left">
           <div 
-            className="text-gray-700 leading-relaxed space-y-2"
+            className="text-gray-700 text-sm sm:text-base leading-relaxed space-y-2 overflow-x-auto"
             dangerouslySetInnerHTML={{ __html: formatAnswer(result.answer) }}
           />
         </div>
@@ -146,26 +146,26 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
 
       {/* Sources */}
       {result.sources && result.sources.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
           <details open>
-            <summary className="cursor-pointer text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <summary className="cursor-pointer text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3 flex items-center gap-2">
+              <svg className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm8 0a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1h-6a1 1 0 01-1-1V8z" clipRule="evenodd"/>
               </svg>
               Source Data ({result.sources.length})
             </summary>
-            <div className="mt-3 space-y-2">
+            <div className="mt-2 sm:mt-3 space-y-2">
               {result.sources.map((source, index) => (
-                <div key={index} className="border-l-3 border-blue-400 pl-3 py-2 bg-blue-50/50 rounded-r">
-                  <div className="font-medium text-gray-900 text-sm mb-1">
+                <div key={index} className="border-l-3 border-blue-400 pl-2 sm:pl-3 py-2 bg-blue-50/50 rounded-r">
+                  <div className="font-medium text-gray-900 text-xs sm:text-sm mb-1 break-words">
                     {source.firm_name}
                   </div>
                   <div className="text-xs text-gray-600 space-y-1">
-                    <div className="flex items-center gap-3">
-                      <span>CRD: {source.crd_number}</span>
-                      <span>{source.city}, {source.state}</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                      <span className="flex-shrink-0">CRD: {source.crd_number}</span>
+                      <span className="break-words">{source.city}, {source.state}</span>
                       {source.aum && (
-                        <span className="font-medium text-green-700">
+                        <span className="font-medium text-green-700 flex-shrink-0">
                           AUM: {formatAUM(source.aum)}
                         </span>
                       )}
