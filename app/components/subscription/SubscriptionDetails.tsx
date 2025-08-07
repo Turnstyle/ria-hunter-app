@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/app/lib/supabase-client';
+import { checkUserSubscription, SubscriptionStatus } from '@/app/lib/subscription-utils';
 import { useAuth } from '@/app/contexts/AuthContext';
 import UpgradeButton from './UpgradeButton';
 
@@ -9,15 +9,10 @@ interface SubscriptionDetailsProps {
   userId: string;
 }
 
-interface Subscription {
-  id: string;
-  user_id: string;
-  status: string;
-  plan_id: string;
-  current_period_start: string;
-  current_period_end: string;
-  cancel_at_period_end: boolean;
+interface ExtendedSubscriptionStatus extends SubscriptionStatus {
+  cancel_at_period_end?: boolean;
   stripe_customer_id?: string;
+  current_period_start?: string;
 }
 
 interface UsageStats {
@@ -27,7 +22,7 @@ interface UsageStats {
 }
 
 const SubscriptionDetails: React.FC<SubscriptionDetailsProps> = ({ userId }) => {
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subscription, setSubscription] = useState<ExtendedSubscriptionStatus | null>(null);
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,18 +34,15 @@ const SubscriptionDetails: React.FC<SubscriptionDetailsProps> = ({ userId }) => 
         setLoading(true);
         setError(null);
 
-        // Fetch subscription details
-        const { data: subData, error: subError } = await supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
-
-        if (subError && subError.code !== 'PGRST116') {
-          throw subError;
+        // Fetch subscription details using the utility function
+        const subscriptionStatus = await checkUserSubscription(userId);
+        
+        // Only set subscription if it's actually active
+        if (subscriptionStatus.hasActiveSubscription) {
+          setSubscription(subscriptionStatus);
+        } else {
+          setSubscription(null);
         }
-
-        setSubscription(subData);
 
         // Fetch usage statistics (mock data for now - you'd replace this with actual usage tracking)
         const mockUsageStats: UsageStats = {
@@ -204,7 +196,10 @@ const SubscriptionDetails: React.FC<SubscriptionDetailsProps> = ({ userId }) => 
                 <div>
                   <label className="text-sm font-medium text-gray-500">Current Period</label>
                   <p className="mt-1 text-sm text-gray-900">
-                    {formatDate(subscription.current_period_start)} - {formatDate(subscription.current_period_end)}
+                    {subscription.current_period_start && subscription.currentPeriodEnd ? 
+                      `${formatDate(subscription.current_period_start)} - ${formatDate(subscription.currentPeriodEnd)}` :
+                      'Active subscription'
+                    }
                   </p>
                 </div>
               </div>
@@ -216,18 +211,18 @@ const SubscriptionDetails: React.FC<SubscriptionDetailsProps> = ({ userId }) => 
                   <label className="text-sm font-medium text-gray-500">Auto-renewal</label>
                   <p className="mt-1 text-sm text-gray-900">
                     {subscription.cancel_at_period_end ? (
-                      <span className="text-red-600">Canceled (ends {formatDate(subscription.current_period_end)})</span>
+                      <span className="text-red-600">Canceled (ends {subscription.currentPeriodEnd ? formatDate(subscription.currentPeriodEnd) : 'N/A'})</span>
                     ) : (
                       <span className="text-green-600">Enabled</span>
                     )}
                   </p>
                 </div>
 
-                {subscription.status === 'trialing' && (
+                {subscription.status === 'trialing' && subscription.trialEnd && (
                   <div>
                     <label className="text-sm font-medium text-gray-500">Trial ends</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {formatDate(subscription.current_period_end)}
+                      {formatDate(subscription.trialEnd)}
                     </p>
                   </div>
                 )}

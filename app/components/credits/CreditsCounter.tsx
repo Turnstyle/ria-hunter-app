@@ -23,8 +23,14 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
   const subscriptionCheckRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(true);
 
-  // Initialize credits and bonus status from localStorage
+  // Initialize credits and bonus status from localStorage or subscription
   useEffect(() => {
+    // If user has active subscription, show unlimited credits
+    if (subscriptionStatus.hasActiveSubscription) {
+      setCredits(999999); // Show as unlimited credits
+      return;
+    }
+
     const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
     const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
     const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
@@ -50,7 +56,7 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
     if (savedShareStatus === 'true') {
       setHasSharedOnLinkedIn(true);
     }
-  }, [user]);
+  }, [user, subscriptionStatus.hasActiveSubscription]);
 
   // Safely check subscription status with circuit breaker and rate limiting
   const checkSubscriptionSafely = useCallback(async (userId: string) => {
@@ -133,6 +139,12 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
     const handleStorageChange = () => {
       if (!mountedRef.current) return;
       
+      // If user has active subscription, always show unlimited credits
+      if (subscriptionStatus.hasActiveSubscription) {
+        setCredits(999999);
+        return;
+      }
+      
       const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
       const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
       const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
@@ -166,7 +178,7 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
-  }, [hasSharedOnLinkedIn]);
+  }, [hasSharedOnLinkedIn, subscriptionStatus.hasActiveSubscription]);
 
   const handleLinkedInShare = () => {
     const shareText = encodeURIComponent(
@@ -254,20 +266,20 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
             </div>
           </div>
           <div>
-            <h3 className={`text-sm font-medium ${isLowCredits ? 'text-orange-800' : 'text-blue-800'}`}>
-              Free Queries Remaining
+            <h3 className={`text-sm font-medium ${isLowCredits ? 'text-orange-800' : subscriptionStatus.hasActiveSubscription ? 'text-purple-800' : 'text-blue-800'}`}>
+              {subscriptionStatus.hasActiveSubscription ? 'Pro Subscription Active' : 'Free Queries Remaining'}
             </h3>
-            <p className={`text-xs ${isLowCredits ? 'text-orange-600' : 'text-blue-600'}`}>
-              {isLowCredits ? 'Running low on credits!' : 'Use them wisely'}
+            <p className={`text-xs ${isLowCredits ? 'text-orange-600' : subscriptionStatus.hasActiveSubscription ? 'text-purple-600' : 'text-blue-600'}`}>
+              {subscriptionStatus.hasActiveSubscription ? 'Thanks for subscribing!' : (isLowCredits ? 'Running low on credits!' : 'Use them wisely')}
             </p>
           </div>
         </div>
         <div className="text-right">
-          <div className={`text-2xl font-bold ${isLowCredits ? 'text-orange-800' : 'text-blue-800'}`}>
-            {credits}
+          <div className={`text-2xl font-bold ${isLowCredits ? 'text-orange-800' : subscriptionStatus.hasActiveSubscription ? 'text-purple-800' : 'text-blue-800'}`}>
+            {subscriptionStatus.hasActiveSubscription ? '∞' : credits}
           </div>
-          <div className={`text-xs ${isLowCredits ? 'text-orange-600' : 'text-blue-600'}`}>
-            Credits
+          <div className={`text-xs ${isLowCredits ? 'text-orange-600' : subscriptionStatus.hasActiveSubscription ? 'text-purple-600' : 'text-blue-600'}`}>
+            {subscriptionStatus.hasActiveSubscription ? 'Unlimited' : 'Credits'}
           </div>
         </div>
       </div>

@@ -19,8 +19,14 @@ const HeaderCredits: React.FC = () => {
   const subscriptionCheckRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(true);
 
-  // Initialize credits and bonus status from localStorage
+  // Initialize credits and bonus status from localStorage or subscription
   useEffect(() => {
+    // If user has active subscription, show unlimited credits
+    if (subscriptionStatus.hasActiveSubscription) {
+      setCredits(999999); // Show as unlimited credits
+      return;
+    }
+
     const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
     const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
     const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
@@ -46,7 +52,7 @@ const HeaderCredits: React.FC = () => {
     if (savedShareStatus === 'true') {
       setHasSharedOnLinkedIn(true);
     }
-  }, [user]);
+  }, [user, subscriptionStatus.hasActiveSubscription]);
 
   // Safely check subscription status with circuit breaker and rate limiting
   const checkSubscriptionSafely = useCallback(async (userId: string) => {
@@ -225,12 +231,12 @@ const HeaderCredits: React.FC = () => {
         )}
         
         <div className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-          <span className={`font-semibold ${credits === 0 ? 'text-red-600' : credits === 1 ? 'text-orange-600' : 'text-green-600'}`}>
-            {credits}
+          <span className={`font-semibold ${credits === 0 ? 'text-red-600' : credits === 1 ? 'text-orange-600' : subscriptionStatus.hasActiveSubscription ? 'text-purple-600' : 'text-green-600'}`}>
+            {subscriptionStatus.hasActiveSubscription ? '∞' : credits}
           </span>
           <span className="ml-0.5 sm:ml-1">
-            <span className="hidden sm:inline">{credits === 1 ? 'Credit' : 'Credits'}</span>
-            <span className="sm:hidden">C</span>
+            <span className="hidden sm:inline">{subscriptionStatus.hasActiveSubscription ? 'Unlimited' : (credits === 1 ? 'Credit' : 'Credits')}</span>
+            <span className="sm:hidden">{subscriptionStatus.hasActiveSubscription ? '∞' : 'C'}</span>
           </span>
         </div>
       </div>
