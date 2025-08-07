@@ -63,18 +63,17 @@ export async function GET(
       return NextResponse.json({ error: 'RIA profile not found' }, { status: 404 });
     }
 
-    // Fetch filings for this adviser
+    // Fetch filings for this adviser using adviser.id
     const { data: filings, error: filingsError } = await supabase
       .from('filings')
       .select(`
-        filing_id,
+        id as filing_id,
         filing_date,
         total_aum,
-        manages_private_funds_flag,
-        report_period_end_date,
-        form_type
+        private_fund_count,
+        report_period_end_date
       `)
-      .eq('cik', cik)
+      .eq('adviser_id', adviser.id)
       .order('filing_date', { ascending: false })
       .limit(10);
 
@@ -83,31 +82,62 @@ export async function GET(
       Sentry.captureException(filingsError);
     }
 
-    // Fetch private funds for this adviser
-    const { data: privateFunds, error: privateFundsError } = await supabase
-      .from('private_funds')
-      .select(`
-        fund_id,
-        fund_name,
-        fund_type,
-        gross_asset_value,
-        min_investment,
-        auditor_name,
-        auditor_location
-      `)
-      .eq('cik', cik)
-      .limit(20);
-
-    if (privateFundsError) {
-      console.error('Error fetching private funds:', privateFundsError);
-      Sentry.captureException(privateFundsError);
+    // Fetch private funds for this adviser using filing IDs
+    let privateFunds = [];
+    if (filings && filings.length > 0) {
+      const fillingIds = filings.map(f => f.filing_id);
+      const { data: privateFundsData, error: privateFundsError } = await supabase
+        .from('private_funds')
+        .select(`
+          id as fund_id,
+          fund_name,
+          fund_type,
+          gross_asset_value
+        `)
+        .in('filing_id', fillingIds)
+        .limit(20);
+      
+      privateFunds = privateFundsData || [];
+      if (privateFundsError) {
+        console.error('Error fetching private funds:', privateFundsError);
+        Sentry.captureException(privateFundsError);
+      }
     }
 
-    // Combine all data
+
+
+    // Transform data to match expected format
     const profileData = {
-      ...adviser,
-      filings: filings || [],
-      private_funds: privateFunds || [],
+      cik: adviser.cik,
+      crd_number: null, // Not available in current schema
+      legal_name: adviser.legal_name,
+      main_addr_street1: adviser.main_office_location?.street || null,
+      main_addr_street2: null,
+      main_addr_city: adviser.main_office_location?.city || null,
+      main_addr_state: adviser.main_office_location?.state || null,
+      main_addr_zip: adviser.main_office_location?.zipcode || null,
+      main_addr_country: adviser.main_office_location?.country || null,
+      phone_number: null,
+      fax_number: null,
+      website: null,
+      is_st_louis_msa: null,
+      filings: (filings || []).map(f => ({
+        filing_id: f.filing_id.toString(),
+        filing_date: f.filing_date,
+        total_aum: f.total_aum,
+        manages_private_funds_flag: f.private_fund_count > 0,
+        report_period_end_date: f.report_period_end_date,
+        form_type: null
+      })),
+      private_funds: privateFunds.map(pf => ({
+        fund_id: pf.fund_id.toString(),
+        fund_name: pf.fund_name,
+        fund_type: pf.fund_type,
+        gross_asset_value: pf.gross_asset_value,
+        min_investment: null,
+        auditor_name: null,
+        auditor_location: null
+      }))
     };
 
     // Validate response

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-// import { UserProvider, useUser } from '@auth0/nextjs-auth0/client';
+import { useAuth } from '@/app/contexts/AuthContext';
 import Link from 'next/link';
 
 interface RIAProfile {
@@ -57,9 +57,7 @@ interface UserLink {
 
 function RIAProfileContent() {
   const params = useParams();
-  // const { user, isLoading: userLoading } = useUser();
-  const user = null; // Temporarily disabled
-  const userLoading = false;
+  const { user, loading: userLoading } = useAuth();
   const cik = params?.cik as string;
 
   const [profile, setProfile] = useState<RIAProfile | null>(null);
