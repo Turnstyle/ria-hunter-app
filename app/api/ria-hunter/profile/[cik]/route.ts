@@ -43,9 +43,9 @@ export async function GET(
 ) {
   try {
     const resolvedParams = await params;
-    const cik = parseInt(resolvedParams.cik);
+    const cik = resolvedParams.cik;
 
-    if (isNaN(cik)) {
+    if (!cik || cik.length === 0) {
       return NextResponse.json({ error: 'Invalid CIK provided' }, { status: 400 });
     }
 
@@ -97,7 +97,7 @@ export async function GET(
 
     // Transform data to match expected format
     const profileData = {
-      cik: adviser.cik,
+      cik: parseInt(adviser.cik),
       crd_number: null, // Not available in current schema
       legal_name: adviser.legal_name,
       main_addr_street1: adviser.main_office_location?.street || null,
