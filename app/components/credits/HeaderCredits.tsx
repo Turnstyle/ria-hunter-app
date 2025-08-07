@@ -182,11 +182,11 @@ const HeaderCredits: React.FC = () => {
     }, 3000);
   };
 
-  // Don't show anything if loading or no user
-  if (loading || !user) return null;
+  // Don't show anything while loading
+  if (loading) return null;
 
   // For authenticated users with active subscription
-  if (subscriptionStatus.hasActiveSubscription) {
+  if (user && subscriptionStatus.hasActiveSubscription) {
     return (
       <div className="flex items-center space-x-3">
         <div className="text-sm font-medium text-gray-700">

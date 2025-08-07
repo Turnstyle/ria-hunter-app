@@ -46,13 +46,15 @@ export function Header() {
           <div className="flex items-center space-x-4">
             {loading ? (
               <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            ) : user ? (
+            ) : (
               <>
                 <HeaderCredits />
-                <UserMenu />
+                {user ? (
+                  <UserMenu />
+                ) : (
+                  <LoginButton />
+                )}
               </>
-            ) : (
-              <LoginButton />
             )}
           </div>
         </div>
