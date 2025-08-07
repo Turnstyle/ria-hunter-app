@@ -182,8 +182,8 @@ const SubscriptionDetails: React.FC<SubscriptionDetailsProps> = ({ userId }) => 
                 <div>
                   <label className="text-sm font-medium text-gray-500">Status</label>
                   <div className="mt-1">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(subscription.status)}`}>
-                      {getStatusText(subscription.status)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(subscription.status || 'unknown')}`}>
+                      {getStatusText(subscription.status || 'unknown')}
                     </span>
                   </div>
                 </div>
