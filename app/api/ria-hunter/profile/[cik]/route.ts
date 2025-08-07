@@ -83,7 +83,7 @@ export async function GET(
     }
 
     // Fetch private funds for this adviser using filing IDs
-    let privateFunds = [];
+    let privateFunds: any[] = [];
     if (filings && filings.length > 0) {
       const fillingIds = filings.map(f => f.filing_id);
       const { data: privateFundsData, error: privateFundsError } = await supabase
