@@ -2,7 +2,6 @@
 
 import React, { useState, FormEvent, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import CreditsCounter from '@/app/components/credits/CreditsCounter';
 
 interface SearchFormProps {
   onResult?: (result: any, query: string) => void;
@@ -201,9 +200,6 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
   return (
     <div className="space-y-8">
-      {/* Credits Counter */}
-      <CreditsCounter className="max-w-2xl mx-auto" />
-
       {/* Main Search Form */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-6 sm:p-8">
@@ -217,14 +213,14 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
                 id="query"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="flex-1 border-2 border-gray-200 p-4 rounded-xl text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                className="flex-1 border-2 border-gray-200 p-4 rounded-xl text-base sm:text-lg focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
                 placeholder="What is the largest RIA in California?"
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={isLoading || !query.trim()}
-                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                className="px-6 sm:px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
@@ -332,8 +328,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* Subscription Modal */}
       {showSubscriptionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999]">
-          <div className="bg-white rounded-xl p-8 max-w-md mx-4 relative">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
+          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
             <button
               onClick={() => setShowSubscriptionModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -380,8 +376,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* LinkedIn Share Modal */}
       {showLinkedInModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999]">
-          <div className="bg-white rounded-xl p-8 max-w-md mx-4 relative">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
+          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
             <button
               onClick={() => setShowLinkedInModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -430,8 +426,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
 
       {/* Account Creation Modal */}
       {showAccountModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999]">
-          <div className="bg-white rounded-xl p-8 max-w-md mx-4 relative">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
+          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
             <div className="text-center">
               <div className="flex justify-center mb-4">
                 <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">

@@ -85,7 +85,7 @@ export function UserMenu() {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-20"
+          className="absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 max-h-screen overflow-y-auto"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="user-menu-button"
