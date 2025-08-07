@@ -201,23 +201,24 @@ const HeaderCredits: React.FC = () => {
 
   return (
     <>
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-1.5 sm:space-x-3">
         {showBonusButton && (
           <button
             onClick={() => setShowLinkedInModal(true)}
-            className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-md hover:shadow-lg animate-pulse hover:animate-none"
+            className="px-2 py-1.5 sm:px-3 sm:py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs sm:text-xs font-semibold rounded-md sm:rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-md hover:shadow-lg animate-pulse hover:animate-none"
           >
             <span className="hidden sm:inline">Earn 1 Free Credit</span>
-            <span className="sm:hidden">+1</span>
+            <span className="sm:hidden">+1 Free</span>
           </button>
         )}
         
-        <div className="text-sm font-medium text-gray-700">
+        <div className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
           <span className={`font-semibold ${credits === 0 ? 'text-red-600' : credits === 1 ? 'text-orange-600' : 'text-green-600'}`}>
             {credits}
           </span>
-          <span className="ml-1">
-            {credits === 1 ? 'Credit' : 'Credits'}
+          <span className="ml-0.5 sm:ml-1">
+            <span className="hidden sm:inline">{credits === 1 ? 'Credit' : 'Credits'}</span>
+            <span className="sm:hidden">C</span>
           </span>
         </div>
       </div>

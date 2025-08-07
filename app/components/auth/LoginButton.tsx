@@ -35,11 +35,11 @@ export default function LoginButton({ className = '', redirectTo }: LoginButtonP
       onClick={handleSignIn}
       disabled={isLoading}
       className={`
-        flex items-center justify-center gap-3 px-6 py-3 
+        flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-2 sm:py-3 
         bg-white border border-gray-300 rounded-lg shadow-sm
         hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
         disabled:opacity-50 disabled:cursor-not-allowed
-        transition-colors duration-200
+        transition-colors duration-200 text-sm sm:text-base
         ${className}
       `}
     >
@@ -65,8 +65,9 @@ export default function LoginButton({ className = '', redirectTo }: LoginButtonP
           />
         </svg>
       )}
-      <span className="text-gray-700 font-medium">
-        {isLoading ? 'Signing in...' : 'Sign in with Google'}
+      <span className="text-gray-700 font-medium whitespace-nowrap">
+        <span className="hidden sm:inline">{isLoading ? 'Signing in...' : 'Sign in with Google'}</span>
+        <span className="sm:hidden">{isLoading ? 'Signing in...' : 'Sign in'}</span>
       </span>
     </button>
   );
