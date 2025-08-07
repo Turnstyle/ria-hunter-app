@@ -197,7 +197,7 @@ const HeaderCredits: React.FC = () => {
   }
 
   // For free users - show credits and bonus button if applicable
-  const showBonusButton = !hasSharedOnLinkedIn && credits <= 1;
+  const showBonusButton = !hasSharedOnLinkedIn; // Show immediately, not just when credits are low
 
   return (
     <>
@@ -207,7 +207,7 @@ const HeaderCredits: React.FC = () => {
             onClick={() => setShowLinkedInModal(true)}
             className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-md hover:shadow-lg animate-pulse hover:animate-none"
           >
-            <span className="hidden sm:inline">1 Free Credit</span>
+            <span className="hidden sm:inline">Earn 1 Free Credit</span>
             <span className="sm:hidden">+1</span>
           </button>
         )}
