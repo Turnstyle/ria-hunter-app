@@ -3,7 +3,7 @@ import { getServerSupabaseClient } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient()
+    const supabase = getServerSupabaseClient()
     
     // Get cache statistics
     const { data: cacheStats } = await supabase
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { action } = await request.json()
-    const supabase = createServerClient()
+    const supabase = getServerSupabaseClient()
     
     if (action === 'refresh_views') {
       await supabase.rpc('refresh_performance_views')
