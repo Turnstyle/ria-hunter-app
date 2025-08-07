@@ -66,13 +66,7 @@ export async function GET(
     // Fetch filings for this adviser using adviser.id
     const { data: filings, error: filingsError } = await supabase
       .from('filings')
-      .select(`
-        id as filing_id,
-        filing_date,
-        total_aum,
-        private_fund_count,
-        report_period_end_date
-      `)
+      .select('id, filing_date, total_aum, private_fund_count, report_period_end_date')
       .eq('adviser_id', adviser.id)
       .order('filing_date', { ascending: false })
       .limit(10);
@@ -85,7 +79,7 @@ export async function GET(
     // Fetch private funds for this adviser using filing IDs
     let privateFunds: any[] = [];
     if (filings && filings.length > 0) {
-      const fillingIds = filings.map(f => f.filing_id);
+      const fillingIds = filings.map((f: any) => f.id);
       const { data: privateFundsData, error: privateFundsError } = await supabase
         .from('private_funds')
         .select(`
@@ -121,8 +115,8 @@ export async function GET(
       fax_number: null,
       website: null,
       is_st_louis_msa: null,
-      filings: (filings || []).map(f => ({
-        filing_id: f.filing_id.toString(),
+      filings: (filings || []).map((f: any) => ({
+        filing_id: f.id.toString(),
         filing_date: f.filing_date,
         total_aum: f.total_aum,
         manages_private_funds_flag: f.private_fund_count > 0,
