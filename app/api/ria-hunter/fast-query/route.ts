@@ -9,6 +9,11 @@ interface QueryResult {
   source: 'database' | 'cache' | 'materialized_view'
 }
 
+interface AdviserData {
+  [key: string]: any
+  filings?: any[]
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { query, type = 'general' } = await request.json()
@@ -196,7 +201,7 @@ async function executeDirectQuery(supabase: any, query: string, normalizedQuery:
       .order('filings.total_aum', { ascending: false })
       .limit(10)
     
-    return data?.map(adviser => ({
+    return data?.map((adviser: AdviserData) => ({
       ...adviser,
       latest_filing: adviser.filings?.[0]
     }))
@@ -219,7 +224,7 @@ async function executeDirectQuery(supabase: any, query: string, normalizedQuery:
       .order('filings.total_aum', { ascending: false })
       .limit(10)
     
-    return data?.map(adviser => ({
+    return data?.map((adviser: AdviserData) => ({
       ...adviser,
       latest_filing: adviser.filings?.[0]
     }))
