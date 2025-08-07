@@ -1,21 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { checkUserSubscription } from '@/app/lib/subscription-utils';
-
-interface SubscriptionStatus {
-  hasActiveSubscription: boolean;
-  status: string | null;
-}
+import { checkUserSubscription, getSubscriptionSystemHealth, SubscriptionStatus } from '@/app/lib/subscription-utils';
 
 const HeaderCredits: React.FC = () => {
   const { user, session } = useAuth();
   const [credits, setCredits] = useState<number>(2);
   const [hasSharedOnLinkedIn, setHasSharedOnLinkedIn] = useState<boolean>(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({ hasActiveSubscription: false, status: null });
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({ 
+    hasActiveSubscription: false, 
+    status: null,
+    trialEnd: null,
+    currentPeriodEnd: null
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [showLinkedInModal, setShowLinkedInModal] = useState<boolean>(false);
+  const subscriptionCheckRef = useRef<boolean>(false);
+  const mountedRef = useRef<boolean>(true);
 
   // Initialize credits and LinkedIn status from localStorage
   useEffect(() => {
@@ -37,20 +39,87 @@ const HeaderCredits: React.FC = () => {
     }
   }, []);
 
-  // Check subscription status for authenticated users (temporarily disabled to prevent infinite loop)
-  useEffect(() => {
-    if (user) {
+  // Safely check subscription status with circuit breaker and rate limiting
+  const checkSubscriptionSafely = useCallback(async (userId: string) => {
+    if (subscriptionCheckRef.current) {
+      console.log('Subscription check already in progress, skipping');
+      return;
+    }
+
+    // Check if circuit breaker is open before attempting
+    const health = getSubscriptionSystemHealth(userId);
+    if (health.isCircuitOpen) {
+      console.log(`Circuit breaker open for user ${userId}, skipping subscription check`);
       setLoading(false);
-      // Temporarily assume no active subscription to prevent infinite loop
-      setSubscriptionStatus({ hasActiveSubscription: false, status: null });
+      return;
+    }
+
+    subscriptionCheckRef.current = true;
+    setLoading(true);
+
+    try {
+      const status = await checkUserSubscription(userId);
+      
+      // Only update state if component is still mounted
+      if (mountedRef.current) {
+        setSubscriptionStatus(status);
+        
+        // Log circuit breaker status if it indicates issues
+        if (status.status === 'circuit_breaker_open') {
+          console.warn('Subscription check returned circuit breaker status');
+        }
+      }
+    } catch (error) {
+      console.error('Error in HeaderCredits subscription check:', error);
+      if (mountedRef.current) {
+        setSubscriptionStatus({ 
+          hasActiveSubscription: false, 
+          status: null,
+          trialEnd: null,
+          currentPeriodEnd: null
+        });
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+      subscriptionCheckRef.current = false;
+    }
+  }, []);
+
+  // Check subscription status for authenticated users with safeguards
+  useEffect(() => {
+    if (user?.id) {
+      // Add a small delay to prevent rapid-fire calls
+      const timeoutId = setTimeout(() => {
+        checkSubscriptionSafely(user.id);
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
     } else {
       setLoading(false);
+      setSubscriptionStatus({ 
+        hasActiveSubscription: false, 
+        status: null,
+        trialEnd: null,
+        currentPeriodEnd: null
+      });
     }
-  }, [user?.id]); // Only depend on user ID to prevent loops
+  }, [user?.id, checkSubscriptionSafely]); // Depend on stable user ID and callback
 
-  // Listen for query count changes to update credits
+  // Cleanup on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Listen for query count changes to update credits (optimized to prevent loops)
   useEffect(() => {
     const handleStorageChange = () => {
+      if (!mountedRef.current) return;
+      
       const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
       const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
       
@@ -67,17 +136,21 @@ const HeaderCredits: React.FC = () => {
       }
     };
 
-    // Listen for storage changes
+    // Listen for storage changes from other tabs
     window.addEventListener('storage', handleStorageChange);
     
-    // Also check periodically in case the same tab made changes (reduced frequency to prevent loops)
-    const interval = setInterval(handleStorageChange, 10000);
+    // Reduced polling frequency and added safeguards
+    const interval = setInterval(() => {
+      if (mountedRef.current) {
+        handleStorageChange();
+      }
+    }, 15000); // Increased from 10s to 15s
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
-  }, [hasSharedOnLinkedIn]);
+  }, [hasSharedOnLinkedIn]); // Keep dependency to handle LinkedIn state changes
 
   const handleLinkedInShare = () => {
     const shareText = encodeURIComponent(
