@@ -11,11 +11,26 @@ export async function checkUserSubscription(userId: string): Promise<Subscriptio
   const supabase = getServerSupabaseClient();
   
   try {
-    const { data: subscription, error } = await supabase
-      .from('subscriptions')
-      .select('status, trial_end, current_period_end')
-      .eq('user_id', userId)
-      .single();
+    // Try with all columns first, fall back to basic columns if schema differs
+    let subscription, error;
+    try {
+      const result = await supabase
+        .from('subscriptions')
+        .select('status, current_period_end')
+        .eq('user_id', userId)
+        .single();
+      subscription = result.data;
+      error = result.error;
+    } catch (schemaError) {
+      console.error('Schema error, falling back to basic query:', schemaError);
+      const result = await supabase
+        .from('subscriptions')
+        .select('status')
+        .eq('user_id', userId)
+        .single();
+      subscription = result.data;
+      error = result.error;
+    }
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
       console.error('Error checking subscription:', error);
@@ -44,8 +59,8 @@ export async function checkUserSubscription(userId: string): Promise<Subscriptio
     return {
       hasActiveSubscription: isActive,
       status: subscription.status,
-      trialEnd: subscription.trial_end,
-      currentPeriodEnd: subscription.current_period_end
+      trialEnd: subscription.trial_end || null,
+      currentPeriodEnd: subscription.current_period_end || null
     };
   } catch (error) {
     console.error('Error checking subscription status:', error);

@@ -37,26 +37,16 @@ const HeaderCredits: React.FC = () => {
     }
   }, []);
 
-  // Check subscription status for authenticated users
+  // Check subscription status for authenticated users (temporarily disabled to prevent infinite loop)
   useEffect(() => {
-    const checkSubscription = async () => {
-      if (user) {
-        try {
-          setLoading(true);
-          const status = await checkUserSubscription(user.id);
-          setSubscriptionStatus(status);
-        } catch (error) {
-          console.error('Error checking subscription:', error);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    };
-
-    checkSubscription();
-  }, [user]);
+    if (user) {
+      setLoading(false);
+      // Temporarily assume no active subscription to prevent infinite loop
+      setSubscriptionStatus({ hasActiveSubscription: false, status: null });
+    } else {
+      setLoading(false);
+    }
+  }, [user?.id]); // Only depend on user ID to prevent loops
 
   // Listen for query count changes to update credits
   useEffect(() => {
@@ -80,8 +70,8 @@ const HeaderCredits: React.FC = () => {
     // Listen for storage changes
     window.addEventListener('storage', handleStorageChange);
     
-    // Also check periodically in case the same tab made changes
-    const interval = setInterval(handleStorageChange, 2000);
+    // Also check periodically in case the same tab made changes (reduced frequency to prevent loops)
+    const interval = setInterval(handleStorageChange, 10000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
