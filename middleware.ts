@@ -22,6 +22,7 @@ async function middleware(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/api/browse-rias') &&
     !request.nextUrl.pathname.startsWith('/api/ria-hunter/profile/') &&
     !request.nextUrl.pathname.startsWith('/api/ria-hunter/fast-query') &&
+    !request.nextUrl.pathname.startsWith('/api/debug-profile') &&
     !request.nextUrl.pathname.startsWith('/api/subscription-status')
   ) {
     // Check for Supabase configuration

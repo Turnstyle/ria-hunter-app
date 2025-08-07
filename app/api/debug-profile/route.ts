@@ -49,11 +49,11 @@ export async function GET() {
       specificError: specificError
     });
 
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json({ 
       error: 'Unexpected error',
-      message: error.message,
-      stack: error.stack
+      message: error?.message || 'Unknown error',
+      stack: error?.stack || 'No stack trace'
     }, { status: 500 });
   }
 }
