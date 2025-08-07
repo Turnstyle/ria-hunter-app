@@ -11,17 +11,32 @@ export { openai };
 // Infer the type of the Google client from the return type of createGoogleGenerativeAI
 type GoogleClientType = ReturnType<typeof createGoogleGenerativeAI>;
 
-const googleApiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+let googleClient: GoogleClientType | undefined = undefined;
+let googleClientChecked = false;
 
-let googleClient: GoogleClientType | undefined;
+// Lazy initialization function for Google client
+export function getGoogleClient(): GoogleClientType | undefined {
+  if (googleClientChecked) {
+    return googleClient;
+  }
 
-if (googleApiKey) {
-  googleClient = createGoogleGenerativeAI({
-    apiKey: googleApiKey,
-  });
-} else {
-  console.warn('Google API key not found. Google AI features will be disabled.');
+  const googleApiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  
+  if (googleApiKey) {
+    googleClient = createGoogleGenerativeAI({
+      apiKey: googleApiKey,
+    });
+  } else {
+    // Only warn at runtime, not during build
+    if (typeof window !== 'undefined' || process.env.NODE_ENV === 'production') {
+      console.warn('Google API key not found. Google AI features will be disabled.');
+    }
+    googleClient = undefined;
+  }
+  
+  googleClientChecked = true;
+  return googleClient;
 }
 
-// Export the Google client (may be undefined if no API key)
-export const google = googleClient;
+// Export a getter function instead of the client directly
+export const google = getGoogleClient;

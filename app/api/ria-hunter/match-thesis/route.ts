@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from '@/lib/supabase-server';
 import { z } from 'zod';
-import { google, openai } from '@/lib/ai-models';
+import { openai } from '@/lib/ai-models';
 import { generateText, embed } from 'ai'; // Include embed for generating embeddings
 import * as Sentry from "@sentry/nextjs";
 import { ChromaClient, OpenAIEmbeddingFunction } from 'chromadb';
