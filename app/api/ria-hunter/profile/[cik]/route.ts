@@ -82,12 +82,7 @@ export async function GET(
       const fillingIds = filings.map((f: any) => f.id);
       const { data: privateFundsData, error: privateFundsError } = await supabase
         .from('private_funds')
-        .select(`
-          id as fund_id,
-          fund_name,
-          fund_type,
-          gross_asset_value
-        `)
+        .select('id, fund_name, fund_type, gross_asset_value')
         .in('filing_id', fillingIds)
         .limit(20);
       
@@ -123,8 +118,8 @@ export async function GET(
         report_period_end_date: f.report_period_end_date,
         form_type: null
       })),
-      private_funds: privateFunds.map(pf => ({
-        fund_id: pf.fund_id.toString(),
+      private_funds: privateFunds.map((pf: any) => ({
+        fund_id: pf.id.toString(),
         fund_name: pf.fund_name,
         fund_type: pf.fund_type,
         gross_asset_value: pf.gross_asset_value,
