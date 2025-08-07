@@ -73,7 +73,12 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     // For authenticated users, let the API handle subscription checks
     if (!session) {
       // Gamification: Check query limits for unauthenticated users
-      const maxFreeQueries = hasSharedOnLinkedIn ? 3 : 2;
+      const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
+      const baseCredits = 2;
+      const linkedInBonus = hasSharedOnLinkedIn ? 1 : 0;
+      const signupBonus = signupBonusAwarded === 'true' ? 2 : 0;
+      const maxFreeQueries = baseCredits + linkedInBonus + signupBonus;
+      
       if (queryCount >= maxFreeQueries) {
         setShowAccountModal(true);
         return;

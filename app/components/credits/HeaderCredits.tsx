@@ -19,25 +19,34 @@ const HeaderCredits: React.FC = () => {
   const subscriptionCheckRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(true);
 
-  // Initialize credits and LinkedIn status from localStorage
+  // Initialize credits and bonus status from localStorage
   useEffect(() => {
     const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
     const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
+    const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
     
     if (savedQueryCount) {
       const used = parseInt(savedQueryCount);
       const baseCredits = 2;
-      const bonusCredits = savedShareStatus === 'true' ? 1 : 0;
-      const remaining = Math.max(0, baseCredits + bonusCredits - used);
+      const linkedInBonus = savedShareStatus === 'true' ? 1 : 0;
+      const signupBonus = signupBonusAwarded === 'true' ? 2 : 0;
+      const totalCredits = baseCredits + linkedInBonus + signupBonus;
+      const remaining = Math.max(0, totalCredits - used);
       setCredits(remaining);
     } else {
-      setCredits(2);
+      // First time user - check if authenticated to award signup bonus
+      if (user && !signupBonusAwarded) {
+        localStorage.setItem('ria-hunter-signup-bonus', 'true');
+        setCredits(4); // 2 base + 2 signup bonus
+      } else {
+        setCredits(2); // Just base credits
+      }
     }
     
     if (savedShareStatus === 'true') {
       setHasSharedOnLinkedIn(true);
     }
-  }, []);
+  }, [user]);
 
   // Safely check subscription status with circuit breaker and rate limiting
   const checkSubscriptionSafely = useCallback(async (userId: string) => {
@@ -120,14 +129,26 @@ const HeaderCredits: React.FC = () => {
     const handleStorageChange = () => {
       if (!mountedRef.current) return;
       
+      // Check if user has unlimited access (admin)
+      const isUnlimitedUser = user?.email === 'turnerpeters@gmail.com' || 
+                             subscriptionStatus.hasActiveSubscription;
+      
+      if (isUnlimitedUser) {
+        setCredits(999); // Show unlimited credits
+        return;
+      }
+      
       const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
       const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
+      const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
       
       if (savedQueryCount) {
         const used = parseInt(savedQueryCount);
         const baseCredits = 2;
-        const bonusCredits = savedShareStatus === 'true' ? 1 : 0;
-        const remaining = Math.max(0, baseCredits + bonusCredits - used);
+        const linkedInBonus = savedShareStatus === 'true' ? 1 : 0;
+        const signupBonus = signupBonusAwarded === 'true' ? 2 : 0;
+        const totalCredits = baseCredits + linkedInBonus + signupBonus;
+        const remaining = Math.max(0, totalCredits - used);
         setCredits(remaining);
       }
       
@@ -185,12 +206,17 @@ const HeaderCredits: React.FC = () => {
   // Don't show anything while loading
   if (loading) return null;
 
-  // For authenticated users with active subscription
-  if (user && subscriptionStatus.hasActiveSubscription) {
+  // For authenticated users with active subscription or admin users
+  const isUnlimitedUser = user?.email === 'turnerpeters@gmail.com' || 
+                         (user && subscriptionStatus.hasActiveSubscription);
+                         
+  if (isUnlimitedUser) {
     return (
       <div className="flex items-center space-x-3">
         <div className="text-sm font-medium text-gray-700">
-          Credits <span className="text-green-600">Unlimited</span>
+          Credits <span className="text-green-600">{
+            user?.email === 'turnerpeters@gmail.com' ? 'Unlimited (Admin)' : 'Unlimited'
+          }</span>
         </div>
       </div>
     );
