@@ -201,65 +201,70 @@ const HeaderCredits: React.FC = () => {
 
   return (
     <>
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-3">
         {showBonusButton && (
           <button
             onClick={() => setShowLinkedInModal(true)}
-            className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
+            className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-md hover:shadow-lg animate-pulse hover:animate-none"
           >
-            <span className="hidden xs:inline">+1 Free Credit</span>
-            <span className="xs:hidden">+1</span>
+            <span className="hidden sm:inline">1 Free Credit</span>
+            <span className="sm:hidden">+1</span>
           </button>
         )}
         
         <div className="text-sm font-medium text-gray-700">
-          <span className="hidden xs:inline">Credits </span>
           <span className={`font-semibold ${credits === 0 ? 'text-red-600' : credits === 1 ? 'text-orange-600' : 'text-green-600'}`}>
             {credits}
+          </span>
+          <span className="ml-1">
+            {credits === 1 ? 'Credit' : 'Credits'}
           </span>
         </div>
       </div>
 
-      {/* LinkedIn Share Modal */}
+      {/* LinkedIn Share Modal - "Loving RIA Hunter?" popup */}
       {showLinkedInModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 relative">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
+          <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
             <button
               onClick={() => setShowLinkedInModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 focus:outline-none"
-              aria-label="Close modal"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
             
             <div className="text-center">
               <div className="flex justify-center mb-4">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                   </svg>
                 </div>
               </div>
               
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Get 1 Bonus Credit</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                Share RIA Hunter on LinkedIn to unlock an extra free query!
+              <h3 className="text-xl font-bold text-gray-900 mb-2">🎉 Loving RIA Hunter?</h3>
+              <p className="text-gray-600 mb-6">
+                Share your experience on LinkedIn and unlock <span className="font-semibold text-blue-600">1 bonus query</span>! 
+                Help others discover this powerful tool while getting extra searches.
               </p>
               
               <div className="space-y-3">
                 <button
                   onClick={handleLinkedInShare}
-                  className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-md hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                 >
-                  Share on LinkedIn
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                  </svg>
+                  Share on LinkedIn & Get Bonus Query
                 </button>
                 <button
                   onClick={() => setShowLinkedInModal(false)}
-                  className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 focus:outline-none transition-colors"
+                  className="w-full px-6 py-3 text-gray-600 hover:text-gray-800 focus:outline-none transition-colors"
                 >
-                  Maybe Later
+                  Skip for Now
                 </button>
               </div>
             </div>
