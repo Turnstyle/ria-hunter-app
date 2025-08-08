@@ -79,32 +79,70 @@ export async function POST(request: NextRequest) {
           if (/\b(?:st|saint)\s+louis\b/.test(normalized)) {
             cityPhrase = 'st louis';
           }
+          // Detect state
+          const hasMissouri = /\b(mo|missouri)\b/.test(normalized);
+          // Detect private funds intent
+          const wantsPrivate = /(private\s*(funds?|placement|equity|invest(ment|ing)))/.test(normalized);
 
           let db = supabase
             .from('advisers')
             .select('cik, legal_name, main_addr_city, main_addr_state, has_private_funds')
             .limit(limit);
 
-          const orClauses: string[] = [];
-          // Prioritize full city phrase if we detected one
+          // City filter (AND)
           if (cityPhrase) {
-            orClauses.push(`main_addr_city.ilike.%${cityPhrase}%`);
+            db = db.ilike('main_addr_city', `%${cityPhrase}%`);
           }
-          // Build OR across legal_name, city, state for each token
+          // State filter (AND)
+          if (hasMissouri) {
+            db = db.or('main_addr_state.ilike.%mo%,main_addr_state.ilike.%missouri%');
+          }
+          // Private funds intent (AND)
+          if (wantsPrivate) {
+            db = db.eq('has_private_funds', true);
+          }
+
+          // Name token matching (OR) to broaden results while keeping city/state filters in place
+          const nameClauses: string[] = [];
           tokens.slice(0, 6).forEach((t) => {
-            orClauses.push(`legal_name.ilike.%${t}%`);
-            orClauses.push(`main_addr_city.ilike.%${t}%`);
-            orClauses.push(`main_addr_state.ilike.%${t}%`);
+            nameClauses.push(`legal_name.ilike.%${t}%`);
           });
-          if (orClauses.length > 0) {
+          if (nameClauses.length > 0) {
             // @ts-ignore Postgrest filter string accepted by or()
-            db = db.or(orClauses.join(','));
+            db = db.or(nameClauses.join(','));
           }
 
           const { data: advisers, error: dbError } = await db;
           if (dbError) {
             console.error('Fallback DB search error:', dbError);
-            return NextResponse.json({ error: 'Search service temporarily unavailable' }, { status: 503 });
+            // Retry with a simpler, very tolerant query on legal_name only
+            const simpleOr = tokens.slice(0, 6).map((t) => `legal_name.ilike.%${t}%`).join(',');
+            let simple = supabase
+              .from('advisers')
+              .select('cik, legal_name, main_addr_city, main_addr_state, has_private_funds')
+              .limit(limit);
+            if (simpleOr) {
+              // @ts-ignore
+              simple = simple.or(simpleOr);
+            }
+            const { data: simpleData, error: simpleErr } = await simple;
+            if (simpleErr) {
+              console.error('Simple fallback DB search error:', simpleErr);
+              return NextResponse.json({ error: 'Search service temporarily unavailable' }, { status: 503 });
+            }
+            const simpleSources = (simpleData || []).map((a: any) => ({
+              firm_name: a.legal_name,
+              crd_number: a.cik,
+              city: a.main_addr_city,
+              state: a.main_addr_state,
+            }));
+            return NextResponse.json({
+              answer: `Found ${simpleSources.length} RIAs matching your query.`,
+              sources: simpleSources,
+              aiProvider,
+              timestamp: new Date().toISOString(),
+              query,
+            });
           }
 
           const sources = (advisers || []).map((a: any) => ({
