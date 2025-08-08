@@ -22,6 +22,7 @@ async function middleware(request: NextRequest) {
     '/api/browse-rias',
     '/api/ria-hunter/profile/',
     '/api/ria-hunter/fast-query',
+    '/api/ria-hunter/search',
     '/api/debug-profile',
     '/api/subscription-status',
   ];
