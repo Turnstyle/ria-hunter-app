@@ -68,22 +68,37 @@ export async function POST(request: NextRequest) {
       if (backendResponse.status === 401 || backendResponse.status === 404 || backendResponse.status === 403 || backendResponse.status === 500) {
         try {
           const supabase = createClient(supabaseUrl, supabaseAnonKey);
-          const tokens = query
-            .toLowerCase()
-            .replace(/[^a-z0-9\s]/g, ' ')
+          const qLower = query.toLowerCase();
+          const normalized = qLower.replace(/st\./g, 'st').replace(/[^a-z0-9\s]/g, ' ');
+          const tokens = normalized
             .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 3);
+            .filter(Boolean);
+
+          // Detect common city phrases like "st louis"
+          let cityPhrase: string | null = null;
+          if (/\b(?:st|saint)\s+louis\b/.test(normalized)) {
+            cityPhrase = 'st louis';
+          }
 
           let db = supabase
             .from('advisers')
-            .select('cik, legal_name, main_addr_city, main_addr_state')
+            .select('cik, legal_name, main_addr_city, main_addr_state, has_private_funds')
             .limit(limit);
 
-          if (tokens.length > 0) {
-            const ors = tokens.map((t) => `legal_name.ilike.%${t}%`).join(',');
-            // @ts-ignore - supabase-js type for or() accepts a string
-            db = db.or(ors);
+          const orClauses: string[] = [];
+          // Prioritize full city phrase if we detected one
+          if (cityPhrase) {
+            orClauses.push(`main_addr_city.ilike.%${cityPhrase}%`);
+          }
+          // Build OR across legal_name, city, state for each token
+          tokens.slice(0, 6).forEach((t) => {
+            orClauses.push(`legal_name.ilike.%${t}%`);
+            orClauses.push(`main_addr_city.ilike.%${t}%`);
+            orClauses.push(`main_addr_state.ilike.%${t}%`);
+          });
+          if (orClauses.length > 0) {
+            // @ts-ignore Postgrest filter string accepted by or()
+            db = db.or(orClauses.join(','));
           }
 
           const { data: advisers, error: dbError } = await db;
