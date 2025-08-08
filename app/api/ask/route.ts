@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // Primary attempt: call the external Ask service
     const backendResponse = await fetch(`${backendApiUrl}/api/ask`, {
       method: 'POST',
       headers: {
@@ -63,6 +64,53 @@ export async function POST(request: NextRequest) {
     });
 
     if (!backendResponse.ok) {
+      // If unauthorized or backend unreachable, fall back to a local lightweight search
+      if (backendResponse.status === 401 || backendResponse.status === 404 || backendResponse.status === 403 || backendResponse.status === 500) {
+        try {
+          const supabase = createClient(supabaseUrl, supabaseAnonKey);
+          const tokens = query
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 3);
+
+          let db = supabase
+            .from('advisers')
+            .select('cik, legal_name, main_addr_city, main_addr_state')
+            .limit(limit);
+
+          if (tokens.length > 0) {
+            const ors = tokens.map((t) => `legal_name.ilike.%${t}%`).join(',');
+            // @ts-ignore - supabase-js type for or() accepts a string
+            db = db.or(ors);
+          }
+
+          const { data: advisers, error: dbError } = await db;
+          if (dbError) {
+            console.error('Fallback DB search error:', dbError);
+            return NextResponse.json({ error: 'Search service temporarily unavailable' }, { status: 503 });
+          }
+
+          const sources = (advisers || []).map((a: any) => ({
+            firm_name: a.legal_name,
+            crd_number: a.cik,
+            city: a.main_addr_city,
+            state: a.main_addr_state,
+          }));
+
+          return NextResponse.json({
+            answer: `Found ${sources.length} RIAs matching your query.`,
+            sources,
+            aiProvider,
+            timestamp: new Date().toISOString(),
+            query,
+          });
+        } catch (fallbackErr) {
+          console.error('Fallback search failed:', fallbackErr);
+        }
+      }
+
       let errorMessage = 'Failed to process query';
       try {
         const errorData = await backendResponse.json();
@@ -70,11 +118,8 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         errorMessage = `Backend error: ${backendResponse.status} ${backendResponse.statusText}`;
       }
-      
       console.error('Backend API error:', errorMessage);
-      return NextResponse.json({ 
-        error: errorMessage
-      }, { status: backendResponse.status });
+      return NextResponse.json({ error: errorMessage }, { status: backendResponse.status });
     }
 
     const data = await backendResponse.json();
