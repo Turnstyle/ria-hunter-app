@@ -35,9 +35,10 @@ export const signOut = () => supabase.auth.signOut();
 
 // Helper function to sign in with Google OAuth
 export const signInWithGoogle = (redirectTo?: string) => {
-  const defaultRedirectTo = typeof window !== 'undefined' 
-    ? `${window.location.origin}/auth/callback`
-    : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/callback`;
+  // Redirect users back to the app root by default to avoid 404s on missing callback routes
+  const defaultRedirectTo = typeof window !== 'undefined'
+    ? `${window.location.origin}/`
+    : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/`;
     
   return supabase.auth.signInWithOAuth({
     provider: 'google',

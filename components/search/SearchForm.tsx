@@ -22,10 +22,16 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
   const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
 
+  // Helpers to scope localStorage by user so devices shared between accounts don't mix credits
+  const getKey = (base: string) => {
+    const suffix = user?.id ? `:${user.id}` : ':anon';
+    return `${base}${suffix}`;
+  };
+
   // Initialize gamification state from localStorage
   useEffect(() => {
-    const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
-    const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
+    const savedQueryCount = localStorage.getItem(getKey('ria-hunter-query-count'));
+    const savedShareStatus = localStorage.getItem(getKey('ria-hunter-linkedin-shared'));
     
     if (savedQueryCount) {
       setQueryCount(parseInt(savedQueryCount));
@@ -33,7 +39,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     if (savedShareStatus === 'true') {
       setHasSharedOnLinkedIn(true);
     }
-  }, []);
+  }, [user?.id]);
 
   // Handle checkout redirect after login
   useEffect(() => {
@@ -77,7 +83,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     // For authenticated users, let the API handle subscription checks
     if (!session) {
       // Gamification: Check query limits for unauthenticated users
-      const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
+      const signupBonusAwarded = localStorage.getItem(getKey('ria-hunter-signup-bonus'));
       const baseCredits = 2;
       const linkedInBonus = hasSharedOnLinkedIn ? 1 : 0;
       const signupBonus = signupBonusAwarded === 'true' ? 2 : 0;
@@ -127,7 +133,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
       if (!session) {
         const newQueryCount = queryCount + 1;
         setQueryCount(newQueryCount);
-        localStorage.setItem('ria-hunter-query-count', newQueryCount.toString());
+        localStorage.setItem(getKey('ria-hunter-query-count'), newQueryCount.toString());
         
         // Show LinkedIn modal after second query (if not shared yet)
         if (newQueryCount === 2 && !hasSharedOnLinkedIn) {
@@ -163,7 +169,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     
     // Mark as shared and give bonus query
     setHasSharedOnLinkedIn(true);
-    localStorage.setItem('ria-hunter-linkedin-shared', 'true');
+    localStorage.setItem(getKey('ria-hunter-linkedin-shared'), 'true');
     setShowLinkedInModal(false);
   };
 
