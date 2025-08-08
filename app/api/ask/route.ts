@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'https://ria-hunter.vercel.app';
+    // Prefer explicit API URL; fallback to the primary custom domain to avoid stale deployments on vercel.app
+    const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'https://ria-hunter.app';
     
     if (!backendApiUrl) {
       console.error('Backend API URL not configured');
