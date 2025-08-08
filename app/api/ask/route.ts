@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Prefer explicit API URL; fallback to the primary custom domain to avoid stale deployments on vercel.app
-    const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || 'https://ria-hunter.app';
+    // Prefer explicit API URL; fallback to our own internal AI search endpoint if external is unavailable
+    const backendApiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || '';
     
     if (!backendApiUrl) {
       console.error('Backend API URL not configured');
@@ -50,18 +50,28 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Primary attempt: call the external Ask service
-    const backendResponse = await fetch(`${backendApiUrl}/api/ask`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        query: query.trim(), 
-        limit, 
-        aiProvider 
-      }),
-    });
+    let backendResponse: Response;
+    if (backendApiUrl) {
+      // Primary attempt: call the external Ask service
+      backendResponse = await fetch(`${backendApiUrl}/api/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          query: query.trim(), 
+          limit, 
+          aiProvider 
+        }),
+      });
+    } else {
+      // If no external URL configured, use our internal AI-driven search endpoint directly
+      backendResponse = await fetch(`${request.nextUrl.origin}/api/ria-hunter/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query.trim() }),
+      });
+    }
 
     if (!backendResponse.ok) {
       // If unauthorized or backend unreachable, fall back to a local lightweight search
