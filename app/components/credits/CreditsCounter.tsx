@@ -23,6 +23,24 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
   const subscriptionCheckRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(true);
 
+  // Per-user key helpers to avoid cross-account leakage on a shared device
+  const getKey = useCallback((base: string) => {
+    const suffix = user?.id ? `:${user.id}` : ':anon';
+    return `${base}${suffix}`;
+  }, [user?.id]);
+
+  const readBool = useCallback((key: string) => {
+    try { return localStorage.getItem(key) === 'true'; } catch { return false; }
+  }, []);
+
+  const readInt = useCallback((key: string) => {
+    try { const v = localStorage.getItem(key); return v ? parseInt(v) : null; } catch { return null; }
+  }, []);
+
+  const write = useCallback((key: string, value: string) => {
+    try { localStorage.setItem(key, value); } catch {}
+  }, []);
+
   // Initialize credits and bonus status from localStorage or subscription
   useEffect(() => {
     // If user has active subscription, show unlimited credits
@@ -31,32 +49,32 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
       return;
     }
 
-    const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
-    const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
-    const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
+    const savedQueryCount = readInt(getKey('ria-hunter-query-count'));
+    const savedShareStatus = readBool(getKey('ria-hunter-linkedin-shared'));
+    const signupBonusAwarded = readBool(getKey('ria-hunter-signup-bonus'));
     
-    if (savedQueryCount) {
-      const used = parseInt(savedQueryCount);
+    if (savedQueryCount !== null) {
+      const used = savedQueryCount;
       const baseCredits = 2;
-      const linkedInBonus = savedShareStatus === 'true' ? 1 : 0;
-      const signupBonus = signupBonusAwarded === 'true' ? 2 : 0;
+      const linkedInBonus = savedShareStatus ? 1 : 0;
+      const signupBonus = signupBonusAwarded ? 2 : 0;
       const totalCredits = baseCredits + linkedInBonus + signupBonus;
       const remaining = Math.max(0, totalCredits - used);
       setCredits(remaining);
     } else {
       // First time user - check if authenticated to award signup bonus
       if (user && !signupBonusAwarded) {
-        localStorage.setItem('ria-hunter-signup-bonus', 'true');
+        write(getKey('ria-hunter-signup-bonus'), 'true');
         setCredits(4); // 2 base + 2 signup bonus
       } else {
         setCredits(2); // Just base credits
       }
     }
     
-    if (savedShareStatus === 'true') {
+    if (savedShareStatus) {
       setHasSharedOnLinkedIn(true);
     }
-  }, [user, subscriptionStatus.hasActiveSubscription]);
+  }, [user, subscriptionStatus.hasActiveSubscription, getKey, readBool, readInt, write]);
 
   // Safely check subscription status with circuit breaker and rate limiting
   const checkSubscriptionSafely = useCallback(async (userId: string) => {
@@ -145,21 +163,21 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
         return;
       }
       
-      const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
-      const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
-      const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
+      const savedQueryCount = readInt(getKey('ria-hunter-query-count'));
+      const savedShareStatus = readBool(getKey('ria-hunter-linkedin-shared'));
+      const signupBonusAwarded = readBool(getKey('ria-hunter-signup-bonus'));
       
-      if (savedQueryCount) {
-        const used = parseInt(savedQueryCount);
+      if (savedQueryCount !== null) {
+        const used = savedQueryCount;
         const baseCredits = 2;
-        const linkedInBonus = savedShareStatus === 'true' ? 1 : 0;
-        const signupBonus = signupBonusAwarded === 'true' ? 2 : 0;
+        const linkedInBonus = savedShareStatus ? 1 : 0;
+        const signupBonus = signupBonusAwarded ? 2 : 0;
         const totalCredits = baseCredits + linkedInBonus + signupBonus;
         const remaining = Math.max(0, totalCredits - used);
         setCredits(remaining);
       }
       
-      if (savedShareStatus === 'true' && !hasSharedOnLinkedIn) {
+      if (savedShareStatus && !hasSharedOnLinkedIn) {
         setHasSharedOnLinkedIn(true);
       }
     };
@@ -178,7 +196,7 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
-  }, [hasSharedOnLinkedIn, subscriptionStatus.hasActiveSubscription]);
+  }, [hasSharedOnLinkedIn, subscriptionStatus.hasActiveSubscription, getKey, readBool, readInt]);
 
   const handleLinkedInShare = () => {
     const shareText = encodeURIComponent(
@@ -198,12 +216,12 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
       }
       
       // Grant the bonus credit
-      localStorage.setItem('ria-hunter-linkedin-shared', 'true');
+      write(getKey('ria-hunter-linkedin-shared'), 'true');
       setHasSharedOnLinkedIn(true);
       
       // Update credits
-      const savedQueryCount = localStorage.getItem('ria-hunter-query-count') || '0';
-      const used = parseInt(savedQueryCount);
+      const savedQueryCount = readInt(getKey('ria-hunter-query-count')) ?? 0;
+      const used = savedQueryCount;
       const newCredits = Math.max(0, 3 - used); // 2 base + 1 bonus - used
       setCredits(newCredits);
       

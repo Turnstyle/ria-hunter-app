@@ -13,8 +13,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { user, session, signInWithGoogle } = useAuth();
   const [aiProvider, setAiProvider] = useState<'openai' | 'vertex'>('openai');
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [limit, setLimit] = useState<number>(10);
+  const [showMaxResultsPopover, setShowMaxResultsPopover] = useState<boolean>(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState<boolean>(false);
   const [queryCount, setQueryCount] = useState<number>(0);
   const [showLinkedInModal, setShowLinkedInModal] = useState<boolean>(false);
@@ -22,10 +22,16 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
   const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
 
+  // Helpers to scope localStorage by user so devices shared between accounts don't mix credits
+  const getKey = (base: string) => {
+    const suffix = user?.id ? `:${user.id}` : ':anon';
+    return `${base}${suffix}`;
+  };
+
   // Initialize gamification state from localStorage
   useEffect(() => {
-    const savedQueryCount = localStorage.getItem('ria-hunter-query-count');
-    const savedShareStatus = localStorage.getItem('ria-hunter-linkedin-shared');
+    const savedQueryCount = localStorage.getItem(getKey('ria-hunter-query-count'));
+    const savedShareStatus = localStorage.getItem(getKey('ria-hunter-linkedin-shared'));
     
     if (savedQueryCount) {
       setQueryCount(parseInt(savedQueryCount));
@@ -33,7 +39,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     if (savedShareStatus === 'true') {
       setHasSharedOnLinkedIn(true);
     }
-  }, []);
+  }, [user?.id]);
 
   // Handle checkout redirect after login
   useEffect(() => {
@@ -65,6 +71,10 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     setLimit(newLimit);
   };
 
+  const toggleAiProvider = () => {
+    setAiProvider(aiProvider === 'openai' ? 'vertex' : 'openai');
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
@@ -73,7 +83,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     // For authenticated users, let the API handle subscription checks
     if (!session) {
       // Gamification: Check query limits for unauthenticated users
-      const signupBonusAwarded = localStorage.getItem('ria-hunter-signup-bonus');
+      const signupBonusAwarded = localStorage.getItem(getKey('ria-hunter-signup-bonus'));
       const baseCredits = 2;
       const linkedInBonus = hasSharedOnLinkedIn ? 1 : 0;
       const signupBonus = signupBonusAwarded === 'true' ? 2 : 0;
@@ -123,7 +133,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
       if (!session) {
         const newQueryCount = queryCount + 1;
         setQueryCount(newQueryCount);
-        localStorage.setItem('ria-hunter-query-count', newQueryCount.toString());
+        localStorage.setItem(getKey('ria-hunter-query-count'), newQueryCount.toString());
         
         // Show LinkedIn modal after second query (if not shared yet)
         if (newQueryCount === 2 && !hasSharedOnLinkedIn) {
@@ -159,7 +169,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
     
     // Mark as shared and give bonus query
     setHasSharedOnLinkedIn(true);
-    localStorage.setItem('ria-hunter-linkedin-shared', 'true');
+    localStorage.setItem(getKey('ria-hunter-linkedin-shared'), 'true');
     setShowLinkedInModal(false);
   };
 
@@ -206,97 +216,117 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Main Search Form */}
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-visible">
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 lg:p-8">
-          <div className="space-y-4">
-            <label htmlFor="query" className="block text-base sm:text-lg font-semibold text-gray-900">
-              Ask about RIAs
-            </label>
-            <div className="flex flex-col gap-3">
+          <div className="relative">
+            {/* Input Container with Inline Buttons */}
+            <div className="relative flex items-center border-2 border-gray-200 rounded-xl focus-within:border-blue-500 transition-colors">
+              {/* AI Provider Button */}
+              <button
+                type="button"
+                onClick={toggleAiProvider}
+                className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-l-lg transition-colors border-r border-gray-200"
+                disabled={isLoading}
+                title={`Choose a model (Current: ${aiProvider === 'openai' ? 'OpenAI' : 'Google Vertex AI'})`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span className="hidden sm:inline">{aiProvider === 'openai' ? 'GPT-4' : 'Vertex'}</span>
+              </button>
+
+              {/* Max Results Button with Popover */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowMaxResultsPopover(!showMaxResultsPopover)}
+                  className="flex items-center gap-1 px-3 py-2 text-xs font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition-colors border-r border-gray-200"
+                  disabled={isLoading}
+                  title={`Max results: ${limit}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <span className="hidden sm:inline">{limit}</span>
+                </button>
+
+                {/* Max Results Popover */}
+                {showMaxResultsPopover && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-[999] min-w-[200px]">
+                    <div className="p-2">
+                      <div className="text-xs font-medium text-gray-700 mb-2">Max Results</div>
+                      <div className="space-y-1">
+                        {[10, 20, 50, 100].map((resultLimit) => (
+                          <button
+                            key={resultLimit}
+                            type="button"
+                            onClick={() => {
+                              handleLimitChange(resultLimit);
+                              setShowMaxResultsPopover(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                              limit === resultLimit 
+                                ? 'bg-blue-50 text-blue-700' 
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                            disabled={isLoading}
+                          >
+                            {resultLimit} results {resultLimit > 20 ? '(Pro)' : ''}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Pro CTA in popover */}
+                      <div className="border-t border-gray-100 mt-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowMaxResultsPopover(false);
+                            setShowSubscriptionModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          Get More Results with Pro
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Main Input Field */}
               <input
                 type="text"
                 id="query"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full border-2 border-gray-200 p-3 sm:p-4 rounded-xl text-base focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                placeholder="What is the largest RIA in California?"
+                className="flex-1 px-4 py-3 sm:py-4 text-base border-0 outline-none bg-transparent"
+                placeholder="Ask about RIAs..."
                 disabled={isLoading}
               />
+
+              {/* Search Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading || !query.trim()}
-                className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                className="flex items-center justify-center px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-r-lg transition-colors disabled:text-gray-400"
+                title="Search"
               >
                 {isLoading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm sm:text-base">Searching...</span>
-                  </div>
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <div className="flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <span className="text-sm sm:text-base">Search</span>
-                  </div>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
                 )}
               </button>
             </div>
-          </div>
 
-          {/* Advanced Options */}
-          <div className="pt-3 sm:pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center gap-2 text-xs sm:text-sm text-gray-600 hover:text-blue-600 focus:outline-none transition-colors"
-            >
-              <svg 
-                className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              Advanced Options
-            </button>
-            
-            {showAdvanced && (
-              <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gray-50 rounded-xl space-y-3 sm:space-y-4">
-                <div>
-                  <label htmlFor="aiProvider" className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                    AI Provider
-                  </label>
-                  <select
-                    id="aiProvider"
-                    value={aiProvider}
-                    onChange={(e) => setAiProvider(e.target.value as 'openai' | 'vertex')}
-                    className="w-full border border-gray-300 p-2 sm:p-3 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
-                    disabled={isLoading}
-                  >
-                    <option value="openai">OpenAI (GPT-4 Turbo)</option>
-                    <option value="vertex">Google Vertex AI</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="maxResults" className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                    Max Results
-                  </label>
-                  <select
-                    id="maxResults"
-                    value={limit}
-                    onChange={(e) => handleLimitChange(parseInt(e.target.value))}
-                    className="w-full border border-gray-300 p-2 sm:p-3 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
-                    disabled={isLoading}
-                  >
-                    <option value={10}>10 results</option>
-                    <option value={20}>20 results</option>
-                    <option value={50}>50 results (Pro)</option>
-                    <option value={100}>100 results (Pro)</option>
-                  </select>
-                </div>
-              </div>
+            {/* Click outside to close popover */}
+            {showMaxResultsPopover && (
+              <div
+                className="fixed inset-0 z-0"
+                onClick={() => setShowMaxResultsPopover(false)}
+              />
             )}
           </div>
         </form>
@@ -328,6 +358,57 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
               </div>
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Use Case Examples */}
+      <div className="text-center">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6 px-4">Use Case Examples:</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-4xl mx-auto">
+          {/* For Founders */}
+          <div className="group bg-white border border-gray-200 p-4 sm:p-6 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-gray-900">For Founders</h4>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-600 text-left leading-relaxed">
+              Find angel investors and early-stage VCs for your startup.
+            </p>
+          </div>
+
+          {/* For Fund Managers */}
+          <div className="group bg-white border border-gray-200 p-4 sm:p-6 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-gray-900">For Fund Managers</h4>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-600 text-left leading-relaxed">
+              Identify and research family offices for capital allocation.
+            </p>
+          </div>
+
+          {/* For M&A Teams */}
+          <div className="group bg-white border border-gray-200 p-4 sm:p-6 rounded-xl hover:border-blue-300 hover:shadow-lg transition-all sm:col-span-2 lg:col-span-1">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-gray-900">For M&A Teams</h4>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-600 text-left leading-relaxed">
+              Evaluate potential acquisition targets and perform market analysis.
+            </p>
+          </div>
         </div>
       </div>
 
