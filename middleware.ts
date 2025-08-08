@@ -14,16 +14,26 @@ async function middleware(request: NextRequest) {
   const correlationId = request.headers.get('x-correlation-id') || crypto.randomUUID();
   requestHeaders.set('x-correlation-id', correlationId);
 
+  // Hard skip middleware for public endpoints that must work without auth
+  const publicApiPrefixes = [
+    '/api/ask',
+    '/api/health',
+    '/api/public',
+    '/api/browse-rias',
+    '/api/ria-hunter/profile/',
+    '/api/ria-hunter/fast-query',
+    '/api/debug-profile',
+    '/api/subscription-status',
+  ];
+  const pathname = request.nextUrl.pathname;
+  if (publicApiPrefixes.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+  }
+
   if (
-    request.nextUrl.pathname.startsWith('/api/') &&
-    !request.nextUrl.pathname.startsWith('/api/health') &&
-    !request.nextUrl.pathname.startsWith('/api/public') &&
-    !request.nextUrl.pathname.startsWith('/api/ask') &&
-    !request.nextUrl.pathname.startsWith('/api/browse-rias') &&
-    !request.nextUrl.pathname.startsWith('/api/ria-hunter/profile/') &&
-    !request.nextUrl.pathname.startsWith('/api/ria-hunter/fast-query') &&
-    !request.nextUrl.pathname.startsWith('/api/debug-profile') &&
-    !request.nextUrl.pathname.startsWith('/api/subscription-status')
+    pathname.startsWith('/api/')
   ) {
     // Check for Supabase configuration
     if (!supabaseUrl || !supabaseAnonKey) {
