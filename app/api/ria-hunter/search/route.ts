@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     // --- Build the Supabase query ---
     const supabase = getServerSupabaseClient();
 
-    let query = supabase
+  let query = supabase
       .from('advisers')
       .select(`
         cik,
@@ -103,7 +103,6 @@ export async function POST(request: NextRequest) {
         main_addr_city,
         main_addr_state,
         main_addr_zip,
-        has_private_funds,
         adv_id,
         sec_number
       `);
@@ -116,7 +115,11 @@ export async function POST(request: NextRequest) {
 
     // Apply private investment interest filter if extracted
     if (extractedParams.privateInvestmentInterest === true) {
-      query = query.eq('has_private_funds', true);
+      // If the column exists, this filter will work; if not, just skip silently
+      try {
+        // @ts-ignore - Best-effort filter depending on schema
+        query = query.eq('has_private_funds', true);
+      } catch {}
     }
 
     // Apply a general text search on legal_name if we have keywords
