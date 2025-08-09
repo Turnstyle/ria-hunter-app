@@ -102,8 +102,7 @@ export async function POST(request: NextRequest) {
         legal_name,
         main_addr_city,
         main_addr_state,
-        main_addr_zip,
-        sec_number
+        main_addr_zip
       `);
 
     // Apply location filter if extracted
