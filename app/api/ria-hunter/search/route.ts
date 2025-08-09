@@ -103,7 +103,6 @@ export async function POST(request: NextRequest) {
         main_addr_city,
         main_addr_state,
         main_addr_zip,
-        adv_id,
         sec_number
       `);
 
