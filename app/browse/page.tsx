@@ -64,36 +64,55 @@ export default function BrowsePage() {
     setRequiresSubscription(false);
     
     try {
-      const params = new URLSearchParams();
-      if (location.trim()) params.append('location', location.trim());
-      if (privateInvestment) params.append('privateInvestment', privateInvestment);
-      
-      const response = await fetch(`/api/browse-rias?${params}`);
-      
-      if (response.ok) {
-        const data: BrowseResponse = await response.json();
-        setRias(data.data || []);
-        setSubscriptionStatus(data.subscriptionStatus);
-      } else {
-        const errorData: BrowseError = await response.json();
-        
-        if (errorData.requiresAuth) {
-          setRequiresAuth(true);
-          setError('Please sign in to browse RIAs');
-        } else if (errorData.requiresSubscription) {
-          setRequiresSubscription(true);
-          setSubscriptionStatus(errorData.subscriptionStatus || null);
-          setError('Subscription required to browse RIAs');
-        } else {
-          // Handle specific Auth0 configuration error gracefully
-          if (errorData.error === 'Auth0 configuration error, unable to validate token') {
-            setError('Service temporarily unavailable. We\'re working on it - come back later!');
-          } else {
-            setError(errorData.error || 'Failed to fetch RIAs');
-          }
-        }
-        setRias([]);
+      // Build a natural language query from filters
+      const filters: string[] = [];
+      if (location.trim()) filters.push(`in ${location.trim()}`);
+      if (privateInvestment) {
+        filters.push(privateInvestment === 'true' ? 'that manage private funds' : 'with no private funds');
       }
+      const nlQuery = filters.length > 0 ? `Find RIAs ${filters.join(' ')}` : 'Show me RIAs';
+
+      const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '';
+      if (!apiBase) {
+        throw new Error('Browse service not configured');
+      }
+
+      const resp = await fetch(`${apiBase}/api/v1/ria/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: nlQuery })
+      });
+
+      if (!resp.ok) {
+        const err = await safeJson(resp);
+        throw new Error(err?.error || `Failed to fetch (${resp.status})`);
+      }
+
+      const data = await resp.json();
+      const items = Array.isArray(data?.results) ? data.results : (Array.isArray(data?.data) ? data.data : []);
+      const normalized: RIA[] = items.map((item: any) => ({
+        cik: Number(item.cik || item.crd_number || item.id || 0),
+        crd_number: item.crd_number ?? null,
+        legal_name: item.legal_name || item.firm_name || item.name || 'Unknown',
+        main_addr_street1: item.main_addr_street1 || item.main_office_location?.street || null,
+        main_addr_street2: item.main_addr_street2 || null,
+        main_addr_city: item.main_addr_city || item.city || item.main_office_location?.city || null,
+        main_addr_state: item.main_addr_state || item.state || item.main_office_location?.state || null,
+        main_addr_zip: item.main_addr_zip || item.main_office_location?.zipcode || null,
+        main_addr_country: item.main_addr_country || item.main_office_location?.country || null,
+        phone_number: item.phone_number || null,
+        fax_number: item.fax_number || null,
+        website: item.website || null,
+        is_st_louis_msa: item.is_st_louis_msa ?? null,
+        latest_filing: {
+          filing_date: item.filing_date || item.latest_filing?.filing_date || null,
+          total_aum: item.total_aum || item.latest_filing?.total_aum || null,
+          manages_private_funds_flag: item.manages_private_funds_flag ?? item.latest_filing?.manages_private_funds_flag ?? null,
+        }
+      }));
+
+      setRias(normalized);
+      setSubscriptionStatus({ hasActiveSubscription: true, status: 'active', trialEnd: null, currentPeriodEnd: null });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
       // Handle specific Auth0 configuration error gracefully

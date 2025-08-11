@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { AuthProvider } from '@/app/contexts/AuthContext';
 import { Header } from '@/app/components/layout/Header';
 import "./globals.css";
@@ -39,6 +40,7 @@ export default function RootLayout({
           <main className="flex-1">
             {children}
           </main>
+          <Analytics />
         </body>
       </AuthProvider>
     </html>

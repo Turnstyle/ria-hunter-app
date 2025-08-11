@@ -68,46 +68,39 @@ export default function OptimizedSearchForm({
       const startTime = Date.now()
       
       try {
-        // Try fast database query first
-        const fastResponse = await fetch('/api/ria-hunter/fast-query', {
+        const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || ''
+        if (!apiBase) {
+          throw new Error('Search service not configured')
+        }
+
+        const resp = await fetch(`${apiBase}/api/v1/ria/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            query: searchQuery, 
-            type: detectQueryType(searchQuery) 
-          })
+          body: JSON.stringify({ query: searchQuery })
         })
-        
-        if (fastResponse.ok) {
-          const fastResult = await fastResponse.json()
-          const executionTime = Date.now() - startTime
-          
-          if (fastResult.data && fastResult.data.length > 0) {
-            // Database/cache hit - instant results!
-            setSearchTime(executionTime)
-            setSearchSource(fastResult.source)
-            onResults({
-              data: fastResult.data,
-              source: fastResult.source,
-              cached: fastResult.cached,
-              executionTime
-            })
-            setIsSearching(false)
-            return
-          }
+
+        const executionTime = Date.now() - startTime
+        setSearchTime(executionTime)
+
+        if (!resp.ok) {
+          const err = await safeJson(resp)
+          throw new Error(err?.error || `Search failed (${resp.status})`)
         }
-        
-        // Fallback to AI processing if no database results
-        setSearchSource('ai')
-        const aiResult = await onSearch(searchQuery)
-        const totalTime = Date.now() - startTime
-        setSearchTime(totalTime)
-        onResults({
-          ...aiResult,
-          source: 'ai',
-          executionTime: totalTime
-        })
-        
+
+        const data = await resp.json()
+
+        // Normalize to OptimizedSearchResults shape
+        const resultsArray = Array.isArray(data?.results) ? data.results : (Array.isArray(data?.data) ? data.data : [])
+        const normalized = {
+          data: resultsArray,
+          source: (data?.source as any) || 'ai',
+          cached: Boolean(data?.cached),
+          executionTime
+        }
+
+        setSearchSource(normalized.source)
+        onResults(normalized)
+
       } catch (error) {
         console.error('Search error:', error)
         onResults({ error: 'Search failed', data: [] })
@@ -286,4 +279,12 @@ function detectQueryType(query: string): string {
   }
   
   return 'general'
+}
+
+async function safeJson(resp: Response): Promise<any | null> {
+  try {
+    return await resp.json()
+  } catch {
+    return null
+  }
 }

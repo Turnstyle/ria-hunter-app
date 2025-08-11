@@ -21,6 +21,7 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "@types/nodemailer": "^6.4.17",
+    "@vercel/analytics": "^1.5.0",
     "ai": "^4.3.16",
     "axios": "^1.9.0",
     "chromadb": "^2.4.6",

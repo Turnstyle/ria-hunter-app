@@ -35,9 +35,9 @@ export default function RIAHunterPage() {
           <div className="inline-flex items-center bg-blue-100 text-blue-800 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium mb-4 sm:mb-6">
             A JTP Vibe Coded MVP
           </div>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-2">
-            Search RIAs with <span className="text-blue-600">Natural Language</span>
-          </h2>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-2">
+            Search for Registered Investment Advisor (RIA) information with <span className="text-blue-600">Natural Language</span>
+          </h1>
 
 
         </div>
