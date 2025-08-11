@@ -47,7 +47,7 @@ interface BrowseError {
 }
 
 export default function BrowsePage() {
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, session, loading: authLoading, signInWithGoogle } = useAuth() as any;
   const [rias, setRias] = useState<RIA[]>([]);
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState('');
@@ -64,6 +64,29 @@ export default function BrowsePage() {
     setRequiresSubscription(false);
     
     try {
+      // If not authenticated, gate access
+      if (!user) {
+        setRequiresAuth(true);
+        throw new Error('Please sign in to browse RIAs');
+      }
+
+      // Check subscription status first to preserve gating
+      const subResp = await fetch('/api/subscription-status', {
+        headers: {
+          Authorization: `Bearer ${user.id}`,
+        },
+      });
+      if (!subResp.ok) {
+        const msg = (await safeJson(subResp))?.error || 'Failed to verify subscription';
+        throw new Error(msg);
+      }
+      const sub: SubscriptionStatus = await subResp.json();
+      setSubscriptionStatus(sub);
+      if (!sub.hasActiveSubscription) {
+        setRequiresSubscription(true);
+        throw new Error('Subscription required to browse RIAs');
+      }
+
       // Build a natural language query from filters
       const filters: string[] = [];
       if (location.trim()) filters.push(`in ${location.trim()}`);
