@@ -2,12 +2,25 @@
 
 import { useState } from 'react'
 
+interface SearchResultMeta {
+  relaxed?: boolean
+  relaxationLevel?: 'msa' | 'state' | 'vector-only' | null
+  resolvedRegion?: { city?: string | null; state?: string | null } | null
+  n?: number | null
+}
+
+interface SearchResultItem {
+  [key: string]: any
+  sourceCategory?: 'database' | 'hybrid' | 'ai'
+}
+
 interface SearchResult {
-  data: any[]
+  data: SearchResultItem[]
   source: 'database' | 'cache' | 'materialized_view' | 'ai'
   cached?: boolean
   executionTime: number
   error?: string
+  meta?: SearchResultMeta | null
 }
 
 interface OptimizedSearchResultsProps {
@@ -118,6 +131,24 @@ export default function OptimizedSearchResults({ results, isLoading }: Optimized
     )
   }
 
+  const getItemSourceBadge = (item: SearchResultItem) => {
+    const category = item.sourceCategory
+    if (!category) return null
+    const cfg: Record<string, { color: string; icon: string; label: string }> = {
+      database: { color: 'bg-purple-100 text-purple-800', icon: '🗄️', label: 'Database' },
+      hybrid: { color: 'bg-yellow-100 text-yellow-800', icon: '🧠', label: 'AI Assisted' },
+      ai: { color: 'bg-yellow-100 text-yellow-800', icon: '🤖', label: 'AI' }
+    }
+    const c = cfg[category]
+    if (!c) return null
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${c.color}`}>
+        <span>{c.icon}</span>
+        <span>{c.label}</span>
+      </span>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Results Header */}
@@ -127,6 +158,14 @@ export default function OptimizedSearchResults({ results, isLoading }: Optimized
             {results.data.length} Results
           </h2>
           {getSourceBadge()}
+          {results.meta?.relaxed && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+              <span>↔️</span>
+              <span>
+                Broadened to {results.meta.relaxationLevel === 'state' ? (results.meta.resolvedRegion?.state || 'region') : results.meta.relaxationLevel}
+              </span>
+            </span>
+          )}
         </div>
         
         <div className="flex items-center gap-4">
@@ -168,9 +207,10 @@ export default function OptimizedSearchResults({ results, isLoading }: Optimized
                 <h3 className="font-semibold text-gray-900 text-sm leading-tight">
                   {result.legal_name}
                 </h3>
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                  #{index + 1}
-                </span>
+                <div className="flex items-center gap-2">
+                  {getItemSourceBadge(result)}
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">#{index + 1}</span>
+                </div>
               </div>
               
               <div className="space-y-2 text-sm">

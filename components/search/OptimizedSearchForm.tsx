@@ -93,9 +93,10 @@ export default function OptimizedSearchForm({
         const resultsArray = Array.isArray(data?.results) ? data.results : (Array.isArray(data?.data) ? data.data : [])
         const normalized = {
           data: resultsArray,
-          source: (data?.source as any) || 'ai',
+          source: (data?.source as any) || 'ai', // legacy overall source; per-item sourceCategory preferred
           cached: Boolean(data?.cached),
-          executionTime
+          executionTime,
+          meta: data?.meta || null
         }
 
         setSearchSource(normalized.source)
