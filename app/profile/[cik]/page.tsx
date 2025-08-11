@@ -85,13 +85,53 @@ function RIAProfileContent() {
   const fetchProfile = async () => {
     try {
       setIsLoading(true);
-      // For now, we'll create a profile API endpoint
-      const response = await fetch(`/api/ria-hunter/profile/${cik}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
+      const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '';
+      if (!apiBase) throw new Error('Profile service not configured');
+
+      // Prefer explicit profile endpoint if available
+      let resp = await fetch(`${apiBase}/api/v1/ria/profile/${cik}`);
+      if (!resp.ok) {
+        // Fallback: query by CIK
+        resp = await fetch(`${apiBase}/api/v1/ria/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: `Show profile for RIA with CIK ${cik}` })
+        });
       }
-      const data = await response.json();
-      setProfile(data);
+      if (!resp.ok) throw new Error('Failed to fetch profile');
+      const raw = await resp.json();
+      const item = Array.isArray(raw?.results) ? raw.results[0] : (Array.isArray(raw?.data) ? raw.data[0] : raw);
+
+      const normalized: RIAProfile = {
+        cik: Number(item?.cik || cik),
+        crd_number: item?.crd_number ?? null,
+        legal_name: item?.legal_name || item?.firm_name || 'Unknown',
+        main_addr_street1: item?.main_addr_street1 || item?.main_office_location?.street || null,
+        main_addr_street2: item?.main_addr_street2 || null,
+        main_addr_city: item?.main_addr_city || item?.main_office_location?.city || null,
+        main_addr_state: item?.main_addr_state || item?.main_office_location?.state || null,
+        main_addr_zip: item?.main_addr_zip || item?.main_office_location?.zipcode || null,
+        main_addr_country: item?.main_addr_country || item?.main_office_location?.country || null,
+        phone_number: item?.phone_number || null,
+        fax_number: item?.fax_number || null,
+        website: item?.website || null,
+        is_st_louis_msa: item?.is_st_louis_msa ?? null,
+        filings: (item?.filings || []).map((f: any) => ({
+          filing_id: String(f.id ?? f.filing_id ?? ''),
+          filing_date: f.filing_date,
+          total_aum: f.total_aum ?? null,
+          manages_private_funds_flag: f.manages_private_funds_flag ?? (f.private_fund_count ? f.private_fund_count > 0 : null),
+          report_period_end_date: f.report_period_end_date ?? null,
+        })),
+        private_funds: (item?.private_funds || []).map((pf: any) => ({
+          fund_id: String(pf.id ?? pf.fund_id ?? ''),
+          fund_name: pf.fund_name,
+          fund_type: pf.fund_type ?? null,
+          gross_asset_value: pf.gross_asset_value ?? null,
+          min_investment: pf.min_investment ?? null,
+        })),
+      };
+      setProfile(normalized);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load profile');
     } finally {

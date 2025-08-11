@@ -107,14 +107,15 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
-      const response = await fetch('/api/ask', {
+      const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '';
+      if (!apiBase) {
+        throw new Error('Search service not configured');
+      }
+
+      const response = await fetch(`${apiBase}/api/v1/ria/query`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ 
-          query: query.trim(),
-          aiProvider,
-          limit
-        }),
+        body: JSON.stringify({ query: query.trim() }),
       });
 
       if (!response.ok) {
@@ -128,6 +129,28 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
       }
 
       const data = await response.json();
+
+      // Normalize response to expected shape if needed
+      let normalized = data;
+      if (!data.answer || !Array.isArray(data.sources)) {
+        const items = Array.isArray(data?.results) ? data.results : (Array.isArray(data?.data) ? data.data : []);
+        const sources = items.map((item: any) => ({
+          firm_name: item.legal_name || item.firm_name || item.name,
+          crd_number: item.cik || item.crd_number || item.id,
+          city: item.main_addr_city || item.city || item.main_office_location?.city,
+          state: item.main_addr_state || item.state || item.main_office_location?.state,
+          aum: item.total_aum || item.latest_filing?.total_aum || item.aum || null,
+          matched_keywords: item.matched_keywords,
+          score: item.score,
+        }));
+        normalized = {
+          answer: `Found ${sources.length} RIAs matching your query`,
+          sources,
+          aiProvider,
+          timestamp: new Date().toISOString(),
+          query: query.trim(),
+        };
+      }
       
       // Only track query count for unauthenticated users
       if (!session) {
@@ -142,7 +165,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onResult, onError }) => {
       }
       
       if (onResult) {
-        onResult(data, query.trim());
+        onResult(normalized, query.trim());
       }
     } catch (error) {
       console.error('Search error:', error);
