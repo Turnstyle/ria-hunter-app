@@ -127,6 +127,14 @@ export default function BrowsePage() {
     }
   };
 
+  async function safeJson(resp: Response): Promise<any | null> {
+    try {
+      return await resp.json();
+    } catch {
+      return null;
+    }
+  }
+
   const handleSignIn = async () => {
     try {
       const result = await signInWithGoogle('/browse');
