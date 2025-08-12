@@ -19,7 +19,6 @@ const HeaderCredits: React.FC = () => {
   const subscriptionCheckRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(true);
 
-  // Helper to read/write per-user localStorage keys so one device doesn't mix accounts
   const getKey = useCallback((base: string) => {
     const suffix = user?.id ? `:${user.id}` : ':anon';
     return `${base}${suffix}`;
@@ -37,11 +36,9 @@ const HeaderCredits: React.FC = () => {
     try { localStorage.setItem(key, value); } catch {}
   }, []);
 
-  // Initialize credits and bonus status from localStorage or subscription
   useEffect(() => {
-    // If user has active subscription, show unlimited credits
     if (subscriptionStatus.hasActiveSubscription) {
-      setCredits(999999); // Show as unlimited credits
+      setCredits(999999);
       return;
     }
 
@@ -58,12 +55,11 @@ const HeaderCredits: React.FC = () => {
       const remaining = Math.max(0, totalCredits - used);
       setCredits(remaining);
     } else {
-      // First time user - check if authenticated to award signup bonus
       if (user && !signupBonusAwarded) {
         write(getKey('ria-hunter-signup-bonus'), 'true');
-        setCredits(4); // 2 base + 2 signup bonus
+        setCredits(4);
       } else {
-        setCredits(2); // Just base credits
+        setCredits(2);
       }
     }
     
@@ -72,17 +68,13 @@ const HeaderCredits: React.FC = () => {
     }
   }, [user, subscriptionStatus.hasActiveSubscription, getKey, readBool, readInt, write]);
 
-  // Safely check subscription status with circuit breaker and rate limiting
   const checkSubscriptionSafely = useCallback(async (userId: string) => {
     if (subscriptionCheckRef.current) {
-      console.log('Subscription check already in progress, skipping');
       return;
     }
 
-    // Check if circuit breaker is open before attempting
     const health = getSubscriptionSystemHealth(userId);
     if (health.isCircuitOpen) {
-      console.log(`Circuit breaker open for user ${userId}, skipping subscription check`);
       setLoading(false);
       return;
     }
@@ -91,19 +83,35 @@ const HeaderCredits: React.FC = () => {
     setLoading(true);
 
     try {
-      const status = await checkUserSubscription(userId);
-      
-      // Only update state if component is still mounted
+      let status: SubscriptionStatus | null = null;
+      if (session?.access_token) {
+        try {
+          const resp = await fetch('/api/subscription-status', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            cache: 'no-store',
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            status = {
+              hasActiveSubscription: Boolean(data?.isSubscriber || data?.unlimited),
+              status: data?.subscription?.status ?? null,
+              trialEnd: data?.subscription?.trialEnd || null,
+              currentPeriodEnd: data?.subscription?.currentPeriodEnd || null,
+            };
+          }
+        } catch (e) {}
+      }
+      if (!status) {
+        status = await checkUserSubscription(userId);
+      }
+
       if (mountedRef.current) {
         setSubscriptionStatus(status);
-        
-        // Log circuit breaker status if it indicates issues
         if (status.status === 'circuit_breaker_open') {
           console.warn('Subscription check returned circuit breaker status');
         }
       }
     } catch (error) {
-      console.error('Error in HeaderCredits subscription check:', error);
       if (mountedRef.current) {
         setSubscriptionStatus({ 
           hasActiveSubscription: false, 
@@ -118,12 +126,10 @@ const HeaderCredits: React.FC = () => {
       }
       subscriptionCheckRef.current = false;
     }
-  }, []);
+  }, [session?.access_token, getSubscriptionSystemHealth]);
 
-  // Check subscription status for authenticated users with safeguards
   useEffect(() => {
     if (user?.id) {
-      // Add a small delay to prevent rapid-fire calls
       const timeoutId = setTimeout(() => {
         checkSubscriptionSafely(user.id);
       }, 100);
@@ -138,9 +144,8 @@ const HeaderCredits: React.FC = () => {
         currentPeriodEnd: null
       });
     }
-  }, [user?.id, checkSubscriptionSafely]); // Depend on stable user ID and callback
+  }, [user?.id, checkSubscriptionSafely]);
 
-  // Cleanup on unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -148,80 +153,8 @@ const HeaderCredits: React.FC = () => {
     };
   }, []);
 
-  // Listen for query count changes to update credits (optimized to prevent loops)
-  useEffect(() => {
-    const handleStorageChange = () => {
-      if (!mountedRef.current) return;
-      
-      const savedQueryCount = readInt(getKey('ria-hunter-query-count'));
-      const savedShareStatus = readBool(getKey('ria-hunter-linkedin-shared'));
-      const signupBonusAwarded = readBool(getKey('ria-hunter-signup-bonus'));
-      
-      if (savedQueryCount !== null) {
-        const used = savedQueryCount;
-        const baseCredits = 2;
-        const linkedInBonus = savedShareStatus ? 1 : 0;
-        const signupBonus = signupBonusAwarded ? 2 : 0;
-        const totalCredits = baseCredits + linkedInBonus + signupBonus;
-        const remaining = Math.max(0, totalCredits - used);
-        setCredits(remaining);
-      }
-      
-      if (savedShareStatus && !hasSharedOnLinkedIn) {
-        setHasSharedOnLinkedIn(true);
-      }
-    };
-
-    // Listen for storage changes from other tabs
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Reduced polling frequency and added safeguards
-    const interval = setInterval(() => {
-      if (mountedRef.current) {
-        handleStorageChange();
-      }
-    }, 15000); // Increased from 10s to 15s
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
-  }, [hasSharedOnLinkedIn, getKey, readBool, readInt]); // Keep dependency to handle LinkedIn state changes
-
-  const handleLinkedInShare = () => {
-    const shareText = encodeURIComponent(
-      "🔍 Just discovered RIA Hunter - an amazing tool for finding and researching Registered Investment Advisors! Perfect for anyone in finance or investment research. Check it out!"
-    );
-    const shareUrl = encodeURIComponent("https://riahunter.com");
-    
-    const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}&text=${shareText}`;
-    
-    // Open LinkedIn share dialog
-    const popup = window.open(linkedInUrl, 'linkedin-share', 'width=600,height=500,scrollbars=yes,resizable=yes');
-    
-    // Grant bonus credit after a delay (assuming they shared)
-    setTimeout(() => {
-      if (popup) {
-        popup.close();
-      }
-      
-      // Grant the bonus credit
-      write(getKey('ria-hunter-linkedin-shared'), 'true');
-      setHasSharedOnLinkedIn(true);
-      setShowLinkedInModal(false);
-      
-      // Update credits
-      const savedQueryCount = readInt(getKey('ria-hunter-query-count')) ?? 0;
-      const used = savedQueryCount;
-      const newCredits = Math.max(0, 3 - used); // 2 base + 1 bonus - used
-      setCredits(newCredits);
-    }, 3000);
-  };
-
-  // Don't show anything while loading
   if (loading) return null;
 
-  // For authenticated users with active subscription
   if (user && subscriptionStatus.hasActiveSubscription) {
     return (
       <div className="flex items-center space-x-3">
@@ -232,8 +165,7 @@ const HeaderCredits: React.FC = () => {
     );
   }
 
-  // For free users - show credits and bonus button if applicable
-  const showBonusButton = !hasSharedOnLinkedIn; // Show immediately, not just when credits are low
+  const showBonusButton = !hasSharedOnLinkedIn;
 
   return (
     <>
@@ -259,7 +191,6 @@ const HeaderCredits: React.FC = () => {
         </div>
       </div>
 
-      {/* LinkedIn Share Modal - "Loving RIA Hunter?" popup */}
       {showLinkedInModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[999] p-4">
           <div className="bg-white rounded-xl p-6 sm:p-8 max-w-md w-full mx-4 relative max-h-screen overflow-y-auto">
@@ -289,7 +220,16 @@ const HeaderCredits: React.FC = () => {
               
               <div className="space-y-3">
                 <button
-                  onClick={handleLinkedInShare}
+                  onClick={async () => {
+                    try {
+                      if (session?.access_token) {
+                        await fetch('/api/redeem-share', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
+                      }
+                    } catch {}
+                    setHasSharedOnLinkedIn(true);
+                    write(getKey('ria-hunter-linkedin-shared'), 'true');
+                    setShowLinkedInModal(false);
+                  }}
                   className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

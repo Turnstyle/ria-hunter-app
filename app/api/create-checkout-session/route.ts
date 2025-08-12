@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'subscription',
+      client_reference_id: user.id,
       line_items: [
         {
           price: process.env.STRIPE_PRICE_ID!,
@@ -55,8 +56,8 @@ export async function POST(request: NextRequest) {
       metadata: {
         user_id: user.id,
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_ORIGIN || ''}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_ORIGIN || ''}/subscription/cancel`,
       allow_promotion_codes: true,
     });
 
