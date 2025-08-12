@@ -19,6 +19,7 @@ interface RIAProfile {
   fax_number: string | null;
   website: string | null;
   is_st_louis_msa: boolean | null;
+  executives?: Array<{ name: string; title?: string | null }>;
   filings: Array<{
     filing_id: string;
     filing_date: string;
@@ -116,6 +117,12 @@ function RIAProfileContent() {
         fax_number: item?.fax_number || null,
         website: item?.website || null,
         is_st_louis_msa: item?.is_st_louis_msa ?? null,
+        executives: Array.isArray(item?.executives)
+          ? item.executives.map((e: any) => ({
+              name: e?.name || e?.person_name || '',
+              title: e?.title ?? null,
+            })).filter((e: { name: string }) => e.name)
+          : [],
         filings: (item?.filings || []).map((f: any) => ({
           filing_id: String(f.id ?? f.filing_id ?? ''),
           filing_date: f.filing_date,
@@ -327,7 +334,17 @@ function RIAProfileContent() {
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Contact</h3>
                   <div className="mt-1 text-sm text-gray-900 space-y-1">
-                    {profile.phone_number && <div>Phone: {profile.phone_number}</div>}
+                    {profile.phone_number && (
+                      <div>
+                        Phone{' '}
+                        <a
+                          href={`tel:${profile.phone_number.replace(/[^\\d+]/g, '')}`}
+                          className="text-indigo-600 hover:text-indigo-500"
+                        >
+                          {profile.phone_number}
+                        </a>
+                      </div>
+                    )}
                     {profile.fax_number && <div>Fax: {profile.fax_number}</div>}
                     {profile.website && (
                       <div>
@@ -361,6 +378,25 @@ function RIAProfileContent() {
                   </div>
                 </div>
               </div>
+
+              {profile.executives && profile.executives.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-500">Key Executives</h3>
+                  <ul className="mt-2 text-sm text-gray-900 list-disc list-inside space-y-1">
+                    {profile.executives.map((exec, idx) => (
+                      <li key={idx}>
+                        {exec.title ? (
+                          <span>
+                            {exec.name} – {exec.title}
+                          </span>
+                        ) : (
+                          <span>{exec.name}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Placeholder for filings - will be populated once we create the profile API */}
