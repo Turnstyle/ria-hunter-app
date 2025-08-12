@@ -53,6 +53,14 @@ export const RIAProfileSchema = z.object({
   phone_number: z.string().nullable(),
   fax_number: z.string().nullable(),
   website: z.string().nullable(),
+  executives: z
+    .array(
+      z.object({
+        name: z.string(),
+        title: z.string().nullable().optional(),
+      })
+    )
+    .default([]),
 });
 
 export type RIAProfile = z.infer<typeof RIAProfileSchema>;
