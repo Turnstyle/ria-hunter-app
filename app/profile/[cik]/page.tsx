@@ -348,10 +348,20 @@ function RIAProfileContent() {
                     {profile.fax_number && <div>Fax: {profile.fax_number}</div>}
                     {profile.website && (
                       <div>
-                        <a href={profile.website} target="_blank" rel="noopener noreferrer"
-                           className="text-indigo-600 hover:text-indigo-500">
-                          {profile.website}
-                        </a>
+                        {(() => {
+                          let display = profile.website
+                          try { display = new URL(profile.website).hostname } catch {}
+                          return (
+                            <a
+                              href={profile.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-indigo-600 hover:text-indigo-500"
+                            >
+                              {display}
+                            </a>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
@@ -399,10 +409,49 @@ function RIAProfileContent() {
               )}
             </div>
 
-            {/* Placeholder for filings - will be populated once we create the profile API */}
+            {/* Filings */}
             <div className="bg-white shadow rounded-lg p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Filings</h3>
-              <p className="text-gray-500">Filing data will be displayed here once the profile API is implemented.</p>
+              {profile.filings && profile.filings.length > 0 ? (
+                <div className="space-y-3">
+                  {profile.filings.map((f, idx) => (
+                    <div key={idx} className="flex items-center justify-between border-b border-gray-100 pb-2 last:border-b-0">
+                      <div className="text-sm text-gray-900">
+                        <div className="font-medium">{formatDate(f.filing_date)}</div>
+                        <div className="text-gray-600 text-xs">
+                          AUM: {formatAUM(f.total_aum)}
+                          {typeof f.manages_private_funds_flag === 'boolean' && (
+                            <span className="ml-2">{f.manages_private_funds_flag ? '• Private funds' : '• No private funds'}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">ID: {f.filing_id}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No filings available.</p>
+              )}
+            </div>
+
+            {/* Private Funds */}
+            <div className="bg-white shadow rounded-lg p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Private Funds</h3>
+              {profile.private_funds && profile.private_funds.length > 0 ? (
+                <ul className="space-y-2 text-sm text-gray-900">
+                  {profile.private_funds.map((pf, idx) => (
+                    <li key={idx} className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">{pf.fund_name}</div>
+                        <div className="text-gray-600 text-xs">{pf.fund_type || 'Type N/A'}</div>
+                      </div>
+                      <div className="text-gray-600 text-xs">GAV: {pf.gross_asset_value ? formatAUM(pf.gross_asset_value) : 'N/A'}</div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-500">No private funds reported.</p>
+              )}
             </div>
           </div>
 

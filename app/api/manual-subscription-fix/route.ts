@@ -6,6 +6,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function POST(request: NextRequest) {
+  // Safety guard: disable unless explicitly enabled via env
+  const isEnabled = process.env.MANUAL_SUBSCRIPTION_FIX_ENABLED === 'true';
+  if (!isEnabled) {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+  }
   try {
     const authHeader = request.headers.get('Authorization');
     if (!authHeader) {
