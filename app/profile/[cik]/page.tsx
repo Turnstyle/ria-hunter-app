@@ -173,22 +173,12 @@ function RIAProfileContent() {
 
   const fetchFundsData = async () => {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '';
-      if (!apiBase) return;
-      const resp = await fetch(`${apiBase.replace(/\/$/, '')}/api/v1/ria/funds/${cik}`, { cache: 'no-store' });
-      if (!resp.ok) {
-        // Fall back to FE proxy which normalizes and swallows backend 404s
-        const sum = await fetch(`/api/funds/summary/${cik}`, { cache: 'no-store' });
-        if (sum.ok) {
-          const d = await sum.json();
-          setFundSummary(Array.isArray(d?.summary) ? d.summary : []);
-        }
-        return;
+      // Use FE proxy to avoid noisy 404s and normalize shape
+      const sum = await fetch(`/api/funds/summary/${cik}`, { cache: 'no-store' });
+      if (sum.ok) {
+        const d = await sum.json();
+        setFundSummary(Array.isArray(d?.summary) ? d.summary : []);
       }
-      const data = await resp.json();
-      if (Array.isArray(data?.summary)) setFundSummary(data.summary);
-      if (Array.isArray(data?.funds)) setFunds(data.funds);
-      if (Array.isArray(data?.marketers)) setMarketers(data.marketers);
     } catch (e) {
       setFundsError('Failed to load funds data');
     }
@@ -354,9 +344,10 @@ function RIAProfileContent() {
 
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Location</h3>
-                  <div className="mt-1">
+                  <div className="mt-1 text-sm text-gray-900">
+                    {([profile.main_addr_city, profile.main_addr_state].filter(Boolean).join(', ')) || '—'}
                     {profile.is_st_louis_msa && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         St. Louis MSA
                       </span>
                     )}
