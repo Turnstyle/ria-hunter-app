@@ -45,8 +45,13 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
       const id = String(s.crd_number || '').trim();
       if (id) set.add(id);
     }
-    return Array.from(set);
+    const all = Array.from(set);
+    // Only fetch summaries for the first N ids to avoid noisy networks
+    const MAX_SUMMARY_FETCH = 10;
+    return all.slice(0, MAX_SUMMARY_FETCH);
   }, [result]);
+
+  const idsKey = useMemo(() => uniqueCrds.join(','), [uniqueCrds]);
 
   useEffect(() => {
     if (!apiBase || uniqueCrds.length === 0) return;
@@ -77,7 +82,11 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
     ids.forEach(async (id) => {
       inFlightRef.current.add(id);
       try {
-        const resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${id}`, { cache: 'no-store' });
+        // Prefer combined endpoint to reduce 404s; fall back to summary-only
+        let resp = await fetch(`${apiBase}/api/v1/ria/funds/${id}`, { cache: 'no-store' });
+        if (!resp.ok) {
+          resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${id}`, { cache: 'no-store' });
+        }
         if (resp.ok) {
           const data = await resp.json();
           const summary: FundSummaryItem[] = Array.isArray(data?.summary) ? data.summary : [];
@@ -95,7 +104,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
         inFlightRef.current.delete(id);
       }
     });
-  }, [apiBase, uniqueCrds, summaryByFirm, fetchedCrds]);
+  }, [apiBase, idsKey]);
   // Format the AI answer for better readability
   const formatAnswer = (answer: string): string => {
     if (!answer) return '';
