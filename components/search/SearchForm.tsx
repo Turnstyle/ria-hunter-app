@@ -26,7 +26,27 @@ export default function SearchForm({ onResult, onError }: { onResult: (result: a
         return
       }
       const data = await resp.json()
-      onResult(data, q)
+      const resultsArray = Array.isArray(data?.results)
+        ? data.results
+        : (Array.isArray(data?.data) ? data.data : [])
+      const sources = resultsArray.map((r: any) => ({
+        firm_name: r?.firm_name || r?.legal_name || r?.name || 'Unknown',
+        crd_number: r?.crd_number || r?.crd || r?.cik || '',
+        city: r?.city || r?.main_addr_city || r?.main_office_location?.city || '',
+        state: r?.state || r?.main_addr_state || r?.main_office_location?.state || '',
+        aum: r?.aum ?? r?.total_aum ?? null,
+        matched_keywords: r?.matched_keywords || r?.keywords || [],
+        score: r?.score,
+      }))
+      const normalized = {
+        answer: typeof data?.answer === 'string' ? data.answer : '',
+        sources,
+        aiProvider: data?.provider || data?.source || undefined,
+        timestamp: new Date().toISOString(),
+        query: q,
+        keywords: data?.keywords || [],
+      }
+      onResult(normalized, q)
     } catch (err: any) {
       onError(err?.message || 'Search failed', q)
     } finally {
