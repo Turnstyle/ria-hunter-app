@@ -56,6 +56,51 @@ interface UserLink {
   created_at: string;
 }
 
+type FundSummaryItem = { type: string; type_short: string; count: number };
+type PrivateFund = {
+  crd_number: number;
+  filing_id: number | null;
+  reference_id: number | null;
+  fund_name: string | null;
+  fund_id: string | null;
+  fund_type: string | null;
+  fund_type_other: string | null;
+  gross_asset_value: number | null;
+  min_investment: number | null;
+  is_3c1: boolean | null;
+  is_3c7: boolean | null;
+  is_master: boolean | null;
+  is_feeder: boolean | null;
+  master_fund_name: string | null;
+  master_fund_id: string | null;
+  is_fund_of_funds: boolean | null;
+  invested_self_related: boolean | null;
+  invested_securities: boolean | null;
+  prime_brokers: string | null;
+  custodians: string | null;
+  administrator: string | null;
+  percent_assets_valued: number | null;
+  marketing: boolean | null;
+  annual_audit: boolean | null;
+  gaap: boolean | null;
+  fs_distributed: boolean | null;
+  unqualified_opinion: boolean | null;
+  owners: number | null;
+};
+type FundMarketer = {
+  crd_number: number;
+  filing_id: number | null;
+  fund_reference_id: number | null;
+  related_person: boolean;
+  marketer_name: string | null;
+  marketer_sec_number: string | null;
+  marketer_crd_number: number | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  website: string | null;
+};
+
 function RIAProfileContent() {
   const params = useParams();
   const { user, loading: userLoading } = useAuth();
@@ -74,12 +119,19 @@ function RIAProfileContent() {
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [newLinkDesc, setNewLinkDesc] = useState('');
 
+  // Funds data
+  const [fundSummary, setFundSummary] = useState<FundSummaryItem[] | null>(null);
+  const [funds, setFunds] = useState<PrivateFund[] | null>(null);
+  const [marketers, setMarketers] = useState<FundMarketer[] | null>(null);
+  const [fundsError, setFundsError] = useState<string | null>(null);
+
   useEffect(() => {
     if (cik) {
       fetchProfile();
       if (user) {
         fetchLivingProfileData();
       }
+      fetchFundsData();
     }
   }, [cik, user]);
 
@@ -143,6 +195,29 @@ function RIAProfileContent() {
       setError(err instanceof Error ? err.message : 'Failed to load profile');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchFundsData = async () => {
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '';
+      if (!apiBase) return;
+      const resp = await fetch(`${apiBase.replace(/\/$/, '')}/api/v1/ria/funds/${cik}`, { cache: 'no-store' });
+      if (!resp.ok) {
+        // Try summary-only if combined endpoint not present
+        const sum = await fetch(`${apiBase.replace(/\/$/, '')}/api/v1/ria/funds/summary/${cik}`, { cache: 'no-store' });
+        if (sum.ok) {
+          const d = await sum.json();
+          setFundSummary(Array.isArray(d?.summary) ? d.summary : []);
+        }
+        return;
+      }
+      const data = await resp.json();
+      if (Array.isArray(data?.summary)) setFundSummary(data.summary);
+      if (Array.isArray(data?.funds)) setFunds(data.funds);
+      if (Array.isArray(data?.marketers)) setMarketers(data.marketers);
+    } catch (e) {
+      setFundsError('Failed to load funds data');
     }
   };
 
@@ -378,6 +453,20 @@ function RIAProfileContent() {
                 </div>
               </div>
 
+              {/* Fund type chips */}
+              {fundSummary && fundSummary.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Private Fund Types</div>
+                  <div className="flex flex-wrap gap-2">
+                    {fundSummary.map((s, idx) => (
+                      <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        {s.type_short} <span className="ml-1 text-indigo-700">{s.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Identifiers</h3>
@@ -450,20 +539,28 @@ function RIAProfileContent() {
                 <h3 className="text-lg font-medium text-gray-900">Private Funds</h3>
                 {/* Future tab toggle could switch to Marketers */}
               </div>
-              {profile.private_funds && profile.private_funds.length > 0 ? (
+              {(funds && funds.length > 0) || (profile.private_funds && profile.private_funds.length > 0) ? (
                 <ul className="space-y-2 text-sm text-gray-900">
-                  {profile.private_funds.map((pf, idx) => (
+                  {(funds && funds.length > 0 ? funds : profile.private_funds).map((pf: any, idx: number) => (
                     <li key={idx} className="flex items-center justify-between">
                       <div>
                         <div className="font-medium flex items-center gap-2">
-                          {pf.fund_name}
-                          {pf.fund_type && (
+                          {pf.fund_name || pf.fund_id || 'Fund'}
+                          {(pf.fund_type || pf.fund_type_other) && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-800">
-                              {pf.fund_type}
+                              {pf.fund_type || pf.fund_type_other}
                             </span>
                           )}
                         </div>
                         <div className="text-gray-600 text-xs">Min Inv: {pf.min_investment ? `$${pf.min_investment.toLocaleString()}` : 'N/A'}</div>
+                        {pf.is_feeder && pf.master_fund_name && (
+                          <div className="text-gray-600 text-xs">Feeder to: {pf.master_fund_name}</div>
+                        )}
+                        {(pf.prime_brokers || pf.custodians || pf.administrator) && (
+                          <div className="text-gray-500 text-[11px] mt-1">
+                            Providers: {[pf.prime_brokers, pf.custodians, pf.administrator].filter(Boolean).join(' • ')}
+                          </div>
+                        )}
                       </div>
                       <div className="text-gray-600 text-xs">GAV: {pf.gross_asset_value ? formatAUM(pf.gross_asset_value) : 'N/A'}</div>
                     </li>
@@ -472,7 +569,38 @@ function RIAProfileContent() {
               ) : (
                 <p className="text-gray-500">No private funds reported.</p>
               )}
+              {fundsError && (
+                <p className="text-xs text-red-600 mt-2">{fundsError}</p>
+              )}
             </div>
+
+            {/* Marketers */}
+            {marketers && marketers.length > 0 && (
+              <div className="bg-white shadow rounded-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Placement / Marketers</h3>
+                <ul className="space-y-2 text-sm text-gray-900">
+                  {marketers.map((m, idx) => (
+                    <li key={idx} className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium">
+                          {m.website ? (
+                            <a href={m.website} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-500">{m.marketer_name}</a>
+                          ) : (
+                            <span>{m.marketer_name}</span>
+                          )}
+                        </div>
+                        <div className="text-gray-600 text-xs">
+                          {[m.city, m.state, m.country].filter(Boolean).join(', ')}
+                        </div>
+                      </div>
+                      <div className="text-gray-600 text-xs">
+                        {m.marketer_crd_number ? `CRD ${m.marketer_crd_number}` : (m.marketer_sec_number ? `SEC ${m.marketer_sec_number}` : '')}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Living Profile Sidebar */}
