@@ -53,12 +53,23 @@ export async function POST(request: NextRequest) {
       // Swallow admin lookup issues; continue
     }
 
-    // Get subscription information if available
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('status, created_at')
-      .eq('user_id', userId)
-      .single();
+    // Get subscription information if available (best-effort)
+    let subscription: any = null;
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (supabaseUrl && supabaseKey) {
+        const subClient = createClient(supabaseUrl, supabaseKey);
+        const { data } = await subClient
+          .from('subscriptions')
+          .select('status, created_at')
+          .eq('user_id', userId)
+          .single();
+        subscription = data || null;
+      }
+    } catch {
+      // Ignore subscription lookup failures
+    }
 
     // Prepare email content
     const truncatedMessage = message.length > 50 ? `${message.substring(0, 50)}...` : message;
