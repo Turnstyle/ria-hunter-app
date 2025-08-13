@@ -37,19 +37,54 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
   const inFlightRef = useRef<Set<string>>(new Set());
   const warnedMisconfigRef = useRef<boolean>(false);
 
-  const uniqueCrds = useMemo(() => {
-    if (!result?.sources) return [] as string[];
-    const set = new Set<string>();
-    for (const s of result.sources) {
-      // Backend expects CRD number for summary/profile/funds endpoints
-      const id = String(s.crd_number || '').trim();
-      if (id) set.add(id);
+  // Build the display list by collapsing backend-aggregated results into a single row.
+  type SourceItem = SearchResultsProps['result'] extends { sources: infer U } ? U extends Array<infer S> ? S : any : any;
+
+  const displaySources: SourceItem[] = useMemo(() => {
+    const sources = result?.sources || [];
+    if (sources.length === 0) return [] as SourceItem[];
+
+    // First pass: identify aggregated groups and collect member CRDs
+    const aggregatedCrds = new Set<string>();
+    const groupKeyToRep = new Map<string, SourceItem>();
+
+    for (const s of sources) {
+      const crds = Array.isArray(s.crd_numbers) ? s.crd_numbers.map(String).filter(Boolean) : [];
+      if (s.aggregated && crds.length > 1) {
+        const key = `group:${crds.slice().sort().join('|')}`;
+        crds.forEach(c => aggregatedCrds.add(String(c)));
+        if (!groupKeyToRep.has(key)) {
+          const representative: any = {
+            ...s,
+            aggregated: true,
+            group_size: crds.length,
+            crd_numbers: crds,
+            // Use the first CRD as the representative id for linking and chip fetches
+            crd_number: crds[0],
+          };
+          groupKeyToRep.set(key, representative);
+        }
+      }
     }
-    const all = Array.from(set);
-    // Only fetch summaries for the first N ids to avoid noisy networks
-    const MAX_SUMMARY_FETCH = 10;
-    return all.slice(0, MAX_SUMMARY_FETCH);
+
+    // Second pass: include singletons that are not part of any aggregated group
+    const singles: SourceItem[] = [];
+    for (const s of sources) {
+      const crd = String(s.crd_number || '');
+      const isInAggregated = aggregatedCrds.has(crd);
+      const isAggregatedRow = Boolean(s.aggregated && Array.isArray(s.crd_numbers) && s.crd_numbers.length > 1);
+      if (!isInAggregated && !isAggregatedRow) singles.push(s);
+    }
+
+    return [...Array.from(groupKeyToRep.values()), ...singles];
   }, [result]);
+
+  const uniqueCrds = useMemo(() => {
+    if (displaySources.length === 0) return [] as string[];
+    const ids = displaySources.map(s => String(s.crd_number || '')).filter(Boolean);
+    const MAX_SUMMARY_FETCH = 10;
+    return Array.from(new Set(ids)).slice(0, MAX_SUMMARY_FETCH);
+  }, [displaySources]);
 
   const idsKey = useMemo(() => uniqueCrds.join(','), [uniqueCrds]);
 
@@ -207,9 +242,9 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
           </svg>
           <span className="text-sm sm:text-base font-semibold text-gray-900">AI Assistant</span>
-          {result.sources && result.sources.length > 0 && (
+          {displaySources && displaySources.length > 0 && (
             <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full ml-auto flex-shrink-0">
-              {Math.min(result.sources.length, 10)} shown
+              {Math.min(displaySources.length, 10)} shown
             </span>
           )}
         </div>
@@ -233,13 +268,13 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
               Source Data ({result.sources.length}) - <span className="text-blue-600">Click RIA names for profiles</span>
             </summary>
             <div className="mt-2 sm:mt-3 space-y-2">
-              {result.sources.slice(0, 10).map((source, index) => {
-                const rawKeywords = (source.matched_keywords || []).map(k => String(k).toLowerCase())
+              {displaySources.slice(0, 10).map((source, index) => {
+                const rawKeywords = (source.matched_keywords || []).map((k: unknown) => String(k).toLowerCase())
                 const tags: string[] = []
-                if (rawKeywords.some(k => k.includes('venture capital'))) tags.push('VC')
-                if (rawKeywords.some(k => k.includes('private equity') || k === 'pe')) tags.push('PE')
-                if (rawKeywords.some(k => k.includes('commercial real estate') || k === 'cre' || k.includes('real estate'))) tags.push('RE')
-                if (rawKeywords.some(k => k.includes('hedge'))) tags.push('Hedge')
+                if (rawKeywords.some((k: string) => k.includes('venture capital'))) tags.push('VC')
+                if (rawKeywords.some((k: string) => k.includes('private equity') || k === 'pe')) tags.push('PE')
+                if (rawKeywords.some((k: string) => k.includes('commercial real estate') || k === 'cre' || k.includes('real estate'))) tags.push('RE')
+                if (rawKeywords.some((k: string) => k.includes('hedge'))) tags.push('Hedge')
                 const key = String(source.crd_number || source.cik || '').trim()
                 const summary = key ? summaryByFirm[key] : undefined
                 return (
