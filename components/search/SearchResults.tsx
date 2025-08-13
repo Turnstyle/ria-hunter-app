@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 interface SearchResultsProps {
@@ -25,6 +25,57 @@ interface SearchResultsProps {
 }
 
 const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error }) => {
+  type FundSummaryItem = { type: string; type_short: string; count: number };
+  const [summaryByFirm, setSummaryByFirm] = useState<Record<string, FundSummaryItem[]>>({});
+  const [loadingCrds, setLoadingCrds] = useState<Record<string, boolean>>({});
+
+  const apiBase = (process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+
+  const uniqueCrds = useMemo(() => {
+    if (!result?.sources) return [] as string[];
+    const set = new Set<string>();
+    for (const s of result.sources) {
+      const crd = String(s.crd_number ?? '').trim();
+      if (crd) set.add(crd);
+    }
+    return Array.from(set);
+  }, [result]);
+
+  useEffect(() => {
+    if (!apiBase || uniqueCrds.length === 0) return;
+    const toFetch = uniqueCrds.filter(crd => !summaryByFirm[crd] && !loadingCrds[crd]);
+    if (toFetch.length === 0) return;
+
+    toFetch.forEach(crd => setLoadingCrds(prev => ({ ...prev, [crd]: true })));
+
+    Promise.allSettled(
+      toFetch.map(async (crd) => {
+        try {
+          const resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${crd}`, { cache: 'no-store' });
+          if (!resp.ok) return { crd, summary: null as FundSummaryItem[] | null };
+          const data = await resp.json();
+          const summary: FundSummaryItem[] = Array.isArray(data?.summary) ? data.summary : [];
+          return { crd, summary };
+        } catch {
+          return { crd, summary: null as FundSummaryItem[] | null };
+        }
+      })
+    ).then(results => {
+      const updates: Record<string, FundSummaryItem[]> = {};
+      const loadingUpdates: Record<string, boolean> = {};
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          const { crd, summary } = r.value as { crd: string; summary: FundSummaryItem[] | null };
+          loadingUpdates[crd] = false;
+          if (summary && summary.length > 0) {
+            updates[crd] = summary;
+          }
+        }
+      }
+      if (Object.keys(updates).length > 0) setSummaryByFirm(prev => ({ ...prev, ...updates }));
+      if (Object.keys(loadingUpdates).length > 0) setLoadingCrds(prev => ({ ...prev, ...loadingUpdates }));
+    });
+  }, [apiBase, uniqueCrds, summaryByFirm, loadingCrds]);
   // Format the AI answer for better readability
   const formatAnswer = (answer: string): string => {
     if (!answer) return '';
@@ -163,6 +214,8 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                 if (rawKeywords.some(k => k.includes('private equity') || k === 'pe')) tags.push('PE')
                 if (rawKeywords.some(k => k.includes('commercial real estate') || k === 'cre' || k.includes('real estate'))) tags.push('CRE')
                 if (rawKeywords.some(k => k.includes('hedge'))) tags.push('Hedge')
+                const crd = String(source.crd_number ?? '').trim()
+                const summary = crd ? summaryByFirm[crd] : undefined
                 return (
                 <div key={index} className="border-l-3 border-blue-400 pl-2 sm:pl-3 py-2 bg-blue-50/50 rounded-r">
                   <div className="font-medium text-gray-900 text-xs sm:text-sm mb-1 break-words">
@@ -184,7 +237,16 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                         </span>
                       )}
                     </div>
-                    {tags.length > 0 && (
+                    {summary && summary.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {summary.map((s, i) => (
+                          <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-800">
+                            {s.type_short}
+                            <span className="ml-1 opacity-80">{s.count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (tags.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {tags.map((t, i) => (
                           <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-800">
@@ -192,7 +254,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                           </span>
                         ))}
                       </div>
-                    )}
+                    ))}
                   </div>
                 </div>
               )})}
