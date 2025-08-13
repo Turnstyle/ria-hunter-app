@@ -5,7 +5,49 @@ export async function POST(request: NextRequest) {
   try {
     const backendBaseUrl = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL;
     if (!backendBaseUrl) {
-      return NextResponse.json({ error: 'Backend URL not configured' }, { status: 500 });
+      // Local-dev fallback: return a mock response so the chat UX is usable without backend
+      const { query } = (await request.json().catch(() => ({}))) as { query?: string };
+      const mock = {
+        answer:
+          `Here are a few RIAs matching your query${query ? `: "${query}"` : ''}. I included locations and links to profiles.`,
+        sources: [
+          {
+            crd_number: 123456,
+            legal_name: 'Lone Star Capital Advisors, LLC',
+            city: 'Austin',
+            state: 'TX',
+            executives: [
+              { name: 'Alex Morgan', title: 'Managing Partner' },
+              { name: 'Jamie Taylor', title: 'CIO' },
+            ],
+            vc_fund_count: 3,
+            vc_total_aum: 725_000_000,
+            activity_score: 91,
+          },
+          {
+            crd_number: 789012,
+            legal_name: 'Capital Ridge Advisors',
+            city: 'Austin',
+            state: 'TX',
+            executives: [{ name: 'Riley Chen', title: 'Founder' }],
+            vc_fund_count: 2,
+            vc_total_aum: 510_000_000,
+            activity_score: 87,
+          },
+          {
+            crd_number: 345678,
+            legal_name: 'Barton Springs Ventures',
+            city: 'Austin',
+            state: 'TX',
+            executives: [{ name: 'Jordan Patel', title: 'Partner' }],
+            vc_fund_count: 1,
+            vc_total_aum: 260_000_000,
+            activity_score: 79,
+          },
+        ],
+        metadata: { plan: { mode: 'mock-local-dev' } },
+      };
+      return NextResponse.json(mock, { status: 200 });
     }
 
     const authHeader = request.headers.get('authorization') || undefined;
@@ -65,7 +107,7 @@ export async function POST(request: NextRequest) {
       const data = text ? JSON.parse(text) : null;
       return NextResponse.json(data, { status: resp.status });
     } catch {
-      return new NextResponse(text, {
+      return new Response(text, {
         status: resp.status,
         headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' },
       });
