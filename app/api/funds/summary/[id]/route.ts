@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 // Proxy that fetches backend combined funds info first, then falls back to summary-only.
 // Swallows 404s from the backend and returns 200 with an empty summary to avoid noisy browser logs.
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, context: any) {
+  const params = context?.params as { id?: string }
   const backendBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL
-  const id = params?.id
+  const id = params?.id as string | undefined
   if (!backendBase || !id) {
     return NextResponse.json({ summary: [] }, { status: 200 })
   }
