@@ -345,7 +345,17 @@ function RIAProfileContent() {
                         </a>
                       </div>
                     )}
-                    {profile.fax_number && <div>Fax: {profile.fax_number}</div>}
+                    {profile.fax_number && (
+                      <div>
+                        Fax{' '}
+                        <a
+                          href={`fax:${profile.fax_number.replace(/[^\d+]/g, '')}`}
+                          className="text-indigo-600 hover:text-indigo-500"
+                        >
+                          {profile.fax_number}
+                        </a>
+                      </div>
+                    )}
                     {profile.website && (
                       <div>
                         {(() => {
