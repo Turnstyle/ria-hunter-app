@@ -32,6 +32,7 @@ export default function SearchForm({ onResult, onError }: { onResult: (result: a
       const sources = resultsArray.map((r: any) => ({
         firm_name: r?.firm_name || r?.legal_name || r?.name || 'Unknown',
         crd_number: r?.crd_number || r?.crd || r?.cik || '',
+        cik: r?.cik ? String(r.cik) : undefined,
         city: r?.city || r?.main_addr_city || r?.main_office_location?.city || '',
         state: r?.state || r?.main_addr_state || r?.main_office_location?.state || '',
         aum: r?.aum ?? r?.total_aum ?? null,

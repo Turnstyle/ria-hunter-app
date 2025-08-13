@@ -35,8 +35,9 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
     if (!result?.sources) return [] as string[];
     const set = new Set<string>();
     for (const s of result.sources) {
-      const crd = String(s.crd_number ?? '').trim();
-      if (crd) set.add(crd);
+      // Prefer CIK when CRD summary endpoint isn’t available in prod
+      const id = String(s.crd_number || s.cik || '').trim();
+      if (id) set.add(id);
     }
     return Array.from(set);
   }, [result]);
@@ -48,15 +49,15 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
 
     const limited = toFetch.slice(0, 10); // cap concurrent fetches
     Promise.allSettled(
-      toFetch.map(async (crd) => {
+      toFetch.map(async (id) => {
         try {
-          const resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${crd}`, { cache: 'no-store' });
-          if (!resp.ok) return { crd, summary: null as FundSummaryItem[] | null };
+          const resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${id}`, { cache: 'no-store' });
+          if (!resp.ok) return { crd: id, summary: null as FundSummaryItem[] | null };
           const data = await resp.json();
           const summary: FundSummaryItem[] = Array.isArray(data?.summary) ? data.summary : [];
-          return { crd, summary };
+          return { crd: id, summary };
         } catch {
-          return { crd, summary: null as FundSummaryItem[] | null };
+          return { crd: id, summary: null as FundSummaryItem[] | null };
         }
       })
     ).then(results => {
@@ -213,8 +214,8 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                 if (rawKeywords.some(k => k.includes('private equity') || k === 'pe')) tags.push('PE')
                 if (rawKeywords.some(k => k.includes('commercial real estate') || k === 'cre' || k.includes('real estate'))) tags.push('CRE')
                 if (rawKeywords.some(k => k.includes('hedge'))) tags.push('Hedge')
-                const crd = String(source.crd_number ?? '').trim()
-                const summary = crd ? summaryByFirm[crd] : undefined
+                const key = String(source.crd_number || source.cik || '').trim()
+                const summary = key ? summaryByFirm[key] : undefined
                 return (
                 <div key={index} className="border-l-3 border-blue-400 pl-2 sm:pl-3 py-2 bg-blue-50/50 rounded-r">
                   <div className="font-medium text-gray-900 text-xs sm:text-sm mb-1 break-words">
