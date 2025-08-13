@@ -41,8 +41,8 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
     if (!result?.sources) return [] as string[];
     const set = new Set<string>();
     for (const s of result.sources) {
-      // Prefer CIK for the summary endpoint; fall back to CRD if CIK is missing
-      const id = String((s.cik ?? s.crd_number) || '').trim();
+      // Backend expects CRD number for summary/profile/funds endpoints
+      const id = String(s.crd_number || '').trim();
       if (id) set.add(id);
     }
     return Array.from(set);
@@ -57,7 +57,9 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
     // Skip if API base points to this frontend host or a Vercel preview domain to avoid 404 spam
     try {
       const apiHost = new URL(apiBase).hostname;
-      if (typeof window !== 'undefined' && (apiHost === window.location.hostname || apiHost.endsWith('.vercel.app'))) {
+      const isFrontendHost = typeof window !== 'undefined' && apiHost === window.location.hostname;
+      const isDisallowedVercel = apiHost.endsWith('.vercel.app') && apiHost !== 'ria-hunter.vercel.app';
+      if (isFrontendHost || isDisallowedVercel) {
         if (!warnedMisconfigRef.current) {
           console.warn('Skipping fund summary fetches: NEXT_PUBLIC_RIA_HUNTER_API_URL appears misconfigured (frontend or vercel domain).');
           warnedMisconfigRef.current = true;
@@ -238,7 +240,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                 <div key={index} className="border-l-3 border-blue-400 pl-2 sm:pl-3 py-2 bg-blue-50/50 rounded-r">
                   <div className="font-medium text-gray-900 text-xs sm:text-sm mb-1 break-words">
                     <Link 
-                      href={`/profile/${source.cik || source.crd_number}`}
+                      href={`/profile/${source.crd_number}`}
                       className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
                       title="Click to view detailed RIA profile with Living Profile features"
                     >

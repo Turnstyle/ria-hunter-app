@@ -114,14 +114,14 @@ function RIAProfileContent() {
       const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '';
       if (!apiBase) throw new Error('Profile service not configured');
 
-      // Prefer explicit profile endpoint if available
-      let resp = await fetch(`${apiBase}/api/v1/ria/profile/${cik}`);
+       // Backend expects CRD number here (param name is legacy)
+       let resp = await fetch(`${apiBase}/api/v1/ria/profile/${cik}`);
       if (!resp.ok) {
-        // Fallback: query by CIK
+         // Fallback: query by CRD
         resp = await fetch(`${apiBase}/api/v1/ria/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: `Show profile for RIA with CIK ${cik}` })
+           body: JSON.stringify({ query: `Show profile for RIA with CRD ${cik}` })
         });
       }
       if (!resp.ok) throw new Error('Failed to fetch profile');
@@ -129,8 +129,8 @@ function RIAProfileContent() {
       const item = Array.isArray(raw?.results) ? raw.results[0] : (Array.isArray(raw?.data) ? raw.data[0] : raw);
 
       const normalized: RIAProfile = {
-        cik: Number(item?.cik || cik),
-        crd_number: item?.crd_number ?? null,
+         cik: Number(item?.cik || null),
+         crd_number: Number(item?.crd_number || cik) || null,
         legal_name: item?.legal_name || item?.firm_name || 'Unknown',
         main_addr_street1: item?.main_addr_street1 || item?.main_office_location?.street || null,
         main_addr_street2: item?.main_addr_street2 || null,
