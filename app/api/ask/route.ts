@@ -25,8 +25,9 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     });
 
-    // If the legacy /api/ask is not supported, fall back to the query endpoint
-    if (resp.status === 404 || resp.status === 405) {
+    // Fallback conditions: if /api/ask is not available or access is blocked (auth/payment),
+    // try the generic v1 query endpoint to keep UX working.
+    if ([404, 405, 401, 402].includes(resp.status)) {
       resp = await fetch(fallbackUrl, {
         method: 'POST',
         headers: {
