@@ -446,14 +446,24 @@ function RIAProfileContent() {
 
             {/* Private Funds */}
             <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Private Funds</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Private Funds</h3>
+                {/* Future tab toggle could switch to Marketers */}
+              </div>
               {profile.private_funds && profile.private_funds.length > 0 ? (
                 <ul className="space-y-2 text-sm text-gray-900">
                   {profile.private_funds.map((pf, idx) => (
                     <li key={idx} className="flex items-center justify-between">
                       <div>
-                        <div className="font-medium">{pf.fund_name}</div>
-                        <div className="text-gray-600 text-xs">{pf.fund_type || 'Type N/A'}</div>
+                        <div className="font-medium flex items-center gap-2">
+                          {pf.fund_name}
+                          {pf.fund_type && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-800">
+                              {pf.fund_type}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-gray-600 text-xs">Min Inv: {pf.min_investment ? `$${pf.min_investment.toLocaleString()}` : 'N/A'}</div>
                       </div>
                       <div className="text-gray-600 text-xs">GAV: {pf.gross_asset_value ? formatAUM(pf.gross_asset_value) : 'N/A'}</div>
                     </li>

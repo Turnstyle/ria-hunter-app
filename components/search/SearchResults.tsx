@@ -156,7 +156,14 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
               Source Data ({result.sources.length}) - <span className="text-blue-600">Click RIA names for profiles</span>
             </summary>
             <div className="mt-2 sm:mt-3 space-y-2">
-              {result.sources.map((source, index) => (
+              {result.sources.map((source, index) => {
+                const rawKeywords = (source.matched_keywords || []).map(k => String(k).toLowerCase())
+                const tags: string[] = []
+                if (rawKeywords.some(k => k.includes('venture capital'))) tags.push('VC')
+                if (rawKeywords.some(k => k.includes('private equity') || k === 'pe')) tags.push('PE')
+                if (rawKeywords.some(k => k.includes('commercial real estate') || k === 'cre' || k.includes('real estate'))) tags.push('CRE')
+                if (rawKeywords.some(k => k.includes('hedge'))) tags.push('Hedge')
+                return (
                 <div key={index} className="border-l-3 border-blue-400 pl-2 sm:pl-3 py-2 bg-blue-50/50 rounded-r">
                   <div className="font-medium text-gray-900 text-xs sm:text-sm mb-1 break-words">
                     <Link 
@@ -177,9 +184,18 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                         </span>
                       )}
                     </div>
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {tags.map((t, i) => (
+                          <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-800">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </details>
         </div>
