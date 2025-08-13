@@ -37,6 +37,9 @@ export default function SearchForm({ onResult, onError }: { onResult: (result: a
         aum: r?.aum ?? r?.total_aum ?? null,
         matched_keywords: r?.matched_keywords || r?.keywords || [],
         score: r?.score,
+        aggregated: Boolean(r?.aggregated),
+        group_size: typeof r?.group_size === 'number' ? r.group_size : (Array.isArray(r?.crd_numbers) ? r.crd_numbers.length : undefined),
+        crd_numbers: Array.isArray(r?.crd_numbers) ? r.crd_numbers.map((x: any) => String(x)) : undefined,
       }))
       const normalized = {
         answer: typeof data?.answer === 'string' ? data.answer : '',
@@ -45,6 +48,7 @@ export default function SearchForm({ onResult, onError }: { onResult: (result: a
         timestamp: new Date().toISOString(),
         query: q,
         keywords: data?.keywords || [],
+        meta: data?.meta || undefined,
       }
       onResult(normalized, q)
     } catch (err: any) {

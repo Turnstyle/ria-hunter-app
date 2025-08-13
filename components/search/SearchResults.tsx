@@ -236,6 +236,11 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                           AUM: {formatAUM(source.aum)}
                         </span>
                       )}
+                      {source.aggregated && (source.group_size || (source.crd_numbers && source.crd_numbers.length > 1)) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-100 text-yellow-800">
+                          Group of {source.group_size || (source.crd_numbers?.length || 1)}
+                        </span>
+                      )}
                     </div>
                     {summary && summary.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5 pt-1">
