@@ -25,9 +25,8 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     });
 
-    // Fallback conditions: if /api/ask is not available or access is blocked (auth/payment),
-    // try the generic v1 query endpoint to keep UX working.
-    if ([404, 405, 401, 402].includes(resp.status)) {
+    // Fallback A: /api/ask unsupported → try v1 query with same auth
+    if ([404, 405].includes(resp.status)) {
       resp = await fetch(fallbackUrl, {
         method: 'POST',
         headers: {
@@ -37,6 +36,27 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify(body || {}),
         cache: 'no-store',
       });
+    }
+
+    // Fallback B: payment/auth required with auth header → try anonymous v1 query
+    if ([401, 402].includes(resp.status)) {
+      const anonHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      let alt = await fetch(fallbackUrl, {
+        method: 'POST',
+        headers: anonHeaders,
+        body: JSON.stringify(body || {}),
+        cache: 'no-store',
+      });
+      if (!alt.ok) {
+        // Fallback C: as a last resort, try anonymous /api/ask
+        alt = await fetch(primaryUrl, {
+          method: 'POST',
+          headers: anonHeaders,
+          body: JSON.stringify(body || {}),
+          cache: 'no-store',
+        });
+      }
+      resp = alt;
     }
 
     const text = await resp.text();
