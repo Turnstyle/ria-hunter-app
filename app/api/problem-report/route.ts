@@ -126,6 +126,43 @@ export async function POST(request: NextRequest) {
 </html>
     `.trim();
 
+    // Optionally notify Slack if webhook is configured
+    try {
+      const webhook = process.env.PROBLEM_REPORT_SLACK_WEBHOOK || process.env.SLACK_WEBHOOK_URL;
+      if (webhook) {
+        const slackPayload = {
+          text: `New problem report from ${userEmail}`,
+          blocks: [
+            { type: 'header', text: { type: 'plain_text', text: '🚨 Problem Report' } },
+            {
+              type: 'section',
+              fields: [
+                { type: 'mrkdwn', text: `*User*: ${userEmail}` },
+                { type: 'mrkdwn', text: `*User ID*: ${userId}` },
+                { type: 'mrkdwn', text: `*Subscription*: ${subscription?.status || 'None'}` },
+                { type: 'mrkdwn', text: `*Created*: ${subscription?.created_at || 'N/A'}` },
+              ],
+            },
+            { type: 'divider' },
+            { type: 'section', text: { type: 'mrkdwn', text: `*Message*\n${message}` } },
+            { type: 'context', elements: [
+              { type: 'mrkdwn', text: `UA: ${request.headers.get('user-agent') || 'n/a'}` },
+              { type: 'mrkdwn', text: `IP: ${request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'n/a'}` },
+            ]},
+          ],
+        };
+        await fetch(webhook, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(slackPayload),
+          // Do not cache or revalidate
+          cache: 'no-store',
+        }).catch(() => {});
+      }
+    } catch {
+      // Ignore Slack notification failure
+    }
+
     // Send email if transporter is configured; otherwise, accept and log.
     const transporter = createTransporter();
     if (!transporter) {
