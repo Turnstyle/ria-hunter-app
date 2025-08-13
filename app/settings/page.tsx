@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { getSession } from '@/app/lib/supabase-client';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { checkUserSubscription, SubscriptionStatus } from '@/app/lib/subscription-utils';
 import UpgradeButton from '@/app/components/subscription/UpgradeButton';
@@ -36,7 +37,8 @@ export default function SettingsPage() {
       // Load subscription status
       if (user?.id) {
         try {
-          const token = (await import('@/app/lib/supabase-client')).getSession ? (await (await import('@/app/lib/supabase-client')).getSession()).data?.session?.access_token : undefined;
+          const { data } = await getSession();
+          const token = data?.session?.access_token;
           const response = await fetch('/api/subscription-status', {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           });
