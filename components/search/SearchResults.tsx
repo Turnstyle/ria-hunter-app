@@ -51,20 +51,26 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
   useEffect(() => {
     if (!apiBase || uniqueCrds.length === 0) return;
 
-    // Skip if API base is clearly pointing to this same frontend host to avoid 404 spam
+    const ids = uniqueCrds.filter(id => !summaryByFirm[id] && !fetchedCrds.has(id) && !inFlightRef.current.has(id));
+    if (ids.length === 0) return;
+
+    // Skip if API base points to this frontend host or a Vercel preview domain to avoid 404 spam
     try {
       const apiHost = new URL(apiBase).hostname;
-      if (typeof window !== 'undefined' && apiHost === window.location.hostname) {
+      if (typeof window !== 'undefined' && (apiHost === window.location.hostname || apiHost.endsWith('.vercel.app'))) {
         if (!warnedMisconfigRef.current) {
-          console.warn('Skipping fund summary fetches: NEXT_PUBLIC_RIA_HUNTER_API_URL points to this frontend host');
+          console.warn('Skipping fund summary fetches: NEXT_PUBLIC_RIA_HUNTER_API_URL appears misconfigured (frontend or vercel domain).');
           warnedMisconfigRef.current = true;
         }
+        // Mark these ids as fetched so we do not retry on future renders
+        setFetchedCrds(prev => {
+          const next = new Set(prev);
+          ids.forEach(id => next.add(id));
+          return next;
+        });
         return;
       }
     } catch {}
-
-    const ids = uniqueCrds.filter(id => !summaryByFirm[id] && !fetchedCrds.has(id) && !inFlightRef.current.has(id));
-    if (ids.length === 0) return;
 
     ids.forEach(async (id) => {
       inFlightRef.current.add(id);
