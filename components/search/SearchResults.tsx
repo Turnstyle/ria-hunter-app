@@ -82,13 +82,10 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
     ids.forEach(async (id) => {
       inFlightRef.current.add(id);
       try {
-        // Prefer combined endpoint to reduce 404s; fall back to summary-only
-        let resp = await fetch(`${apiBase}/api/v1/ria/funds/${id}`, { cache: 'no-store' });
-        if (!resp.ok) {
-          resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${id}`, { cache: 'no-store' });
-        }
-        if (resp.ok) {
-          const data = await resp.json();
+        // Call our proxy to avoid surfacing 404s in the console
+        const proxyResp = await fetch(`/api/funds/summary/${id}`, { cache: 'no-store' });
+        if (proxyResp.ok) {
+          const data = await proxyResp.json();
           const summary: FundSummaryItem[] = Array.isArray(data?.summary) ? data.summary : [];
           if (summary.length > 0) {
             setSummaryByFirm(prev => ({ ...prev, [id]: summary }));
