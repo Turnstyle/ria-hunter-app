@@ -209,7 +209,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
           <span className="text-sm sm:text-base font-semibold text-gray-900">AI Assistant</span>
           {result.sources && result.sources.length > 0 && (
             <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full ml-auto flex-shrink-0">
-              {result.sources.length} source{result.sources.length !== 1 ? 's' : ''}
+              {Math.min(result.sources.length, 10)} shown
             </span>
           )}
         </div>
@@ -233,12 +233,12 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
               Source Data ({result.sources.length}) - <span className="text-blue-600">Click RIA names for profiles</span>
             </summary>
             <div className="mt-2 sm:mt-3 space-y-2">
-              {result.sources.map((source, index) => {
+              {result.sources.slice(0, 10).map((source, index) => {
                 const rawKeywords = (source.matched_keywords || []).map(k => String(k).toLowerCase())
                 const tags: string[] = []
                 if (rawKeywords.some(k => k.includes('venture capital'))) tags.push('VC')
                 if (rawKeywords.some(k => k.includes('private equity') || k === 'pe')) tags.push('PE')
-                if (rawKeywords.some(k => k.includes('commercial real estate') || k === 'cre' || k.includes('real estate'))) tags.push('CRE')
+                if (rawKeywords.some(k => k.includes('commercial real estate') || k === 'cre' || k.includes('real estate'))) tags.push('RE')
                 if (rawKeywords.some(k => k.includes('hedge'))) tags.push('Hedge')
                 const key = String(source.crd_number || source.cik || '').trim()
                 const summary = key ? summaryByFirm[key] : undefined

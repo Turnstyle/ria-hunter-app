@@ -63,6 +63,8 @@ export default function SearchForm({ onResult, onError }: { onResult: (result: a
     <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
       <div className="relative">
         <input
+          id="search-query"
+          name="query"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

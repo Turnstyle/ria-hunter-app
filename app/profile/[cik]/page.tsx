@@ -177,8 +177,8 @@ function RIAProfileContent() {
       if (!apiBase) return;
       const resp = await fetch(`${apiBase.replace(/\/$/, '')}/api/v1/ria/funds/${cik}`, { cache: 'no-store' });
       if (!resp.ok) {
-        // Try summary-only if combined endpoint not present
-        const sum = await fetch(`${apiBase.replace(/\/$/, '')}/api/v1/ria/funds/summary/${cik}`, { cache: 'no-store' });
+        // Fall back to FE proxy which normalizes and swallows backend 404s
+        const sum = await fetch(`/api/funds/summary/${cik}`, { cache: 'no-store' });
         if (sum.ok) {
           const d = await sum.json();
           setFundSummary(Array.isArray(d?.summary) ? d.summary : []);
