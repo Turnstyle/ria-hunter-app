@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useAuth } from '@/app/contexts/AuthContext'
 
 export default function SearchForm({ onResult, onError }: { onResult: (result: any, query: string) => void, onError: (message: string, query: string) => void }) {
+  const { session } = useAuth()
   const [query, setQuery] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -12,9 +14,11 @@ export default function SearchForm({ onResult, onError }: { onResult: (result: a
     if (!q) return
     setIsLoading(true)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
       const resp = await fetch('/api/ask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ query: q })
       })
       if (!resp.ok) {
