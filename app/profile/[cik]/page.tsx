@@ -36,25 +36,7 @@ interface RIAProfile {
   }>;
 }
 
-interface UserNote {
-  id: string;
-  note_text: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface UserTag {
-  id: string;
-  tag_text: string;
-  created_at: string;
-}
-
-interface UserLink {
-  id: string;
-  link_url: string;
-  link_description: string | null;
-  created_at: string;
-}
+// Removed deprecated Living Profile (notes/tags/links)
 
 type FundSummaryItem = { type: string; type_short: string; count: number };
 type PrivateFund = {
@@ -110,14 +92,7 @@ function RIAProfileContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Living Profile data
-  const [notes, setNotes] = useState<UserNote[]>([]);
-  const [tags, setTags] = useState<UserTag[]>([]);
-  const [links, setLinks] = useState<UserLink[]>([]);
-  const [newNote, setNewNote] = useState('');
-  const [newTag, setNewTag] = useState('');
-  const [newLinkUrl, setNewLinkUrl] = useState('');
-  const [newLinkDesc, setNewLinkDesc] = useState('');
+  // Living Profile removed
 
   // Funds data
   const [fundSummary, setFundSummary] = useState<FundSummaryItem[] | null>(null);
@@ -128,9 +103,7 @@ function RIAProfileContent() {
   useEffect(() => {
     if (cik) {
       fetchProfile();
-      if (user) {
-        fetchLivingProfileData();
-      }
+      // Living Profile removed
       fetchFundsData();
     }
   }, [cik, user]);
@@ -221,104 +194,7 @@ function RIAProfileContent() {
     }
   };
 
-  const fetchLivingProfileData = async () => {
-    if (!user) return;
-
-    try {
-      // Fetch notes, tags, and links
-      const [notesRes, tagsRes, linksRes] = await Promise.all([
-        fetch(`/api/ria-hunter/profile/notes?ria_id=${cik}`),
-        fetch(`/api/ria-hunter/profile/tags?ria_id=${cik}`),
-        fetch(`/api/ria-hunter/profile/links?ria_id=${cik}`)
-      ]);
-
-      if (notesRes.ok) {
-        const notesData = await notesRes.json();
-        setNotes(notesData);
-      }
-      if (tagsRes.ok) {
-        const tagsData = await tagsRes.json();
-        setTags(tagsData);
-      }
-      if (linksRes.ok) {
-        const linksData = await linksRes.json();
-        setLinks(linksData);
-      }
-    } catch (err) {
-      console.error('Failed to fetch living profile data:', err);
-    }
-  };
-
-  const addNote = async () => {
-    if (!newNote.trim() || !user) return;
-
-    try {
-      const response = await fetch('/api/ria-hunter/profile/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ria_id: cik,
-          note_text: newNote.trim()
-        })
-      });
-
-      if (response.ok) {
-        const newNoteData = await response.json();
-        setNotes([newNoteData, ...notes]);
-        setNewNote('');
-      }
-    } catch (err) {
-      console.error('Failed to add note:', err);
-    }
-  };
-
-  const addTag = async () => {
-    if (!newTag.trim() || !user) return;
-
-    try {
-      const response = await fetch('/api/ria-hunter/profile/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ria_id: cik,
-          tag_text: newTag.trim()
-        })
-      });
-
-      if (response.ok) {
-        const newTagData = await response.json();
-        setTags([...tags, newTagData]);
-        setNewTag('');
-      }
-    } catch (err) {
-      console.error('Failed to add tag:', err);
-    }
-  };
-
-  const addLink = async () => {
-    if (!newLinkUrl.trim() || !user) return;
-
-    try {
-      const response = await fetch('/api/ria-hunter/profile/links', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ria_id: cik,
-          link_url: newLinkUrl.trim(),
-          link_description: newLinkDesc.trim() || null
-        })
-      });
-
-      if (response.ok) {
-        const newLinkData = await response.json();
-        setLinks([newLinkData, ...links]);
-        setNewLinkUrl('');
-        setNewLinkDesc('');
-      }
-    } catch (err) {
-      console.error('Failed to add link:', err);
-    }
-  };
+  // Removed Living Profile actions
 
   const formatAUM = (aum: number | null): string => {
     if (!aum) return 'N/A';
@@ -603,135 +479,7 @@ function RIAProfileContent() {
             )}
           </div>
 
-          {/* Living Profile Sidebar */}
-          <div className="space-y-6">
-            {user ? (
-              <>
-                {/* Notes */}
-                <div className="bg-white shadow rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">My Notes</h3>
-
-                  <div className="mb-4">
-                    <textarea
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                      placeholder="Add a note..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      rows={3}
-                    />
-                    <button
-                      onClick={addNote}
-                      className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                    >
-                      Add Note
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {notes.map((note) => (
-                      <div key={note.id} className="border-l-4 border-yellow-400 pl-3">
-                        <div className="text-sm text-gray-900">{note.note_text}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {formatDate(note.created_at)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tags */}
-                <div className="bg-white shadow rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">My Tags</h3>
-
-                  <div className="mb-4">
-                    <input
-                      type="text"
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      placeholder="Add a tag..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                    <button
-                      onClick={addTag}
-                      className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                    >
-                      Add Tag
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <span
-                        key={tag.id}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"
-                      >
-                        {tag.tag_text}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Links */}
-                <div className="bg-white shadow rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">My Links</h3>
-
-                  <div className="mb-4 space-y-2">
-                    <input
-                      type="url"
-                      value={newLinkUrl}
-                      onChange={(e) => setNewLinkUrl(e.target.value)}
-                      placeholder="URL..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                    <input
-                      type="text"
-                      value={newLinkDesc}
-                      onChange={(e) => setNewLinkDesc(e.target.value)}
-                      placeholder="Description (optional)..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                    <button
-                      onClick={addLink}
-                      className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                    >
-                      Add Link
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {links.map((link) => (
-                      <div key={link.id} className="border border-gray-200 rounded p-3">
-                        <a
-                          href={link.link_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
-                        >
-                          {link.link_description || link.link_url}
-                        </a>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Added {formatDate(link.created_at)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Living Profile</h3>
-                <p className="text-gray-600 mb-4">
-                  Sign in to add personal notes, tags, and links to this RIA profile.
-                </p>
-                <a
-                  href="/api/auth/login"
-                  className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-center block"
-                >
-                  Sign In
-                </a>
-              </div>
-            )}
-          </div>
+          {/* Living Profile Sidebar removed */}
         </div>
       </div>
     </div>

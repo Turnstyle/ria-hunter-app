@@ -27,7 +27,7 @@ interface SearchResultsProps {
 const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error }) => {
   type FundSummaryItem = { type: string; type_short: string; count: number };
   const [summaryByFirm, setSummaryByFirm] = useState<Record<string, FundSummaryItem[]>>({});
-  const [loadingCrds, setLoadingCrds] = useState<Record<string, boolean>>({});
+  const [fetchedCrds, setFetchedCrds] = useState<Set<string>>(new Set());
 
   const apiBase = (process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
@@ -43,11 +43,10 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
 
   useEffect(() => {
     if (!apiBase || uniqueCrds.length === 0) return;
-    const toFetch = uniqueCrds.filter(crd => !summaryByFirm[crd] && !loadingCrds[crd]);
+    const toFetch = uniqueCrds.filter(crd => !summaryByFirm[crd] && !fetchedCrds.has(crd));
     if (toFetch.length === 0) return;
 
-    toFetch.forEach(crd => setLoadingCrds(prev => ({ ...prev, [crd]: true })));
-
+    const limited = toFetch.slice(0, 10); // cap concurrent fetches
     Promise.allSettled(
       toFetch.map(async (crd) => {
         try {
@@ -62,20 +61,20 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
       })
     ).then(results => {
       const updates: Record<string, FundSummaryItem[]> = {};
-      const loadingUpdates: Record<string, boolean> = {};
+      const newFetched = new Set(fetchedCrds);
       for (const r of results) {
         if (r.status === 'fulfilled') {
           const { crd, summary } = r.value as { crd: string; summary: FundSummaryItem[] | null };
-          loadingUpdates[crd] = false;
+          newFetched.add(crd);
           if (summary && summary.length > 0) {
             updates[crd] = summary;
           }
         }
       }
       if (Object.keys(updates).length > 0) setSummaryByFirm(prev => ({ ...prev, ...updates }));
-      if (Object.keys(loadingUpdates).length > 0) setLoadingCrds(prev => ({ ...prev, ...loadingUpdates }));
+      setFetchedCrds(newFetched);
     });
-  }, [apiBase, uniqueCrds, summaryByFirm, loadingCrds]);
+  }, [apiBase, uniqueCrds, summaryByFirm, fetchedCrds]);
   // Format the AI answer for better readability
   const formatAnswer = (answer: string): string => {
     if (!answer) return '';
@@ -241,7 +240,23 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                           Group of {source.group_size || (source.crd_numbers?.length || 1)}
                         </span>
                       )}
+                      {source.aggregated && Array.isArray(source.crd_numbers) && source.crd_numbers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.currentTarget.nextElementSibling?.classList.toggle('hidden')
+                          }}
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          View members
+                        </button>
+                      )}
                     </div>
+                    {Array.isArray(source.crd_numbers) && source.crd_numbers.length > 1 && (
+                      <div className="hidden pl-0.5">
+                        <div className="mt-1 text-[11px] text-gray-700">Members CRDs: {source.crd_numbers.join(', ')}</div>
+                      </div>
+                    )}
                     {summary && summary.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {summary.map((s, i) => (
