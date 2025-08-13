@@ -36,10 +36,9 @@ export default function SettingsPage() {
       // Load subscription status
       if (user?.id) {
         try {
+          const token = (await import('@/app/lib/supabase-client')).getSession ? (await (await import('@/app/lib/supabase-client')).getSession()).data?.session?.access_token : undefined;
           const response = await fetch('/api/subscription-status', {
-            headers: {
-              'Authorization': `Bearer ${user.id}`,
-            },
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           });
           if (response.ok) {
             const status = await response.json();
