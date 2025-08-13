@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
 interface SearchResultsProps {
@@ -9,11 +9,15 @@ interface SearchResultsProps {
     sources: Array<{
       firm_name: string;
       crd_number: string | number;
+      cik?: string | number;
       city: string;
       state: string;
       aum?: number | null;
       matched_keywords?: string[];
       score?: number;
+      aggregated?: boolean;
+      group_size?: number;
+      crd_numbers?: string[];
     }>;
     aiProvider?: string;
     timestamp?: string;
@@ -30,13 +34,15 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
   const [fetchedCrds, setFetchedCrds] = useState<Set<string>>(new Set());
 
   const apiBase = (process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+  const inFlightRef = useRef<Set<string>>(new Set());
+  const warnedMisconfigRef = useRef<boolean>(false);
 
   const uniqueCrds = useMemo(() => {
     if (!result?.sources) return [] as string[];
     const set = new Set<string>();
     for (const s of result.sources) {
-      // Prefer CIK when CRD summary endpoint isn’t available in prod
-      const id = String(s.crd_number || s.cik || '').trim();
+      // Prefer CIK for the summary endpoint; fall back to CRD if CIK is missing
+      const id = String((s.cik ?? s.crd_number) || '').trim();
       if (id) set.add(id);
     }
     return Array.from(set);
@@ -44,36 +50,42 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
 
   useEffect(() => {
     if (!apiBase || uniqueCrds.length === 0) return;
-    const toFetch = uniqueCrds.filter(crd => !summaryByFirm[crd] && !fetchedCrds.has(crd));
-    if (toFetch.length === 0) return;
 
-    const limited = toFetch.slice(0, 10); // cap concurrent fetches
-    Promise.allSettled(
-      toFetch.map(async (id) => {
-        try {
-          const resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${id}`, { cache: 'no-store' });
-          if (!resp.ok) return { crd: id, summary: null as FundSummaryItem[] | null };
+    // Skip if API base is clearly pointing to this same frontend host to avoid 404 spam
+    try {
+      const apiHost = new URL(apiBase).hostname;
+      if (typeof window !== 'undefined' && apiHost === window.location.hostname) {
+        if (!warnedMisconfigRef.current) {
+          console.warn('Skipping fund summary fetches: NEXT_PUBLIC_RIA_HUNTER_API_URL points to this frontend host');
+          warnedMisconfigRef.current = true;
+        }
+        return;
+      }
+    } catch {}
+
+    const ids = uniqueCrds.filter(id => !summaryByFirm[id] && !fetchedCrds.has(id) && !inFlightRef.current.has(id));
+    if (ids.length === 0) return;
+
+    ids.forEach(async (id) => {
+      inFlightRef.current.add(id);
+      try {
+        const resp = await fetch(`${apiBase}/api/v1/ria/funds/summary/${id}`, { cache: 'no-store' });
+        if (resp.ok) {
           const data = await resp.json();
           const summary: FundSummaryItem[] = Array.isArray(data?.summary) ? data.summary : [];
-          return { crd: id, summary };
-        } catch {
-          return { crd: id, summary: null as FundSummaryItem[] | null };
-        }
-      })
-    ).then(results => {
-      const updates: Record<string, FundSummaryItem[]> = {};
-      const newFetched = new Set(fetchedCrds);
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          const { crd, summary } = r.value as { crd: string; summary: FundSummaryItem[] | null };
-          newFetched.add(crd);
-          if (summary && summary.length > 0) {
-            updates[crd] = summary;
+          if (summary.length > 0) {
+            setSummaryByFirm(prev => ({ ...prev, [id]: summary }));
           }
         }
+      } catch {}
+      finally {
+        setFetchedCrds(prev => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+        inFlightRef.current.delete(id);
       }
-      if (Object.keys(updates).length > 0) setSummaryByFirm(prev => ({ ...prev, ...updates }));
-      setFetchedCrds(newFetched);
     });
   }, [apiBase, uniqueCrds, summaryByFirm, fetchedCrds]);
   // Format the AI answer for better readability
@@ -220,7 +232,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                 <div key={index} className="border-l-3 border-blue-400 pl-2 sm:pl-3 py-2 bg-blue-50/50 rounded-r">
                   <div className="font-medium text-gray-900 text-xs sm:text-sm mb-1 break-words">
                     <Link 
-                      href={`/profile/${source.crd_number}`}
+                      href={`/profile/${source.cik || source.crd_number}`}
                       className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
                       title="Click to view detailed RIA profile with Living Profile features"
                     >
