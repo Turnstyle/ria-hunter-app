@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { useAuth } from '@/app/contexts/AuthContext'
 
 interface SubscriptionDetailsProps {
   userId: string
@@ -12,6 +13,7 @@ interface SubscriptionInfo {
 }
 
 export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps) {
+  const { session } = useAuth()
   const [info, setInfo] = useState<SubscriptionInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -20,7 +22,16 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
     const load = async () => {
       try {
         setLoading(true)
-        const resp = await fetch('/api/subscription-status', { cache: 'no-store' })
+        const headers: Record<string, string> = {}
+        const accessToken = session?.access_token
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`
+        }
+
+        const resp = await fetch('/api/subscription-status', {
+          cache: 'no-store',
+          headers,
+        })
         if (!resp.ok) throw new Error('Failed to load subscription')
         const data = await resp.json()
         setInfo({ status: data?.status || 'unknown', current_period_end: data?.current_period_end || null })
@@ -31,7 +42,7 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
       }
     }
     load()
-  }, [userId])
+  }, [userId, session?.access_token])
 
   if (loading) {
     return (
