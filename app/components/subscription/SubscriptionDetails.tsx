@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import UpgradeButton from '@/app/components/subscription/UpgradeButton'
 import { useAuth } from '@/app/contexts/AuthContext'
 
 interface SubscriptionDetailsProps {
@@ -34,7 +35,17 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
         })
         if (!resp.ok) throw new Error('Failed to load subscription')
         const data = await resp.json()
-        setInfo({ status: data?.status || 'unknown', current_period_end: data?.current_period_end || null })
+        const derivedStatus = (data?.status
+          || data?.subscription?.status
+          || data?.subscriptionStatus?.status
+          || data?.rawSubscription?.status
+          || 'unknown') as string
+        const derivedPeriodEnd = (data?.current_period_end
+          || data?.subscription?.current_period_end
+          || data?.subscriptionStatus?.current_period_end
+          || data?.rawSubscription?.current_period_end
+          || null) as string | null
+        setInfo({ status: derivedStatus, current_period_end: derivedPeriodEnd })
       } catch (e: any) {
         setError(e?.message || 'Error loading subscription')
       } finally {
@@ -67,6 +78,51 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
       {info?.current_period_end && (
         <div className="text-xs text-gray-600 mt-1">Renews: {new Date(info.current_period_end).toLocaleDateString()}</div>
       )}
+      <div className="mt-4">
+        {info?.status === 'active' ? (
+          <ManageBillingButton />
+        ) : (
+          <UpgradeButton buttonText="Upgrade" />
+        )}
+      </div>
     </div>
+  )
+}
+
+function ManageBillingButton() {
+  const { session } = useAuth()
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleClick = async () => {
+    if (!session?.access_token) return
+    setIsLoading(true)
+    try {
+      const resp = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+      const data = await resp.json()
+      if (!resp.ok || !data?.url) {
+        throw new Error(data?.error || 'Failed to open billing portal')
+      }
+      window.location.href = data.url
+    } catch (e) {
+      console.error(e)
+      alert(e instanceof Error ? e.message : 'Failed to open billing portal')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={isLoading}
+      className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+    >
+      {isLoading ? 'Opening…' : 'Manage Billing'}
+    </button>
   )
 }
