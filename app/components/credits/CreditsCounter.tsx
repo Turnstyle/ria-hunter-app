@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { checkUserSubscription, getSubscriptionSystemHealth, SubscriptionStatus } from '@/app/lib/subscription-utils';
+import { normalizeSubscriptionResponse, getSubscriptionSystemHealth, SubscriptionStatus } from '@/app/lib/subscription-client-utils';
 
 interface CreditsCounterProps {
   onLinkedInBonus?: () => void;
@@ -95,16 +95,21 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
     setLoading(true);
 
     try {
-      const status = await checkUserSubscription(userId);
-      
-      // Only update state if component is still mounted
+      let status: SubscriptionStatus = { hasActiveSubscription: false, status: null, trialEnd: null, currentPeriodEnd: null };
+      if (session?.access_token) {
+        try {
+          const resp = await fetch('/api/subscription-status', {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            cache: 'no-store',
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            status = normalizeSubscriptionResponse(data);
+          }
+        } catch (e) {}
+      }
       if (mountedRef.current) {
         setSubscriptionStatus(status);
-        
-        // Log circuit breaker status if it indicates issues
-        if (status.status === 'circuit_breaker_open') {
-          console.warn('CreditsCounter: Subscription check returned circuit breaker status');
-        }
       }
     } catch (error) {
       console.error('Error in CreditsCounter subscription check:', error);
@@ -122,7 +127,7 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
       }
       subscriptionCheckRef.current = false;
     }
-  }, []);
+  }, [session?.access_token]);
 
   // Check subscription status for authenticated users with safeguards
   useEffect(() => {
@@ -253,7 +258,7 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ onLinkedInBonus, classN
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-green-800">Pro Plan Active</h3>
+              <h3 className="text.sm font-medium text-green-800">Pro Plan Active</h3>
               <p className="text-xs text-green-600">Unlimited queries</p>
             </div>
           </div>

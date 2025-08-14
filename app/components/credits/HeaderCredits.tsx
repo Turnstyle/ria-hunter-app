@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { checkUserSubscription, getSubscriptionSystemHealth, SubscriptionStatus } from '@/app/lib/subscription-utils';
+import { normalizeSubscriptionResponse, getSubscriptionSystemHealth, SubscriptionStatus } from '@/app/lib/subscription-client-utils';
 
 const HeaderCredits: React.FC = () => {
   const { user, session } = useAuth();
@@ -83,7 +83,7 @@ const HeaderCredits: React.FC = () => {
     setLoading(true);
 
     try {
-      let status: SubscriptionStatus | null = null;
+      let status: SubscriptionStatus = { hasActiveSubscription: false, status: null, trialEnd: null, currentPeriodEnd: null };
       if (session?.access_token) {
         try {
           const resp = await fetch('/api/subscription-status', {
@@ -92,17 +92,9 @@ const HeaderCredits: React.FC = () => {
           });
           if (resp.ok) {
             const data = await resp.json();
-            status = {
-              hasActiveSubscription: Boolean(data?.isSubscriber || data?.unlimited),
-              status: data?.subscription?.status ?? null,
-              trialEnd: data?.subscription?.trialEnd || null,
-              currentPeriodEnd: data?.subscription?.currentPeriodEnd || null,
-            };
+            status = normalizeSubscriptionResponse(data);
           }
         } catch (e) {}
-      }
-      if (!status) {
-        status = await checkUserSubscription(userId);
       }
 
       if (mountedRef.current) {
