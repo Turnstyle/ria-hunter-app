@@ -80,26 +80,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fallback B: Only auth/payment required → try anonymous v1, then anonymous primary
-    if ([401, 402].includes(resp.status)) {
-      const anonHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      let alt = await fetch(fallbackUrl, {
-        method: 'POST',
-        headers: anonHeaders,
-        body: JSON.stringify(body || {}),
-        cache: 'no-store',
-      });
-      if (!alt.ok) {
-        // Fallback C: as a last resort, try anonymous /api/ask
-        alt = await fetch(primaryUrl, {
-          method: 'POST',
-          headers: anonHeaders,
-          body: JSON.stringify(body || {}),
-          cache: 'no-store',
-        });
-      }
-      resp = alt;
-    }
+    // No auth/payment fallback: surface error via diagnostics in handlers below
 
     const text = await resp.text();
     // Normalize response: prefer ApiResponse shape; fallback to mapping `results[]` → sources
@@ -165,7 +146,7 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json(
         { error: 'Upstream ask service failed', errorId, status: resp.status, backend: backendBaseUrl, details: raw },
-        { status: 500 }
+        { status: [401, 402].includes(resp.status) ? resp.status : 500 }
       );
     } catch {
       // Non-JSON text fallback
@@ -185,7 +166,7 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json(
         { error: 'Upstream ask service failed (text)', errorId, status: resp.status, backend: backendBaseUrl, details: text?.slice(0, 1000) ?? null },
-        { status: 500 }
+        { status: [401, 402].includes(resp.status) ? resp.status : 500 }
       );
     }
   } catch (error: any) {
