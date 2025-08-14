@@ -5,8 +5,8 @@ import { cookies, headers as nextHeaders } from 'next/headers';
 export async function POST(request: NextRequest) {
   try {
     // Correlation id
-    const reqHeaders = nextHeaders();
-    const incomingReqId = reqHeaders.get('x-request-id') || undefined;
+    const reqHeaders = await nextHeaders();
+    const incomingReqId = (reqHeaders as any)?.get?.('x-request-id') || undefined;
     const requestId = incomingReqId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const backendBaseUrl = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL;
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
       if (resp.ok) {
         return new Response(text, {
           status: resp.status,
-          headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' },
+          headers: { 'Content-Type': 'text/plain' },
         });
       }
       const errorId = requestId;
