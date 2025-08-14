@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies, headers as nextHeaders } from 'next/headers';
 
 // Frontend proxy for the backend ask endpoint to avoid browser CORS
 export async function POST(request: NextRequest) {
   try {
+    // Correlation id
+    const reqHeaders = nextHeaders();
+    const incomingReqId = reqHeaders.get('x-request-id') || undefined;
+    const requestId = incomingReqId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
     const backendBaseUrl = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL;
     if (!backendBaseUrl) {
       // Local-dev fallback: return a mock response so the chat UX is usable without backend
@@ -50,8 +56,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(mock, { status: 200 });
     }
 
-    const authHeader = request.headers.get('authorization') || undefined;
+    let authHeader = request.headers.get('authorization') || undefined;
     const body = await request.json().catch(() => ({}));
+
+    // Attempt session-based auth extraction if no Authorization header present
+    if (!authHeader) {
+      try {
+        const cookieStore = cookies();
+        // Try common Supabase cookie names
+        const directToken = cookieStore.get('sb-access-token')?.value;
+        if (directToken) {
+          authHeader = `Bearer ${directToken}`;
+        } else {
+          const all = cookieStore.getAll();
+          const sbCookie = all.find(c => c.name.includes('sb-') && c.name.includes('auth')) || all.find(c => c.name.startsWith('sb-'));
+          if (sbCookie?.value) {
+            try {
+              const parsed: any = JSON.parse(sbCookie.value);
+              if (parsed?.access_token) {
+                authHeader = `Bearer ${parsed.access_token}`;
+              }
+            } catch {
+              authHeader = `Bearer ${sbCookie.value}`;
+            }
+          }
+        }
+      } catch {}
+    }
 
     const base = backendBaseUrl.replace(/\/$/, '');
     const primaryUrl = `${base}/api/ask`;
@@ -62,6 +93,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
         ...(authHeader ? { Authorization: authHeader } : {}),
+        'x-request-id': requestId,
       },
       body: JSON.stringify(body || {}),
       cache: 'no-store',
@@ -74,6 +106,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
           ...(authHeader ? { Authorization: authHeader } : {}),
+          'x-request-id': requestId,
         },
         body: JSON.stringify(body || {}),
         cache: 'no-store',
@@ -136,7 +169,7 @@ export async function POST(request: NextRequest) {
       if (resp.ok) {
         return NextResponse.json(raw, { status: resp.status });
       }
-      const errorId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const errorId = requestId;
       console.error('[ask-proxy:error-json]', {
         errorId,
         backendBaseUrl,
@@ -156,7 +189,7 @@ export async function POST(request: NextRequest) {
           headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' },
         });
       }
-      const errorId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const errorId = requestId;
       console.error('[ask-proxy:error-text]', {
         errorId,
         backendBaseUrl,
