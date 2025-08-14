@@ -102,12 +102,42 @@ export async function POST(request: NextRequest) {
     }
 
     const text = await resp.text();
-    // Try to return JSON, otherwise pass through text
+    // Normalize response: prefer ApiResponse shape; fallback to mapping `results[]` → sources
     try {
-      const data = text ? JSON.parse(text) : null;
-      return NextResponse.json(data, { status: resp.status });
+      const raw = text ? JSON.parse(text) : null;
+
+      // If backend already returns the desired shape, pass-through
+      if (raw && typeof raw === 'object' && 'answer' in raw && 'sources' in raw) {
+        return NextResponse.json(raw, { status: 200 });
+      }
+
+      // If backend returns a results array, convert to ApiResponse
+      const results = Array.isArray(raw?.results) ? raw.results : Array.isArray(raw?.data) ? raw.data : null;
+      if (Array.isArray(results)) {
+        const sources = results.slice(0, 10).map((item: any) => ({
+          crd_number: Number(item?.crd_number ?? item?.crd ?? item?.crdNumber ?? 0) || 0,
+          legal_name: item?.legal_name ?? item?.firm_name ?? item?.name ?? 'Unknown',
+          city: item?.city ?? item?.main_addr_city ?? item?.main_office_location?.city ?? '',
+          state: item?.state ?? item?.main_addr_state ?? item?.main_office_location?.state ?? '',
+          executives: Array.isArray(item?.executives)
+            ? item.executives
+                .map((e: any) => ({ name: e?.name || e?.person_name || '', title: e?.title ?? null }))
+                .filter((e: any) => e.name)
+            : [],
+          vc_fund_count: Number(item?.private_fund_count ?? 0) || 0,
+          vc_total_aum: Number(item?.private_fund_aum ?? item?.total_aum ?? 0) || 0,
+          activity_score: Number(item?.activity_score ?? 0) || 0,
+        }));
+
+        const answer = `Here are ${sources.length} RIAs I found. Tap a source to open its profile.`;
+        return NextResponse.json({ answer, sources }, { status: 200 });
+      }
+
+      // Unknown JSON shape: return as text/json passthrough
+      return NextResponse.json(raw, { status: resp.status });
     } catch {
-      return new Response(text, {
+      // Non-JSON text fallback
+      return new NextResponse(text, {
         status: resp.status,
         headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' },
       });
