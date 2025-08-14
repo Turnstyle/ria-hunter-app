@@ -30,18 +30,36 @@ export async function POST(request: NextRequest) {
   const supabase = getServerSupabaseClient();
 
   try {
+    console.log(`[Stripe Webhook] Processing event: ${event.type}`, {
+      eventId: event.id,
+      created: new Date(event.created * 1000).toISOString(),
+      livemode: (event as any).livemode,
+    });
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as any; // Using any to avoid type issues with Stripe API versions
         const userId = subscription.metadata?.user_id;
-
+        console.log(`[Stripe Webhook] Processing subscription ${event.type}:`, {
+          subscriptionId: subscription.id,
+          customerId: subscription.customer,
+          userId: userId,
+          status: subscription.status,
+          currentPeriodEnd: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
+          trialEnd: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+          metadata: subscription.metadata,
+        });
         if (!userId) {
-          console.error('No user_id in subscription metadata');
+          console.error('[Stripe Webhook] CRITICAL: No user_id in subscription metadata:', {
+            subscriptionId: subscription.id,
+            metadata: subscription.metadata,
+            customer: subscription.customer,
+          });
           break;
         }
 
         // Upsert subscription record
+        console.log('[Stripe Webhook] Attempting to upsert subscription for user:', userId);
         const { error } = await supabase
           .from('subscriptions')
           .upsert({
