@@ -129,7 +129,25 @@ export async function POST(request: NextRequest) {
           activity_score: Number(item?.activity_score ?? 0) || 0,
         }));
 
-        const answer = `Here are ${sources.length} RIAs I found. Tap a source to open its profile.`;
+        // Build a concise answer: top 3 firms with city/state and private fund counts by type if present
+        const top = sources.slice(0, 3);
+        const names = top
+          .map((s: any, i: number) => {
+            const fn = (t: any) => (typeof t === 'number' && t > 0 ? t : null);
+            const vc = fn(results[i]?.vc_count ?? results[i]?.private_fund_vc_count);
+            const pe = fn(results[i]?.pe_count ?? results[i]?.private_fund_pe_count);
+            const cre = fn(results[i]?.cre_count ?? results[i]?.private_fund_cre_count);
+            const parts: string[] = [];
+            if (vc) parts.push(`VC ${vc}`);
+            if (pe) parts.push(`PE ${pe}`);
+            if (cre) parts.push(`CRE ${cre}`);
+            const pfBreakdown = parts.length ? ` (${parts.join(', ')})` : '';
+            return `${s.legal_name} — ${s.city}, ${s.state}${pfBreakdown}`;
+          })
+          .join('; ');
+        const answer = top.length
+          ? `Found ${sources.length} RIAs. Top matches: ${names}. Tap a source to open its profile.`
+          : `Found ${sources.length} RIAs. Tap a source to open its profile.`;
         return NextResponse.json({ answer, sources }, { status: 200 });
       }
 
@@ -137,7 +155,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(raw, { status: resp.status });
     } catch {
       // Non-JSON text fallback
-      return new NextResponse(text, {
+      return new Response(text, {
         status: resp.status,
         headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' },
       });
