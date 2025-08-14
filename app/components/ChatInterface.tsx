@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatMessage } from '@/lib/types';
+import type { ChatMessage, ApiError, ApiResponse } from '@/lib/types';
 import { useAskApi } from '@/hooks/useApi';
 import AssistantMessage from './AssistantMessage';
 import QuerySuggestions from './QuerySuggestions';
@@ -25,12 +25,30 @@ export default function ChatInterface() {
     setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
     setInput('');
 
-    const apiResponse = await askQuestion(query);
+    const apiResponse = (await askQuestion(query)) as (ApiResponse & Partial<ApiError>) | null;
+    let content = apiResponse?.answer || (error ? `Error: ${error}` : 'Sorry, I encountered an error.');
+    if (apiResponse && 'error' in apiResponse) {
+      const status = (apiResponse as any).status as number | undefined;
+      let userMessage = 'I encountered an issue processing your request.';
+      let suggestion = '';
+      if (status === 401 || status === 402) {
+        userMessage = 'This query requires authentication.';
+        suggestion = 'Please sign in to access this information.';
+      } else if (status === 429) {
+        userMessage = "You've made too many requests.";
+        suggestion = 'Please wait a moment before trying again.';
+      } else if (typeof status === 'number' && status >= 500) {
+        userMessage = 'Our system is having temporary difficulties.';
+        suggestion = 'Please try again in a few moments, or try rephrasing your question.';
+      }
+      const ref = (apiResponse as any).errorId ? ` If this persists, reference error ID: ${(apiResponse as any).errorId}` : '';
+      content = `${userMessage} ${suggestion}${ref ? `\n\n${ref}` : ''}`.trim();
+    }
     const finalMessage: ChatMessage = {
       id: assistantPlaceholder.id,
       role: 'assistant',
-      content: apiResponse?.answer || (error ? `Error: ${error}` : 'Sorry, I encountered an error.'),
-      sources: apiResponse?.sources || [],
+      content,
+      sources: (apiResponse as any)?.sources || [],
       isLoading: false,
     };
     setMessages((prev) => prev.map((msg) => (msg.id === finalMessage.id ? finalMessage : msg)));

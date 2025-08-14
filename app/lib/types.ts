@@ -20,6 +20,14 @@ export interface ApiResponse {
   metadata?: { plan?: any };
 }
 
+export interface ApiError {
+  error: string;
+  errorId?: string;
+  status?: number;
+  backend?: string;
+  details?: unknown;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
