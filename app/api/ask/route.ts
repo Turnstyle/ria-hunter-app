@@ -62,13 +62,13 @@ export async function POST(request: NextRequest) {
     // Attempt session-based auth extraction if no Authorization header present
     if (!authHeader) {
       try {
-        const cookieStore = cookies();
+        const cookieStore = await cookies();
         // Try common Supabase cookie names
-        const directToken = cookieStore.get('sb-access-token')?.value;
+        const directToken = (cookieStore as any)?.get?.('sb-access-token')?.value;
         if (directToken) {
           authHeader = `Bearer ${directToken}`;
         } else {
-          const all = cookieStore.getAll();
+          const all = ((cookieStore as any)?.getAll?.() ?? []) as Array<{ name: string; value: string }>;
           const sbCookie = all.find(c => c.name.includes('sb-') && c.name.includes('auth')) || all.find(c => c.name.startsWith('sb-'));
           if (sbCookie?.value) {
             try {
