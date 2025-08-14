@@ -67,8 +67,8 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     });
 
-    // Fallback A: primary not OK → try v1 query with same auth
-    if (!resp.ok) {
+    // Fallback A: Only when the primary endpoint is missing/unsupported
+    if ([404, 405].includes(resp.status)) {
       resp = await fetch(fallbackUrl, {
         method: 'POST',
         headers: {
@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fallback B: still not OK (including 401/402) → try anonymous v1, then anonymous primary
-    if (!resp.ok) {
+    // Fallback B: Only auth/payment required → try anonymous v1, then anonymous primary
+    if ([401, 402].includes(resp.status)) {
       const anonHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       let alt = await fetch(fallbackUrl, {
         method: 'POST',
@@ -151,14 +151,42 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ answer, sources }, { status: 200 });
       }
 
-      // Unknown JSON shape: return as text/json passthrough
-      return NextResponse.json(raw, { status: resp.status });
+      // Unknown JSON shape: if OK, pass through; if error, emit diagnostics
+      if (resp.ok) {
+        return NextResponse.json(raw, { status: resp.status });
+      }
+      const errorId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      console.error('[ask-proxy:error-json]', {
+        errorId,
+        backendBaseUrl,
+        tried: { primaryUrl, fallbackUrl },
+        status: resp.status,
+        raw,
+      });
+      return NextResponse.json(
+        { error: 'Upstream ask service failed', errorId, status: resp.status, backend: backendBaseUrl, details: raw },
+        { status: 500 }
+      );
     } catch {
       // Non-JSON text fallback
-      return new Response(text, {
+      if (resp.ok) {
+        return new Response(text, {
+          status: resp.status,
+          headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' },
+        });
+      }
+      const errorId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      console.error('[ask-proxy:error-text]', {
+        errorId,
+        backendBaseUrl,
+        tried: { primaryUrl, fallbackUrl },
         status: resp.status,
-        headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' },
+        text: text?.slice(0, 1000) ?? null,
       });
+      return NextResponse.json(
+        { error: 'Upstream ask service failed (text)', errorId, status: resp.status, backend: backendBaseUrl, details: text?.slice(0, 1000) ?? null },
+        { status: 500 }
+      );
     }
   } catch (error: any) {
     console.error('Proxy /api/ask error:', error);
