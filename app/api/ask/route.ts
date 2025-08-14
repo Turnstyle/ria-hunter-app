@@ -67,8 +67,8 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     });
 
-    // Fallback A: /api/ask unsupported → try v1 query with same auth
-    if ([404, 405].includes(resp.status)) {
+    // Fallback A: primary not OK → try v1 query with same auth
+    if (!resp.ok) {
       resp = await fetch(fallbackUrl, {
         method: 'POST',
         headers: {
@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fallback B: payment/auth required with auth header → try anonymous v1 query
-    if ([401, 402].includes(resp.status)) {
+    // Fallback B: still not OK (including 401/402) → try anonymous v1, then anonymous primary
+    if (!resp.ok) {
       const anonHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       let alt = await fetch(fallbackUrl, {
         method: 'POST',
