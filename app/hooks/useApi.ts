@@ -1,30 +1,33 @@
 'use client';
 
-import { useState } from 'react';
-import type { ApiResponse } from '@/lib/types';
+import { useState, useCallback } from 'react';
+import { queryRia, QueryResponse } from '@/services/ria';
+import type { ApiError } from '@/lib/types';
 
 export function useAskApi() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
-  const askQuestion = async (query: string): Promise<ApiResponse | null> => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-      if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      return (await response.json()) as ApiResponse;
-    } catch (e: any) {
-      setError(e?.message ?? 'Unknown error');
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+	const askQuestion = useCallback(async (query: string): Promise<QueryResponse | null> => {
+		if (!query.trim()) return null;
 
-  return { isLoading, error, askQuestion };
+		setIsLoading(true);
+		setError(null);
+
+		try {
+			const response = await queryRia(query);
+			return response;
+		} catch (err: any) {
+			if (err.code === 'PAYMENT_REQUIRED') {
+				setError('Credits exhausted - upgrade to continue');
+			} else {
+				setError(err.message || 'An error occurred while processing your query');
+			}
+			throw err as ApiError;
+		} finally {
+			setIsLoading(false);
+		}
+	}, []);
+
+	return { askQuestion, isLoading, error };
 }
