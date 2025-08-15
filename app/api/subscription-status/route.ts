@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSupabaseClient } from '@/app/lib/supabase-server';
+import Stripe from 'stripe';
+
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2025-07-30.basil',
+    })
+  : null;
 
 export async function GET(request: NextRequest) {
   try {
@@ -100,6 +107,78 @@ export async function GET(request: NextRequest) {
     // Debug logging for no local subscription case
     console.log('No subscription found in Supabase for user:', user.id);
 
+    // CRITICAL FIX: Direct Stripe lookup for promotional subscriptions
+    // This handles cases where Stripe has the subscription but Supabase doesn't
+    if (stripe && user.email) {
+      try {
+        console.log('Attempting direct Stripe lookup for promotional subscription');
+        
+        // Find customer by email in Stripe
+        const customers = await stripe.customers.list({
+          email: user.email,
+          limit: 1,
+        });
+
+        if (customers.data.length > 0) {
+          const customer = customers.data[0];
+          console.log('Found Stripe customer:', customer.id);
+
+          // Get active subscriptions for this customer
+          const subscriptions = await stripe.subscriptions.list({
+            customer: customer.id,
+            status: 'all',
+            limit: 10,
+          });
+
+          console.log('Stripe subscriptions found:', subscriptions.data.length);
+
+          // Check for active subscriptions (including promotional ones)
+          const activeSubscription = subscriptions.data.find(sub => 
+            sub.status === 'active' || 
+            sub.status === 'trialing' || 
+            (sub.status === 'past_due' && sub.current_period_end > Date.now() / 1000)
+          );
+
+          if (activeSubscription) {
+            console.log('Found active Stripe subscription:', {
+              subscriptionId: activeSubscription.id,
+              status: activeSubscription.status,
+              customerId: activeSubscription.customer,
+              currentPeriodEnd: activeSubscription.current_period_end,
+              isPromotional: activeSubscription.discount !== null
+            });
+
+            // Return Pro status based on Stripe data
+            const stripeResponse = {
+              hasActiveSubscription: true,
+              status: activeSubscription.status,
+              subscription: {
+                status: activeSubscription.status,
+                currentPeriodEnd: new Date(activeSubscription.current_period_end * 1000).toISOString(),
+                stripeCustomerId: customer.id,
+                stripeSubscriptionId: activeSubscription.id,
+                isPromotional: activeSubscription.discount !== null,
+                source: 'stripe-direct'
+              },
+              isSubscriber: true,  // Key fix: promotional subscriptions are Pro subscriptions
+              unlimited: true,     // Pro users get unlimited access
+              userId: user.id,
+              userEmail: user.email
+            };
+
+            console.log('Returning Stripe-based Pro subscription status:', stripeResponse);
+            return NextResponse.json(stripeResponse);
+          } else {
+            console.log('No active Stripe subscriptions found');
+          }
+        } else {
+          console.log('No Stripe customer found for email:', user.email);
+        }
+      } catch (stripeError) {
+        console.error('Stripe direct lookup failed:', stripeError);
+      }
+    }
+
     const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
     if (backendBaseUrl) {
       try {
@@ -130,7 +209,7 @@ export async function GET(request: NextRequest) {
         console.error('Backend proxy failed:', error);
       }
     } else {
-      console.log('No backend URL configured, using local default response');
+      console.log('No backend URL configured, proceeding to default response');
     }
 
     const defaultResponse = {
