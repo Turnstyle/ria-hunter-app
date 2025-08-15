@@ -111,26 +111,66 @@ function RIAProfileContent() {
   const fetchProfile = async () => {
     try {
       setIsLoading(true);
-      const apiBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || process.env.NEXT_PUBLIC_API_URL || '';
-      if (!apiBase) throw new Error('Profile service not configured');
-
-       // Backend expects CRD number here (param name is legacy)
-       let resp = await fetch(`${apiBase}/api/v1/ria/profile/${cik}`);
-      if (!resp.ok) {
-         // Fallback: query by CRD
-        resp = await fetch(`${apiBase}/api/v1/ria/query`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ query: `Show profile for RIA with CRD ${cik}` })
-        });
+      
+      // Try direct profile endpoint first
+      const directUrl = `/api/v1/ria/profile/${cik}`;
+      const response = await fetch(directUrl);
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Data is already normalized from our API
+        const normalized: RIAProfile = {
+          cik: Number(data.cik || data.crd_number),
+          crd_number: data.crd_number,
+          legal_name: data.legal_name || 'Unknown',
+          main_addr_street1: data.main_addr_street1,
+          main_addr_street2: data.main_addr_street2 || null,
+          main_addr_city: data.main_addr_city,
+          main_addr_state: data.main_addr_state,
+          main_addr_zip: data.main_addr_zip,
+          main_addr_country: data.main_addr_country || null,
+          phone_number: data.phone_number,
+          fax_number: data.fax_number,
+          website: data.website,
+          is_st_louis_msa: data.is_st_louis_msa ?? null,
+          executives: Array.isArray(data.executives) ? data.executives : [],
+          filings: Array.isArray(data.filings) ? data.filings.map((f: any) => ({
+            filing_id: String(f.filing_id || ''),
+            filing_date: f.filing_date,
+            total_aum: f.total_aum ?? null,
+            manages_private_funds_flag: f.manages_private_funds_flag ?? null,
+            report_period_end_date: f.report_period_end_date ?? null,
+          })) : [],
+          private_funds: Array.isArray(data.private_funds) ? data.private_funds.map((pf: any) => ({
+            fund_id: String(pf.fund_id || ''),
+            fund_name: pf.fund_name,
+            fund_type: pf.fund_type ?? null,
+            gross_asset_value: pf.gross_asset_value ?? null,
+            min_investment: pf.min_investment ?? null,
+          })) : [],
+        };
+        setProfile(normalized);
+        return;
       }
-      if (!resp.ok) throw new Error('Failed to fetch profile');
-      const raw = await resp.json();
-      const item = Array.isArray(raw?.results) ? raw.results[0] : (Array.isArray(raw?.data) ? raw.data[0] : raw);
-
+      
+      // Fallback to query endpoint
+      const fallbackResponse = await fetch('/api/v1/ria/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: `Get detailed profile for RIA with CRD number ${cik}` })
+      });
+      
+      if (!fallbackResponse.ok) throw new Error('Profile not found');
+      
+      const fallbackData = await fallbackResponse.json();
+      const item = fallbackData.results?.[0] || fallbackData.data?.[0];
+      
+      if (!item) throw new Error('No profile data found');
+      
+      // Normalize fallback data to match our interface
       const normalized: RIAProfile = {
-         cik: Number(item?.cik || null),
-         crd_number: Number(item?.crd_number || cik) || null,
+        cik: Number(item?.cik || item?.crd_number || cik),
+        crd_number: Number(item?.crd_number || cik) || null,
         legal_name: item?.legal_name || item?.firm_name || 'Unknown',
         main_addr_street1: item?.main_addr_street1 || item?.main_office_location?.street || null,
         main_addr_street2: item?.main_addr_street2 || null,
@@ -163,6 +203,7 @@ function RIAProfileContent() {
           min_investment: pf.min_investment ?? null,
         })),
       };
+      
       setProfile(normalized);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load profile');
