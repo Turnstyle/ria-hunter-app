@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       console.error('[ask-proxy:error-json]', {
         errorId,
         backendBaseUrl,
-        tried: { primaryUrl, fallbackUrl },
+        tried: { apiUrl },
         status: resp.status,
         raw,
       });
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
       console.error('[ask-proxy:error-text]', {
         errorId,
         backendBaseUrl,
-        tried: { primaryUrl, fallbackUrl },
+        tried: { apiUrl },
         status: resp.status,
         text: text?.slice(0, 1000) ?? null,
       });
