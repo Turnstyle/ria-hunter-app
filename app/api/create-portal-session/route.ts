@@ -38,13 +38,43 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .single();
 
-    if (subError || !subscription?.stripe_customer_id) {
-      console.error('No subscription found for user:', subError);
+    let stripeCustomerId: string | null = null;
+
+    if (subscription?.stripe_customer_id) {
+      stripeCustomerId = subscription.stripe_customer_id;
+      console.log('Found Stripe customer ID in Supabase:', stripeCustomerId);
+    } else {
+      console.log('No subscription found in Supabase, attempting Stripe direct lookup');
+      
+      // CRITICAL FIX: Direct Stripe lookup for promotional subscriptions
+      // This handles cases where subscription exists in Stripe but not in Supabase
+      if (user.email) {
+        try {
+          // Find customer by email in Stripe
+          const customers = await stripe.customers.list({
+            email: user.email,
+            limit: 1,
+          });
+
+          if (customers.data.length > 0) {
+            stripeCustomerId = customers.data[0].id;
+            console.log('Found Stripe customer via direct lookup:', stripeCustomerId);
+          } else {
+            console.log('No Stripe customer found for email:', user.email);
+          }
+        } catch (stripeError) {
+          console.error('Stripe direct lookup failed:', stripeError);
+        }
+      }
+    }
+
+    if (!stripeCustomerId) {
+      console.error('No Stripe customer ID found for user:', user.id);
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 });
     }
 
     const session = await stripe.billingPortal.sessions.create({
-      customer: subscription.stripe_customer_id,
+      customer: stripeCustomerId,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.ria-hunter.app'}/usage-billing`,
     });
 
