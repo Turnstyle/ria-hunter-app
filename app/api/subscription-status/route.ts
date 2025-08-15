@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
           const activeSubscription = subscriptions.data.find(sub => 
             sub.status === 'active' || 
             sub.status === 'trialing' || 
-            (sub.status === 'past_due' && sub.current_period_end > Date.now() / 1000)
+            (sub.status === 'past_due' && sub.current_period_end && sub.current_period_end > Date.now() / 1000)
           );
 
           if (activeSubscription) {
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
               status: activeSubscription.status,
               customerId: activeSubscription.customer,
               currentPeriodEnd: activeSubscription.current_period_end,
-              isPromotional: activeSubscription.discount !== null
+              isPromotional: !!activeSubscription.discount
             });
 
             // Return Pro status based on Stripe data
@@ -154,10 +154,10 @@ export async function GET(request: NextRequest) {
               status: activeSubscription.status,
               subscription: {
                 status: activeSubscription.status,
-                currentPeriodEnd: new Date(activeSubscription.current_period_end * 1000).toISOString(),
+                currentPeriodEnd: activeSubscription.current_period_end ? new Date(activeSubscription.current_period_end * 1000).toISOString() : null,
                 stripeCustomerId: customer.id,
                 stripeSubscriptionId: activeSubscription.id,
-                isPromotional: activeSubscription.discount !== null,
+                isPromotional: !!activeSubscription.discount,
                 source: 'stripe-direct'
               },
               isSubscriber: true,  // Key fix: promotional subscriptions are Pro subscriptions
