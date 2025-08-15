@@ -11,9 +11,9 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS })
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const crd = params.id
+    const { id: crd } = await params
     if (!crd) {
       return NextResponse.json({ error: 'Missing CRD number' }, { status: 400, headers: CORS_HEADERS })
     }
@@ -55,19 +55,45 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const base = backendBaseUrl.replace(/\/$/, '');
     const url = `${base}/api/v1/ria/query`;
     
-    const resp = await fetch(url, {
+    const queryPayload = {
+      query: `Get comprehensive profile for RIA with CRD ${crd} including contact information, executives, address, phone, website, and recent filings`,
+      crd_number: crd,
+      includeExecutives: true,
+      includeContact: true,
+      limit: 1
+    };
+    
+    let resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(authHeader ? { Authorization: authHeader } : {}),
         'x-request-id': `profile-${crd}-${Date.now()}`,
       },
-      body: JSON.stringify({ 
-        query: `Get detailed profile for RIA with CRD number ${crd}`,
-        crd_number: crd 
-      }),
+      body: JSON.stringify(queryPayload),
       cache: 'no-store',
     });
+
+    // If primary query fails, try fuzzy search fallback
+    if (!resp.ok) {
+      const fallbackPayload = {
+        query: `Find any RIA firm with CRD number ${crd} or similar identifier`,
+        crd_number: crd,
+        fuzzy: true,
+        limit: 1
+      };
+      
+      resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
+          'x-request-id': `profile-fallback-${crd}-${Date.now()}`,
+        },
+        body: JSON.stringify(fallbackPayload),
+        cache: 'no-store',
+      });
+    }
 
     if (!resp.ok) {
       return NextResponse.json({ error: 'Backend service error' }, { status: resp.status, headers: CORS_HEADERS });
@@ -93,24 +119,24 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const result = {
       cik: Number(profile.cik || profile.crd_number),
       crd_number: Number(profile.crd_number),
-      legal_name: profile.legal_name || 'Unknown',
-      main_addr_street1: null, // Not available in backend data
-      main_addr_street2: null, // Not available in backend data  
-      main_addr_city: profile.main_addr_city || profile.city,
-      main_addr_state: profile.main_addr_state || profile.state,
-      main_addr_zip: null, // Not available in backend data
-      main_addr_country: null, // Not available in backend data
-      phone_number: null, // Not available in backend data
-      fax_number: null, // Not available in backend data
-      website: null, // Not available in backend data
-      executives: [], // Not available in backend data
+      legal_name: profile.legal_name || profile.firm_name || 'Unknown',
+      main_addr_street1: profile.main_addr_street1 || profile.address || profile.street1 || null,
+      main_addr_street2: profile.main_addr_street2 || profile.street2 || null,
+      main_addr_city: profile.main_addr_city || profile.city || null,
+      main_addr_state: profile.main_addr_state || profile.state || null,
+      main_addr_zip: profile.main_addr_zip || profile.zip || profile.postal_code || null,
+      main_addr_country: profile.main_addr_country || profile.country || 'United States',
+      phone_number: profile.phone_number || profile.phone || profile.contact_phone || null,
+      fax_number: profile.fax_number || profile.fax || null,
+      website: profile.website || profile.website_url || profile.web_address || null,
+      executives: profile.executives || profile.principals || profile.management || [],
       filings: profile.filing_date ? [{
         filing_id: profile.crd_number + '_' + profile.filing_date,
         filing_date: profile.filing_date,
-        total_aum: profile.total_aum || profile.aum,
-        manages_private_funds_flag: profile.private_fund_count > 0
+        total_aum: profile.total_aum || profile.aum || profile.assets_under_management,
+        manages_private_funds_flag: profile.private_fund_count > 0 || profile.manages_private_funds
       }] : [],
-      private_funds: [] // Backend has private_fund_count but not individual fund details
+      private_funds: profile.private_funds || [] // Enhanced to support backend private fund details
     }
 
     return NextResponse.json(result, { headers: CORS_HEADERS })
