@@ -14,7 +14,6 @@ export function SystemStatus() {
         const healthEndpoint = backendUrl ? 
           `${backendUrl.replace(/\/$/, '')}/api/debug/health` : 
           '/api/debug/health';
-        
         const res = await fetch(healthEndpoint, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
@@ -32,7 +31,6 @@ export function SystemStatus() {
         setBackend('error');
       }
     };
-    
     check();
     const t = setInterval(check, 30000);
     return () => clearInterval(t);
