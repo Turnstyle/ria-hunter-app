@@ -36,7 +36,7 @@ async function parseJsonSafe(res: Response) {
 }
 
 export async function queryRia(query: string): Promise<QueryResponse> {
-  const response = await fetch('/api/ask', {
+  const response = await fetch('/api/v1/ria/query', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -53,21 +53,38 @@ export async function queryRia(query: string): Promise<QueryResponse> {
 
   const data = await response.json();
   
-  // Transform the response to match expected format
-  const items = (data.sources || []).map((source: any) => ({
-    name: source.legal_name,
-    city: source.city,
-    state: source.state,
-    crdNumbers: [source.crd_number?.toString()].filter(Boolean),
-    aum: source.vc_total_aum,
-    vcFunds: source.vc_fund_count,
-    vcAum: source.vc_total_aum,
-  }));
+  // Handle both direct backend response and normalized response formats
+  let items: QueryResultItem[] = [];
+  
+  if (data.sources) {
+    // Normalized response format from /api/ask
+    items = data.sources.map((source: any) => ({
+      name: source.legal_name,
+      city: source.city,
+      state: source.state,
+      crdNumbers: [source.crd_number?.toString()].filter(Boolean),
+      aum: source.vc_total_aum,
+      vcFunds: source.vc_fund_count,
+      vcAum: source.vc_total_aum,
+    }));
+  } else if (data.results || data.data) {
+    // Raw backend response format from /api/v1/ria/query
+    const results = data.results || data.data || [];
+    items = results.map((item: any) => ({
+      name: item?.legal_name || item?.firm_name || item?.name || 'Unknown',
+      city: item?.city || item?.main_addr_city || item?.main_office_location?.city || '',
+      state: item?.state || item?.main_addr_state || item?.main_office_location?.state || '',
+      crdNumbers: [item?.crd_number?.toString() || item?.crd?.toString() || item?.crdNumber?.toString()].filter(Boolean),
+      aum: item?.total_aum || item?.private_fund_aum || 0,
+      vcFunds: item?.private_fund_count || item?.vc_count || item?.private_fund_vc_count || 0,
+      vcAum: item?.private_fund_aum || item?.total_aum || 0,
+    }));
+  }
 
   return {
     items,
-    remaining: data.remaining,
-    isSubscriber: data.isSubscriber,
+    remaining: data.remaining || data.queriesRemaining,
+    isSubscriber: data.isSubscriber || data.hasActiveSubscription,
   };
 }
 

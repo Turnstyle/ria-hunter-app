@@ -85,10 +85,10 @@ export async function POST(request: NextRequest) {
     }
 
     const base = backendBaseUrl.replace(/\/$/, '');
-    const primaryUrl = `${base}/api/ask`;
-    const fallbackUrl = `${base}/api/v1/ria/query`;
+    // Use the v1/ria/query endpoint directly for correct AUM-based ranking
+    const apiUrl = `${base}/api/v1/ria/query`;
 
-    let resp = await fetch(primaryUrl, {
+    let resp = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -98,20 +98,6 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body || {}),
       cache: 'no-store',
     });
-
-    // Fallback A: Only when the primary endpoint is missing/unsupported
-    if ([404, 405].includes(resp.status)) {
-      resp = await fetch(fallbackUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authHeader ? { Authorization: authHeader } : {}),
-          'x-request-id': requestId,
-        },
-        body: JSON.stringify(body || {}),
-        cache: 'no-store',
-      });
-    }
 
     // No auth/payment fallback: surface error via diagnostics in handlers below
 
