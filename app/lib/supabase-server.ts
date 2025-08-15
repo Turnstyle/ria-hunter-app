@@ -17,14 +17,16 @@ export function logSupabaseEnvVars() {
 
 // Get the server-side Supabase client (for Server Components and API routes)
 export function getServerSupabaseClient() {
-  // Always prefer the server-side variables first, fallback to public ones if needed
+  // Prefer secure service role in server context; fallback to anon/public if not set
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY 
+    || process.env.SUPABASE_ANON_KEY 
+    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     logSupabaseEnvVars();
     throw new Error('Supabase URL and anon key are required for server-side client');
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createClient(supabaseUrl, supabaseKey);
 }

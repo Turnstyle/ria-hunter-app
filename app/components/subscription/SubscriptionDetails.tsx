@@ -71,10 +71,20 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
     )
   }
 
+  const prettyStatus = (() => {
+    const s = (info?.status || '').toLowerCase();
+    if (['trialing', 'trial', 'on_trial'].includes(s)) return 'trialing';
+    if (['active', 'paid'].includes(s)) return 'active';
+    if (['past_due', 'overdue'].includes(s)) return 'past_due';
+    if (['canceled', 'cancelled'].includes(s)) return 'cancelled';
+    if (['incomplete', 'incomplete_expired'].includes(s)) return 'incomplete';
+    return s || 'unknown';
+  })();
+
   return (
     <div className="bg-white shadow rounded-lg p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-2">Subscription</h2>
-      <div className="text-sm text-gray-900">Status: {info?.status || 'unknown'}</div>
+      <div className="text-sm text-gray-900">Status: {prettyStatus}</div>
       {info?.current_period_end && (
         <div className="text-xs text-gray-600 mt-1">Renews: {new Date(info.current_period_end).toLocaleDateString()}</div>
       )}
