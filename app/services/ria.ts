@@ -20,6 +20,11 @@ export type QueryResponse = {
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || 'v1';
 const USE_STREAM = false;
 
+async function parseJsonSafe(res: Response) {
+  const text = await res.text();
+  try { return text ? JSON.parse(text) : null; } catch { return null; }
+}
+
 export async function queryRia(userQuery: string): Promise<QueryResponse> {
   if (USE_STREAM) {
     // Placeholder for future SSE wiring
@@ -32,8 +37,12 @@ export async function queryRia(userQuery: string): Promise<QueryResponse> {
       body: JSON.stringify({ query: userQuery }),
       credentials: 'include',
     });
-    if (res.status === 402) throw await res.json();
-    if (!res.ok) throw await res.json();
+    if (!res.ok) {
+      const body = await parseJsonSafe(res);
+      const err: any = body || { message: 'Query failed', code: 'QUERY_FAILED' };
+      err.status = res.status;
+      throw err;
+    }
 
     const data = await res.json();
     return {
@@ -59,8 +68,12 @@ export async function queryRia(userQuery: string): Promise<QueryResponse> {
       body: JSON.stringify({ query: userQuery }),
       credentials: 'include',
     });
-    if (res.status === 402) throw await res.json();
-    if (!res.ok) throw await res.json();
+    if (!res.ok) {
+      const body = await parseJsonSafe(res);
+      const err: any = body || { message: 'Query failed', code: 'QUERY_FAILED' };
+      err.status = res.status;
+      throw err;
+    }
 
     const data = await res.json();
     return {
@@ -80,9 +93,11 @@ export async function queryRia(userQuery: string): Promise<QueryResponse> {
   }
 }
 
-export async function getSubscriptionStatus() {
-  const res = await fetch('/api/subscription-status', { credentials: 'include' });
-  if (!res.ok) throw await res.json();
+export async function getSubscriptionStatus(token?: string) {
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch('/api/subscription-status', { credentials: 'include', headers });
+  if (!res.ok) throw await parseJsonSafe(res);
   return res.json();
 }
 
@@ -92,6 +107,6 @@ export async function submitNotifyForm(payload: { name: string; email: string; s
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw await res.json();
+  if (!res.ok) throw await parseJsonSafe(res);
   return res.json();
 }

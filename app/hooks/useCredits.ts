@@ -11,7 +11,7 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
 
   const checkStatus = useCallback(async () => {
-    if (!user || !session?.access_token) {
+    if (!user) {
       setCredits(2);
       setIsSubscriber(false);
       setLoading(false);
@@ -19,17 +19,17 @@ export function useCredits() {
     }
 
     try {
-      const status = await getSubscriptionStatus();
-      if (status.unlimited || status.isSubscriber) {
+      const status = await getSubscriptionStatus(session?.access_token);
+      if (status?.unlimited || status?.isSubscriber) {
         setCredits(-1);
         setIsSubscriber(true);
       } else {
-        setCredits(status.usage?.queriesRemaining || 2);
+        setCredits(status?.usage?.queriesRemaining ?? 2);
         setIsSubscriber(false);
       }
     } catch (error) {
       console.error('Error checking subscription status:', error);
-      setCredits(user ? 2 : 2);
+      setCredits(2);
       setIsSubscriber(false);
     } finally {
       setLoading(false);
@@ -37,12 +37,8 @@ export function useCredits() {
   }, [user, session?.access_token]);
 
   const updateFromQueryResponse = useCallback((response: any) => {
-    if (response.remaining !== undefined) {
-      setCredits(response.remaining);
-    }
-    if (response.isSubscriber !== undefined) {
-      setIsSubscriber(response.isSubscriber);
-    }
+    if (response?.remaining !== undefined) setCredits(response.remaining);
+    if (response?.isSubscriber !== undefined) setIsSubscriber(response.isSubscriber);
   }, []);
 
   useEffect(() => {
