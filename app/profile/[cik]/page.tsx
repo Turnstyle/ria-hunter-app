@@ -118,11 +118,17 @@ function RIAProfileContent() {
       
       if (response.ok) {
         const data = await response.json();
+        
+        // Validate API response before normalization
+        if (!data || !data.legal_name) {
+          throw new Error(`Invalid profile data for CRD ${cik}: missing legal_name`);
+        }
+        
         // Data is already normalized from our API
         const normalized: RIAProfile = {
           cik: Number(data.cik || data.crd_number),
           crd_number: data.crd_number,
-          legal_name: data.legal_name || 'Unknown',
+          legal_name: data.legal_name,
           main_addr_street1: data.main_addr_street1,
           main_addr_street2: data.main_addr_street2 || null,
           main_addr_city: data.main_addr_city,
@@ -167,11 +173,16 @@ function RIAProfileContent() {
       
       if (!item) throw new Error('No profile data found');
       
+      // Validate fallback data before normalization  
+      if (!item?.legal_name && !item?.firm_name) {
+        throw new Error(`Invalid fallback data for CRD ${cik}: missing legal_name and firm_name`);
+      }
+      
       // Normalize fallback data to match our interface
       const normalized: RIAProfile = {
         cik: Number(item?.cik || item?.crd_number || cik),
         crd_number: Number(item?.crd_number || cik) || null,
-        legal_name: item?.legal_name || item?.firm_name || 'Unknown',
+        legal_name: item?.legal_name || item?.firm_name,
         main_addr_street1: item?.main_addr_street1 || item?.main_office_location?.street || null,
         main_addr_street2: item?.main_addr_street2 || null,
         main_addr_city: item?.main_addr_city || item?.main_office_location?.city || null,

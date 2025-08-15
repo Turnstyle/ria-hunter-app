@@ -115,11 +115,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Profile not found' }, { status: 404, headers: CORS_HEADERS })
     }
 
+    // Validate that we have the required legal_name
+    if (!profile.legal_name && !profile.firm_name) {
+      return NextResponse.json({ error: 'Profile data incomplete: missing legal_name' }, { status: 404, headers: CORS_HEADERS })
+    }
+
     // Format the data to match the expected interface
     const result = {
       cik: Number(profile.cik || profile.crd_number),
       crd_number: Number(profile.crd_number),
-      legal_name: profile.legal_name || profile.firm_name || 'Unknown',
+      legal_name: profile.legal_name || profile.firm_name,
       main_addr_street1: profile.main_addr_street1 || profile.address || profile.street1 || null,
       main_addr_street2: profile.main_addr_street2 || profile.street2 || null,
       main_addr_city: profile.main_addr_city || profile.city || null,
