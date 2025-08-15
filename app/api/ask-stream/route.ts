@@ -3,9 +3,13 @@ import { NextRequest } from 'next/server';
 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
-  const backendBaseUrl = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL;
+  const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
   if (!backendBaseUrl) {
-    return new Response('Backend URL not configured', { status: 500 });
+    console.error('RIA_HUNTER_BACKEND_URL not configured in environment variables');
+    return new Response('Backend configuration missing', { 
+      status: 500,
+      headers: { 'Content-Type': 'text/plain' }
+    });
   }
 
   const { searchParams } = new URL(request.url);

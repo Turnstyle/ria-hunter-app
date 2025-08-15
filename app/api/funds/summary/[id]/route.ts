@@ -5,9 +5,15 @@ import { NextResponse } from 'next/server'
 
 export async function GET(_req: Request, context: any) {
   const params = context?.params as { id?: string }
-  const backendBase = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL
+  const backendBase = process.env.RIA_HUNTER_BACKEND_URL
   const id = params?.id as string | undefined
-  if (!backendBase || !id) {
+  
+  if (!backendBase) {
+    console.error('RIA_HUNTER_BACKEND_URL not configured in environment variables');
+    return NextResponse.json({ error: 'Backend configuration missing', summary: [] }, { status: 500 })
+  }
+  
+  if (!id) {
     return NextResponse.json({ summary: [] }, { status: 200 })
   }
   const base = backendBase.replace(/\/$/, '')

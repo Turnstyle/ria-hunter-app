@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const backendBaseUrl = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL;
+    const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
     if (backendBaseUrl) {
       try {
         const url = `${backendBaseUrl.replace(/\/$/, '')}/api/subscription-status`;

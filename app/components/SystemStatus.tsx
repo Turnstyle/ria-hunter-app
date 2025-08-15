@@ -10,19 +10,16 @@ export function SystemStatus() {
   useEffect(() => {
     const check = async () => {
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL || '';
-        const healthEndpoint = backendUrl ? 
-          `${backendUrl.replace(/\/$/, '')}/api/debug/health` : 
-          '/api/debug/health';
-        const res = await fetch(healthEndpoint, {
+        // Always use same-origin proxy to avoid CORS
+        const res = await fetch('/api/debug/health', {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
+        
         if (res.ok) {
           const data = await res.json();
-          const isHealthy = data.status === 'healthy' && 
-            data.openai?.status === 'healthy' && 
-            data.supabase?.status === 'healthy';
+          // Check if the health response indicates system is healthy
+          const isHealthy = data.ok === true || data.status === 'healthy';
           setBackend(isHealthy ? 'healthy' : 'degraded');
         } else {
           setBackend('degraded');
@@ -31,6 +28,7 @@ export function SystemStatus() {
         setBackend('error');
       }
     };
+    
     check();
     const t = setInterval(check, 30000);
     return () => clearInterval(t);

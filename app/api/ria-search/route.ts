@@ -4,14 +4,14 @@ import { cookies, headers as nextHeaders } from 'next/headers';
 export async function POST(request: NextRequest) {
   try {
     const reqHeaders = await nextHeaders();
-    const incomingReqId = reqHeaders?.get?.('x-request-id') || undefined;
-    const requestId = incomingReqId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const requestId = reqHeaders?.get?.('x-request-id') || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
     if (!backendBaseUrl) {
       return NextResponse.json({ error: 'Backend URL not configured' }, { status: 500 });
     }
 
+    // Extract auth token from cookies
     let authHeader = request.headers.get('authorization') || undefined;
     const body = await request.json().catch(() => ({}));
 
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const base = backendBaseUrl.replace(/\/$/, '');
-    const url = `${base}/api/v1/ria/query`;
+    const url = `${base}/api/v1/ria/search`;
 
     const resp = await fetch(url, {
       method: 'POST',
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
         ...(authHeader ? { Authorization: authHeader } : {}),
         'x-request-id': requestId,
       },
-      body: JSON.stringify(body || {}),
+      body: JSON.stringify(body),
       cache: 'no-store',
     });
 
@@ -57,19 +57,13 @@ export async function POST(request: NextRequest) {
       const json = text ? JSON.parse(text) : null;
       return NextResponse.json(json, { status: resp.status });
     } catch {
-      return new NextResponse(text, { status: resp.status, headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' } });
+      return new NextResponse(text, { 
+        status: resp.status, 
+        headers: { 'Content-Type': resp.headers.get('content-type') || 'text/plain' } 
+      });
     }
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy failed' }, { status: 500 });
+    console.error('RIA search proxy error:', error);
+    return NextResponse.json({ error: 'Search proxy failed' }, { status: 500 });
   }
-}
-
-export async function OPTIONS() {
-  // Satisfy preflight when clients send JSON POSTs
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Cache-Control': 'no-store',
-    },
-  });
 }

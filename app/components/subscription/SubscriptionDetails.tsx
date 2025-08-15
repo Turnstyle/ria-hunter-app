@@ -3,24 +3,20 @@
 import React, { useEffect, useState } from 'react'
 import UpgradeButton from '@/app/components/subscription/UpgradeButton'
 import { useAuth } from '@/app/contexts/AuthContext'
+import { useCredits } from '@/hooks/useCredits'
 
 interface SubscriptionDetailsProps {
   userId: string
 }
 
-interface SubscriptionInfo {
-  status: string
-  current_period_end?: string | null
-}
-
 export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps) {
   const { session } = useAuth()
-  const [info, setInfo] = useState<SubscriptionInfo | null>(null)
+  const { isSubscriber, subscriptionStatus, loading: creditsLoading } = useCredits()
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null)
 
   useEffect(() => {
-    const load = async () => {
+    const loadDetails = async () => {
       try {
         setLoading(true)
         const headers: Record<string, string> = {}
@@ -33,29 +29,27 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
           cache: 'no-store',
           headers,
         })
-        if (!resp.ok) throw new Error('Failed to load subscription')
+        
+        if (!resp.ok) {
+          console.error('Failed to load subscription details')
+          return
+        }
+        
         const data = await resp.json()
-        const derivedStatus = (data?.status
-          || data?.subscription?.status
-          || data?.subscriptionStatus?.status
-          || data?.rawSubscription?.status
-          || 'unknown') as string
-        const derivedPeriodEnd = (data?.current_period_end
-          || data?.subscription?.current_period_end
-          || data?.subscriptionStatus?.current_period_end
-          || data?.rawSubscription?.current_period_end
-          || null) as string | null
-        setInfo({ status: derivedStatus, current_period_end: derivedPeriodEnd })
+        setSubscriptionDetails(data)
       } catch (e: any) {
-        setError(e?.message || 'Error loading subscription')
+        console.error('Error loading subscription details:', e)
       } finally {
         setLoading(false)
       }
     }
-    load()
-  }, [userId, session?.access_token])
+    
+    if (!creditsLoading) {
+      loadDetails()
+    }
+  }, [userId, session?.access_token, creditsLoading])
 
-  if (loading) {
+  if (loading || creditsLoading) {
     return (
       <div className="bg-white shadow rounded-lg p-6">
         <div className="animate-pulse h-5 bg-gray-200 w-40 rounded" />
@@ -63,36 +57,27 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
     )
   }
 
-  if (error) {
-    return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="text-sm text-red-600">{error}</div>
-      </div>
-    )
-  }
-
-  const prettyStatus = (() => {
-    const s = (info?.status || '').toLowerCase();
-    if (['trialing', 'trial', 'on_trial'].includes(s)) return 'trialing';
-    if (['active', 'paid'].includes(s)) return 'active';
-    if (['past_due', 'overdue'].includes(s)) return 'past_due';
-    if (['canceled', 'cancelled'].includes(s)) return 'cancelled';
-    if (['incomplete', 'incomplete_expired'].includes(s)) return 'incomplete';
-    return s || 'unknown';
-  })();
+  // Determine display status
+  const displayStatus = isSubscriber ? 'Pro Subscriber' : 
+                       subscriptionStatus === 'none' ? 'Free Plan' : 
+                       subscriptionStatus;
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-2">Subscription</h2>
-      <div className="text-sm text-gray-900">Status: {prettyStatus}</div>
-      {info?.current_period_end && (
-        <div className="text-xs text-gray-600 mt-1">Renews: {new Date(info.current_period_end).toLocaleDateString()}</div>
+      <div className="text-sm text-gray-900">Status: {displayStatus}</div>
+      
+      {subscriptionDetails?.subscription?.current_period_end && (
+        <div className="text-xs text-gray-600 mt-1">
+          Renews: {new Date(subscriptionDetails.subscription.current_period_end).toLocaleDateString()}
+        </div>
       )}
+      
       <div className="mt-4">
-        {info?.status === 'active' ? (
+        {isSubscriber ? (
           <ManageBillingButton />
         ) : (
-          <UpgradeButton buttonText="Upgrade" />
+          <UpgradeButton buttonText="Upgrade to Pro" />
         )}
       </div>
     </div>

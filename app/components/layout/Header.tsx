@@ -6,7 +6,6 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { UserMenu } from '@/app/components/auth/UserMenu';
 import LoginButton from '@/app/components/auth/LoginButton';
 import HeaderCredits from '@/app/components/credits/HeaderCredits';
-import { SystemStatus } from '@/app/components/SystemStatus';
 
 export function Header() {
   const { user, loading } = useAuth();
@@ -46,7 +45,6 @@ export function Header() {
 
           {/* Right side - Credits and Auth */}
           <div className="flex items-center space-x-2">
-            <SystemStatus />
             {loading ? (
               <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             ) : (

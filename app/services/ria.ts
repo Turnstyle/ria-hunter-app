@@ -10,12 +10,22 @@ export type QueryResultItem = {
 
 export type QueryResponse = {
   items: QueryResultItem[];
-  remaining: number;
-  isSubscriber: boolean;
-  relaxed: boolean;
-  relaxationLevel: 'state' | 'vector-only' | null;
-  resolvedRegion?: { city?: string | null; state?: string | null };
+  remaining?: number;
+  isSubscriber?: boolean;
+  relaxed?: boolean;
+  relaxationLevel?: string;
+  resolvedRegion?: any;
 };
+
+interface SubscriptionStatusResponse {
+  hasActiveSubscription: boolean;
+  status: string;
+  isSubscriber: boolean;
+  unlimited: boolean;
+  usage?: {
+    queriesRemaining: number;
+  };
+}
 
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || 'v1';
 const USE_STREAM = false;
@@ -25,80 +35,75 @@ async function parseJsonSafe(res: Response) {
   try { return text ? JSON.parse(text) : null; } catch { return null; }
 }
 
-export async function queryRia(userQuery: string): Promise<QueryResponse> {
-  if (USE_STREAM) {
-    // Placeholder for future SSE wiring
+export async function queryRia(query: string): Promise<QueryResponse> {
+  const response = await fetch('/api/ask', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 402) {
+      throw { code: 'PAYMENT_REQUIRED', message: 'Credits exhausted' };
+    }
+    throw new Error(`Query failed: ${response.statusText}`);
   }
 
-  if (API_VERSION === 'v1') {
-    const res = await fetch('/api/v1/ria/query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: userQuery }),
-      credentials: 'include',
-    });
-    if (!res.ok) {
-      const body = await parseJsonSafe(res);
-      const err: any = body || { message: 'Query failed', code: 'QUERY_FAILED' };
-      err.status = res.status;
-      throw err;
-    }
+  const data = await response.json();
+  
+  // Transform the response to match expected format
+  const items = (data.sources || []).map((source: any) => ({
+    name: source.legal_name,
+    city: source.city,
+    state: source.state,
+    crdNumbers: [source.crd_number?.toString()].filter(Boolean),
+    aum: source.vc_total_aum,
+    vcFunds: source.vc_fund_count,
+    vcAum: source.vc_total_aum,
+  }));
 
-    const data = await res.json();
-    return {
-      items: (data.results || []).map((r: any) => ({
-        name: r.legal_name,
-        city: r.city,
-        state: r.state,
-        aum: r.aum,
-        vcFunds: r.private_fund_count,
-        vcAum: r.private_fund_aum,
-        crdNumbers: r.crd_numbers,
-      })),
-      remaining: data.remaining,
-      isSubscriber: !!data.isSubscriber,
-      relaxed: !!data.meta?.relaxed,
-      relaxationLevel: data.meta?.relaxationLevel ?? null,
-      resolvedRegion: data.meta?.resolvedRegion,
-    };
-  } else {
-    const res = await fetch('/api/ask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: userQuery }),
-      credentials: 'include',
-    });
-    if (!res.ok) {
-      const body = await parseJsonSafe(res);
-      const err: any = body || { message: 'Query failed', code: 'QUERY_FAILED' };
-      err.status = res.status;
-      throw err;
-    }
-
-    const data = await res.json();
-    return {
-      items: (data.sources || []).map((r: any) => ({
-        name: r.legal_name,
-        city: r.city,
-        state: r.state,
-        aum: r.vc_total_aum ?? r.aum,
-        vcFunds: r.vc_fund_count,
-        vcAum: r.vc_total_aum,
-      })),
-      remaining: data.metadata?.remaining ?? 0,
-      isSubscriber: data.metadata?.remaining === -1,
-      relaxed: !!data.metadata?.relaxed,
-      relaxationLevel: data.metadata?.relaxationLevel ?? null,
-    };
-  }
+  return {
+    items,
+    remaining: data.remaining,
+    isSubscriber: data.isSubscriber,
+  };
 }
 
-export async function getSubscriptionStatus(token?: string) {
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch('/api/subscription-status', { credentials: 'include', headers });
-  if (!res.ok) throw await parseJsonSafe(res);
-  return res.json();
+export async function getSubscriptionStatus(token?: string): Promise<SubscriptionStatusResponse | null> {
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const response = await fetch('/api/subscription-status', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      console.error('Subscription status check failed:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Normalize the response to ensure consistent format
+    return {
+      hasActiveSubscription: data.hasActiveSubscription || data.isSubscriber || false,
+      status: data.status || 'none',
+      isSubscriber: data.isSubscriber || data.hasActiveSubscription || data.unlimited || false,
+      unlimited: data.unlimited || data.isSubscriber || data.hasActiveSubscription || false,
+      usage: data.usage || { queriesRemaining: data.queriesRemaining || 2 }
+    };
+  } catch (error) {
+    console.error('Error checking subscription status:', error);
+    return null;
+  }
 }
 
 export async function submitNotifyForm(payload: { name: string; email: string; subject: string; message: string }) {

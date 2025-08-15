@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const incomingReqId = (reqHeaders as any)?.get?.('x-request-id') || undefined;
     const requestId = incomingReqId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const backendBaseUrl = process.env.NEXT_PUBLIC_RIA_HUNTER_API_URL;
+    const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
     if (!backendBaseUrl) {
       // Local-dev fallback: return a mock response so the chat UX is usable without backend
       const { query } = (await request.json().catch(() => ({}))) as { query?: string };
