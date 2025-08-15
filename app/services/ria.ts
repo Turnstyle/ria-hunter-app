@@ -92,14 +92,29 @@ export async function getSubscriptionStatus(token?: string): Promise<Subscriptio
 
     const data = await response.json();
     
+    // Debug logging for promotional subscription diagnosis
+    console.log('Raw subscription status API response:', data);
+    
     // Normalize the response to ensure consistent format
-    return {
+    const normalized = {
       hasActiveSubscription: data.hasActiveSubscription || data.isSubscriber || false,
       status: data.status || 'none',
       isSubscriber: data.isSubscriber || data.hasActiveSubscription || data.unlimited || false,
       unlimited: data.unlimited || data.isSubscriber || data.hasActiveSubscription || false,
       usage: data.usage || { queriesRemaining: data.queriesRemaining || 2 }
     };
+    
+    console.log('Normalized subscription status:', normalized);
+    console.log('Subscription normalization logic applied:', {
+      originalIsSubscriber: data.isSubscriber,
+      originalUnlimited: data.unlimited,
+      originalHasActiveSubscription: data.hasActiveSubscription,
+      normalizedIsSubscriber: normalized.isSubscriber,
+      normalizedUnlimited: normalized.unlimited,
+      shouldHaveProAccess: normalized.isSubscriber && normalized.unlimited
+    });
+    
+    return normalized;
   } catch (error) {
     console.error('Error checking subscription status:', error);
     return null;

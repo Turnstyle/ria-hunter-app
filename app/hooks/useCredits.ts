@@ -24,15 +24,32 @@ export function useCredits() {
       setLoading(true);
       const status = await getSubscriptionStatus(session.access_token);
       
+      // Debug logging for promotional subscription diagnosis
+      console.log('useCredits received subscription status:', status);
+      console.log('useCredits subscription evaluation:', {
+        unlimited: status?.unlimited,
+        isSubscriber: status?.isSubscriber,
+        hasActiveSubscription: status?.hasActiveSubscription,
+        shouldBeProUser: status?.unlimited || status?.isSubscriber
+      });
+      
       if (status?.unlimited || status?.isSubscriber) {
+        console.log('Setting user as Pro subscriber with unlimited credits');
         setCredits(-1); // -1 indicates unlimited
         setIsSubscriber(true);
         setSubscriptionStatus(status.status || 'active');
       } else {
+        console.log('Setting user as free user with limited credits');
         setCredits(status?.usage?.queriesRemaining ?? 2);
         setIsSubscriber(false);
         setSubscriptionStatus(status?.status || 'none');
       }
+      
+      console.log('useCredits final state:', {
+        credits: status?.unlimited || status?.isSubscriber ? -1 : (status?.usage?.queriesRemaining ?? 2),
+        isSubscriber: status?.unlimited || status?.isSubscriber || false,
+        subscriptionStatus: status?.status || (status?.unlimited || status?.isSubscriber ? 'active' : 'none')
+      });
     } catch (error) {
       console.error('Error checking subscription status:', error);
       setCredits(2);

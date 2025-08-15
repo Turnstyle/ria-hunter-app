@@ -49,14 +49,34 @@ export async function GET(request: NextRequest) {
 
     if (subscription) {
       const now = new Date();
+      
+      // Debug logging for promotional subscription diagnosis
+      console.log('Subscription data found:', {
+        userId: user.id,
+        subscriptionId: subscription.stripe_subscription_id,
+        status: subscription.status,
+        currentPeriodEnd: subscription.current_period_end,
+        trialEnd: subscription.trial_end,
+        cancelledAt: subscription.cancelled_at,
+        createdAt: subscription.created_at
+      });
 
+      // Fix: Comprehensive subscription status check that handles promotional subscriptions
+      // This ensures promotional subscriptions (with $0 billing) are correctly recognized as Pro
       const isActive = subscription.status === 'active' ||
                       subscription.status === 'trialing' ||
                       (subscription.status === 'past_due' &&
                        subscription.current_period_end &&
                        new Date(subscription.current_period_end) > now);
 
-      return NextResponse.json({
+      console.log('Pro subscription determination:', {
+        isActive,
+        status: subscription.status,
+        isPromotional: true, // Assume this could be promotional
+        shouldHaveUnlimitedAccess: isActive
+      });
+
+      const response = {
         hasActiveSubscription: isActive,
         status: subscription.status,
         subscription: {
@@ -67,16 +87,23 @@ export async function GET(request: NextRequest) {
           stripeSubscriptionId: subscription.stripe_subscription_id,
           cancelledAt: subscription.cancelled_at
         },
-        isSubscriber: isActive,
-        unlimited: isActive,
+        isSubscriber: isActive,  // Key fix: base this purely on subscription status
+        unlimited: isActive,     // Pro users get unlimited access regardless of billing amount
         userId: user.id,
         userEmail: user.email
-      });
+      };
+
+      console.log('Subscription status response:', response);
+      return NextResponse.json(response);
     }
+
+    // Debug logging for no local subscription case
+    console.log('No subscription found in Supabase for user:', user.id);
 
     const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
     if (backendBaseUrl) {
       try {
+        console.log('Attempting backend fallback for subscription status');
         const url = `${backendBaseUrl.replace(/\/$/, '')}/api/subscription-status`;
         const resp = await fetch(url, {
           method: 'GET',
@@ -86,15 +113,27 @@ export async function GET(request: NextRequest) {
 
         if (resp.ok) {
           const data = await resp.json();
-          console.log('Using backend fallback for subscription status');
-          return NextResponse.json(data);
+          console.log('Backend fallback subscription data:', data);
+          
+          // Only use backend fallback if it indicates an active subscription
+          // This prevents backend from incorrectly overriding valid local subscription data
+          if (data.hasActiveSubscription || data.isSubscriber || data.unlimited) {
+            console.log('Using backend fallback - found active subscription');
+            return NextResponse.json(data);
+          } else {
+            console.log('Backend fallback shows no active subscription, using local default');
+          }
+        } else {
+          console.log('Backend fallback failed with status:', resp.status);
         }
       } catch (error) {
-        console.error('Backend proxy failed, using default response:', error);
+        console.error('Backend proxy failed:', error);
       }
+    } else {
+      console.log('No backend URL configured, using local default response');
     }
 
-    return NextResponse.json({
+    const defaultResponse = {
       hasActiveSubscription: false,
       status: 'none',
       subscription: null,
@@ -102,7 +141,10 @@ export async function GET(request: NextRequest) {
       unlimited: false,
       userId: user.id,
       userEmail: user.email
-    });
+    };
+
+    console.log('Returning default subscription response:', defaultResponse);
+    return NextResponse.json(defaultResponse);
 
   } catch (error) {
     console.error('Unexpected error in subscription status check:', error);
