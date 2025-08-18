@@ -2,6 +2,11 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
 export function middleware(req: NextRequest) {
+  // Allow API routes to bypass any protection
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next()
+  }
+  
   // Rewrite missing favicon.ico to an existing SVG to avoid 404s in logs
   if (req.nextUrl.pathname === '/favicon.ico') {
     const url = new URL('/og-image.svg', req.url)
