@@ -56,8 +56,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const url = `${base}/api/v1/ria/query`;
     
     const queryPayload = {
-      query: `Get comprehensive profile for RIA with identifier ${id} including contact information, executives, address, phone, website, and recent filings`,
+      query: `Find exact RIA profile with CRD number ${id} or CIK ${id} including contact information, executives, address, phone, website, and recent filings`,
       crd_number: id, // Backend expects this field name but will handle both CIK and CRD
+      exact_match: true, // Request exact matching if backend supports it
       includeExecutives: true,
       includeContact: true,
       limit: 1
@@ -105,7 +106,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Find the specific profile in the results (by CIK or CRD)
     let profile = null;
     for (const result of results) {
-      if (result.crd_number === id || result.cik === id || result.crd_numbers?.includes(id)) {
+      if (result.crd_number === id || 
+          result.cik === id || 
+          result.crd_number === Number(id) ||
+          result.cik === Number(id) ||
+          result.crd_numbers?.includes(id) ||
+          result.crd_numbers?.includes(Number(id))) {
         profile = result;
         break;
       }

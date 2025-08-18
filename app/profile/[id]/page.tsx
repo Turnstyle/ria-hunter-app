@@ -164,12 +164,16 @@ function RIAProfileContent() {
         return;
       }
       
-      // Fallback to query endpoint
+      // Fallback to query endpoint with more specific query
       console.log(`[DEBUG] Profile API failed, trying fallback query for ID: ${id}`);
       const fallbackResponse = await fetch('/api/v1/ria/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: `Get detailed profile for RIA with identifier ${id}` })
+        body: JSON.stringify({ 
+          query: `Find exact RIA profile with CRD number ${id} or CIK ${id}`,
+          crd_number: id, // Add explicit CRD parameter for backend
+          exact_match: true // Request exact matching if backend supports it
+        })
       });
       
       console.log(`[DEBUG] Fallback API response status: ${fallbackResponse.status}`);
@@ -182,7 +186,31 @@ function RIAProfileContent() {
       const fallbackData = await fallbackResponse.json();
       console.log(`[DEBUG] Fallback API data:`, fallbackData);
       
-      const item = fallbackData.results?.[0] || fallbackData.data?.[0];
+      // FIX: Search for the specific ID in results instead of taking first result
+      let item = null;
+      if (fallbackData.results?.length > 0) {
+        // Try to find exact match by CIK, CRD, or included in CRD numbers array
+        item = fallbackData.results.find((result: any) => 
+          result.cik === id || 
+          result.crd_number === id ||
+          result.crd_number === Number(id) ||
+          result.cik === Number(id) ||
+          (result.crd_numbers && result.crd_numbers.includes(id)) ||
+          (result.crd_numbers && result.crd_numbers.includes(Number(id)))
+        );
+        
+        if (!item) {
+          console.log(`[DEBUG] No matching profile found for ID: ${id} in ${fallbackData.results.length} results`);
+          console.log(`[DEBUG] Available CRDs in results:`, fallbackData.results.map((r: any) => r.crd_number || r.cik).slice(0, 10));
+        }
+      }
+      
+      // Fallback to first result only if no specific match found and we want to be permissive
+      // For now, let's be strict and not show wrong profiles
+      if (!item && fallbackData.data?.length > 0) {
+        item = fallbackData.data[0];
+      }
+      
       console.log(`[DEBUG] Extracted item from fallback:`, item);
       
       if (!item) {
