@@ -281,7 +281,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                 <div key={index} className="border-l-3 border-blue-400 pl-2 sm:pl-3 py-2 bg-blue-50/50 rounded-r">
                   <div className="font-medium text-gray-900 text-xs sm:text-sm mb-1 break-words">
                     <Link 
-                      href={`/profile/${source.crd_number}`}
+                      href={`/profile/${source.cik || source.crd_number}`}
                       className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
                       title="Click to view detailed RIA profile with Living Profile features"
                     >
@@ -290,7 +290,14 @@ const SearchResults: React.FC<SearchResultsProps> = ({ result, isLoading, error 
                   </div>
                   <div className="text-xs text-gray-600 space-y-1">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                      <span className="flex-shrink-0">CRD: {source.crd_number}</span>
+                      {source.cik ? (
+                        <>
+                          <span className="flex-shrink-0">CIK: {source.cik}</span>
+                          <span className="flex-shrink-0 text-gray-500">CRD: {source.crd_number}</span>
+                        </>
+                      ) : (
+                        <span className="flex-shrink-0">CRD: {source.crd_number}</span>
+                      )}
                       <span className="break-words">{source.city}, {source.state}</span>
                       {source.aum && (
                         <span className="font-medium text-green-700 flex-shrink-0">

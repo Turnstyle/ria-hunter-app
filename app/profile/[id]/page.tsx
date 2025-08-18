@@ -86,7 +86,7 @@ type FundMarketer = {
 function RIAProfileContent() {
   const params = useParams();
   const { user, loading: userLoading } = useAuth();
-  const cik = params?.cik as string;
+  const id = params?.id as string; // Can be either CIK or CRD
 
   const [profile, setProfile] = useState<RIAProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,19 +101,19 @@ function RIAProfileContent() {
   const [fundsError, setFundsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (cik) {
+    if (id) {
       fetchProfile();
       // Living Profile removed
       fetchFundsData();
     }
-  }, [cik, user]);
+  }, [id, user]);
 
   const fetchProfile = async () => {
     try {
       setIsLoading(true);
       
       // Try direct profile endpoint first
-      const directUrl = `/api/v1/ria/profile/${cik}`;
+      const directUrl = `/api/v1/ria/profile/${id}`;
       const response = await fetch(directUrl);
       
       if (response.ok) {
@@ -121,7 +121,7 @@ function RIAProfileContent() {
         
         // Validate API response before normalization
         if (!data || !data.legal_name) {
-          throw new Error(`Invalid profile data for CRD ${cik}: missing legal_name`);
+          throw new Error(`Invalid profile data for identifier ${id}: missing legal_name`);
         }
         
         // Data is already normalized from our API
@@ -163,7 +163,7 @@ function RIAProfileContent() {
       const fallbackResponse = await fetch('/api/v1/ria/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: `Get detailed profile for RIA with CRD number ${cik}` })
+        body: JSON.stringify({ query: `Get detailed profile for RIA with identifier ${id}` })
       });
       
       if (!fallbackResponse.ok) throw new Error('Profile not found');
@@ -175,13 +175,13 @@ function RIAProfileContent() {
       
       // Validate fallback data before normalization  
       if (!item?.legal_name && !item?.firm_name) {
-        throw new Error(`Invalid fallback data for CRD ${cik}: missing legal_name and firm_name`);
+        throw new Error(`Invalid fallback data for identifier ${id}: missing legal_name and firm_name`);
       }
       
       // Normalize fallback data to match our interface
       const normalized: RIAProfile = {
-        cik: Number(item?.cik || item?.crd_number || cik),
-        crd_number: Number(item?.crd_number || cik) || null,
+        cik: Number(item?.cik || item?.crd_number || id),
+        crd_number: Number(item?.crd_number || id) || null,
         legal_name: item?.legal_name || item?.firm_name,
         main_addr_street1: item?.main_addr_street1 || item?.main_office_location?.street || null,
         main_addr_street2: item?.main_addr_street2 || null,
@@ -226,7 +226,7 @@ function RIAProfileContent() {
   const fetchFundsData = async () => {
     try {
       // Use FE proxy to avoid noisy 404s and normalize shape
-      const sum = await fetch(`/api/funds/summary/${cik}`, { cache: 'no-store' });
+      const sum = await fetch(`/api/funds/summary/${id}`, { cache: 'no-store' });
       if (sum.ok) {
         const d = await sum.json();
         setFundSummary(Array.isArray(d?.summary) ? d.summary : []);

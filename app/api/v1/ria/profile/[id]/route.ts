@@ -13,9 +13,9 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: crd } = await params
-    if (!crd) {
-      return NextResponse.json({ error: 'Missing CRD number' }, { status: 400, headers: CORS_HEADERS })
+    const { id } = await params
+    if (!id) {
+      return NextResponse.json({ error: 'Missing identifier' }, { status: 400, headers: CORS_HEADERS })
     }
 
     // Get backend URL - same as query endpoint
@@ -56,8 +56,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const url = `${base}/api/v1/ria/query`;
     
     const queryPayload = {
-      query: `Get comprehensive profile for RIA with CRD ${crd} including contact information, executives, address, phone, website, and recent filings`,
-      crd_number: crd,
+      query: `Get comprehensive profile for RIA with identifier ${id} including contact information, executives, address, phone, website, and recent filings`,
+      crd_number: id, // Backend expects this field name but will handle both CIK and CRD
       includeExecutives: true,
       includeContact: true,
       limit: 1
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       headers: {
         'Content-Type': 'application/json',
         ...(authHeader ? { Authorization: authHeader } : {}),
-        'x-request-id': `profile-${crd}-${Date.now()}`,
+        'x-request-id': `profile-${id}-${Date.now()}`,
       },
       body: JSON.stringify(queryPayload),
       cache: 'no-store',
@@ -77,8 +77,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // If primary query fails, try fuzzy search fallback
     if (!resp.ok) {
       const fallbackPayload = {
-        query: `Find any RIA firm with CRD number ${crd} or similar identifier`,
-        crd_number: crd,
+        query: `Find any RIA firm with identifier ${id} or similar identifier`,
+        crd_number: id, // Backend expects this field name but will handle both CIK and CRD
         fuzzy: true,
         limit: 1
       };
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         headers: {
           'Content-Type': 'application/json',
           ...(authHeader ? { Authorization: authHeader } : {}),
-          'x-request-id': `profile-fallback-${crd}-${Date.now()}`,
+          'x-request-id': `profile-fallback-${id}-${Date.now()}`,
         },
         body: JSON.stringify(fallbackPayload),
         cache: 'no-store',
@@ -102,10 +102,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const data = await resp.json();
     const results = data.results || [];
     
-    // Find the specific CRD in the results
+    // Find the specific profile in the results (by CIK or CRD)
     let profile = null;
     for (const result of results) {
-      if (result.crd_number === crd || result.crd_numbers?.includes(crd)) {
+      if (result.crd_number === id || result.cik === id || result.crd_numbers?.includes(id)) {
         profile = result;
         break;
       }
