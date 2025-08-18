@@ -114,10 +114,15 @@ function RIAProfileContent() {
       
       // Try direct profile endpoint first
       const directUrl = `/api/v1/ria/profile/${id}`;
+      console.log(`[DEBUG] Fetching profile from: ${directUrl}`);
       const response = await fetch(directUrl);
+      
+      console.log(`[DEBUG] Profile API response status: ${response.status}`);
+      console.log(`[DEBUG] Profile API response headers:`, response.headers);
       
       if (response.ok) {
         const data = await response.json();
+        console.log(`[DEBUG] Profile API data:`, data);
         
         // Validate API response before normalization
         if (!data || !data.legal_name) {
@@ -160,25 +165,39 @@ function RIAProfileContent() {
       }
       
       // Fallback to query endpoint
+      console.log(`[DEBUG] Profile API failed, trying fallback query for ID: ${id}`);
       const fallbackResponse = await fetch('/api/v1/ria/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: `Get detailed profile for RIA with identifier ${id}` })
       });
       
-      if (!fallbackResponse.ok) throw new Error('Profile not found');
+      console.log(`[DEBUG] Fallback API response status: ${fallbackResponse.status}`);
+      
+      if (!fallbackResponse.ok) {
+        console.log(`[DEBUG] Fallback API failed with status: ${fallbackResponse.status}`);
+        throw new Error('Profile not found');
+      }
       
       const fallbackData = await fallbackResponse.json();
-      const item = fallbackData.results?.[0] || fallbackData.data?.[0];
+      console.log(`[DEBUG] Fallback API data:`, fallbackData);
       
-      if (!item) throw new Error('No profile data found');
+      const item = fallbackData.results?.[0] || fallbackData.data?.[0];
+      console.log(`[DEBUG] Extracted item from fallback:`, item);
+      
+      if (!item) {
+        console.log(`[DEBUG] No item found in fallback data`);
+        throw new Error('No profile data found');
+      }
       
       // Validate fallback data before normalization  
       if (!item?.legal_name && !item?.firm_name) {
+        console.log(`[DEBUG] Fallback data validation failed - missing legal_name and firm_name`);
         throw new Error(`Invalid fallback data for identifier ${id}: missing legal_name and firm_name`);
       }
       
       // Normalize fallback data to match our interface
+      console.log(`[DEBUG] Normalizing fallback data for ID: ${id}`);
       const normalized: RIAProfile = {
         cik: Number(item?.cik || item?.crd_number || id),
         crd_number: Number(item?.crd_number || id) || null,
@@ -215,8 +234,10 @@ function RIAProfileContent() {
         })),
       };
       
+      console.log(`[DEBUG] Setting normalized profile:`, normalized);
       setProfile(normalized);
     } catch (err) {
+      console.error(`[DEBUG] Error in fetchProfile:`, err);
       setError(err instanceof Error ? err.message : 'Failed to load profile');
     } finally {
       setIsLoading(false);
