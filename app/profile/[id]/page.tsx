@@ -114,15 +114,10 @@ function RIAProfileContent() {
       
       // Try direct profile endpoint first
       const directUrl = `/api/v1/ria/profile/${id}`;
-      console.log(`[DEBUG] Fetching profile from: ${directUrl}`);
       const response = await fetch(directUrl);
-      
-      console.log(`[DEBUG] Profile API response status: ${response.status}`);
-      console.log(`[DEBUG] Profile API response headers:`, response.headers);
       
       if (response.ok) {
         const data = await response.json();
-        console.log(`[DEBUG] Profile API data:`, data);
         
         // Validate API response before normalization
         if (!data || !data.legal_name) {
@@ -165,7 +160,6 @@ function RIAProfileContent() {
       }
       
       // Fallback to query endpoint with more specific query
-      console.log(`[DEBUG] Profile API failed, trying fallback query for ID: ${id}`);
       const fallbackResponse = await fetch('/api/v1/ria/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -176,15 +170,11 @@ function RIAProfileContent() {
         })
       });
       
-      console.log(`[DEBUG] Fallback API response status: ${fallbackResponse.status}`);
-      
       if (!fallbackResponse.ok) {
-        console.log(`[DEBUG] Fallback API failed with status: ${fallbackResponse.status}`);
         throw new Error('Profile not found');
       }
       
       const fallbackData = await fallbackResponse.json();
-      console.log(`[DEBUG] Fallback API data:`, fallbackData);
       
       // FIX: Search for the specific ID in results instead of taking first result
       let item = null;
@@ -198,11 +188,6 @@ function RIAProfileContent() {
           (result.crd_numbers && result.crd_numbers.includes(id)) ||
           (result.crd_numbers && result.crd_numbers.includes(Number(id)))
         );
-        
-        if (!item) {
-          console.log(`[DEBUG] No matching profile found for ID: ${id} in ${fallbackData.results.length} results`);
-          console.log(`[DEBUG] Available CRDs in results:`, fallbackData.results.map((r: any) => r.crd_number || r.cik).slice(0, 10));
-        }
       }
       
       // Fallback to first result only if no specific match found and we want to be permissive
@@ -211,21 +196,16 @@ function RIAProfileContent() {
         item = fallbackData.data[0];
       }
       
-      console.log(`[DEBUG] Extracted item from fallback:`, item);
-      
       if (!item) {
-        console.log(`[DEBUG] No item found in fallback data`);
         throw new Error('No profile data found');
       }
       
       // Validate fallback data before normalization  
       if (!item?.legal_name && !item?.firm_name) {
-        console.log(`[DEBUG] Fallback data validation failed - missing legal_name and firm_name`);
         throw new Error(`Invalid fallback data for identifier ${id}: missing legal_name and firm_name`);
       }
       
       // Normalize fallback data to match our interface
-      console.log(`[DEBUG] Normalizing fallback data for ID: ${id}`);
       const normalized: RIAProfile = {
         cik: Number(item?.cik || item?.crd_number || id),
         crd_number: Number(item?.crd_number || id) || null,
@@ -262,10 +242,8 @@ function RIAProfileContent() {
         })),
       };
       
-      console.log(`[DEBUG] Setting normalized profile:`, normalized);
       setProfile(normalized);
     } catch (err) {
-      console.error(`[DEBUG] Error in fetchProfile:`, err);
       setError(err instanceof Error ? err.message : 'Failed to load profile');
     } finally {
       setIsLoading(false);
