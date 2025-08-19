@@ -4,9 +4,9 @@ type QuerySuggestionsProps = {
 };
 
 const DEFAULT_SUGGESTIONS: string[] = [
-  'Top RIAs in Austin with high activity scores and VC focus',
+  "What are the largest RIA's in St. Louis?",
   'Show RIAs with > $500M AUM in San Francisco',
-  'Which firms recently added venture funds?'
+  'Which RIAs in Missouri have VC activity?'
 ];
 
 export default function QuerySuggestions({ onSelect, suggestions = DEFAULT_SUGGESTIONS }: QuerySuggestionsProps) {
