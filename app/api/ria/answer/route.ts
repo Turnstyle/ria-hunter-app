@@ -4,6 +4,20 @@ import { createClient } from '@/app/lib/supabase-server';
 // Import the streaming response
 const { StreamingTextResponse } = require('ai');
 
+// Define the search result interface
+interface SearchResult {
+  id: string;
+  content: string;
+  similarity: number;
+  metadata: {
+    riaId: string;
+    riaName: string;
+    state: string;
+    city: string;
+    aum: number;
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const reqHeaders = await nextHeaders();
@@ -40,7 +54,7 @@ export async function POST(request: NextRequest) {
     const supportsStreaming = acceptHeader.includes('text/event-stream');
     
     // Build context from search results
-    const context = searchResults.map((result, index) => {
+    const context = searchResults.map((result: SearchResult, index: number) => {
       return `[${index + 1}] ${result.content} (${result.metadata.riaName}, ${result.metadata.city}, ${result.metadata.state})`;
     }).join('\n\n');
     
@@ -72,7 +86,7 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json({
         answer,
-        citations: searchResults.slice(0, 3).map(result => 
+        citations: searchResults.slice(0, 3).map((result: SearchResult) => 
           `${result.metadata.riaName} (${result.metadata.city}, ${result.metadata.state})`
         ),
         query
@@ -86,13 +100,13 @@ export async function POST(request: NextRequest) {
 }
 
 // Helper function to generate a mock answer based on the query and search results
-function generateMockAnswer(query: string, searchResults: any[]): string {
+function generateMockAnswer(query: string, searchResults: SearchResult[]): string {
   const isMissouri = query.toLowerCase().includes('missouri');
   const isVcRelated = query.toLowerCase().includes('vc') || query.toLowerCase().includes('venture');
   const isExecutiveRelated = query.toLowerCase().includes('executive');
   
   // Get names for citation
-  const citedFirms = searchResults.slice(0, 3).map(r => r.metadata.riaName);
+  const citedFirms = searchResults.slice(0, 3).map((r: SearchResult) => r.metadata.riaName);
   
   if (isMissouri && isVcRelated && isExecutiveRelated) {
     return `Based on the search results, there are several active RIAs in Missouri with venture capital activity. The most notable include ${citedFirms[0]}, ${citedFirms[1]}, and ${citedFirms[2]}. ${citedFirms[0]} is based in St. Louis and has a significant focus on early-stage technology investments. Their executive team includes the CEO and CIO who both have backgrounds in venture capital. ${citedFirms[1]}, located in Kansas City, specializes in Series A and B funding rounds for healthcare and biotech startups. Their managing partners have over 20 years of combined experience in venture investments. ${citedFirms[2]} focuses on seed-stage investments in the midwest region and is led by former entrepreneurs who have successfully exited multiple startups.`;
