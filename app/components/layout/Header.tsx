@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { UserMenu } from '@/app/components/auth/UserMenu';
 import LoginButton from '@/app/components/auth/LoginButton';
-import HeaderCredits from '@/app/components/credits/HeaderCredits';
+import { HeaderCredits } from '@/app/components/credits/HeaderCredits';
 
 export function Header() {
   const { user, loading } = useAuth();

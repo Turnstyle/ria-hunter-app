@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies, headers as nextHeaders } from 'next/headers';
 import { createClient } from '@/app/lib/supabase-server';
-import { StreamingTextResponse } from 'ai';
+// Import the streaming response
+const { StreamingTextResponse } = require('ai');
 
 export async function POST(request: NextRequest) {
   try {

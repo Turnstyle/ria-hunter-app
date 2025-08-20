@@ -1,5 +1,25 @@
 // This file can only be imported in server contexts (Server Components, API routes, etc.)
-import { createClient } from '@supabase/supabase-js';
+import { createClient as supabaseCreateClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+
+// Export createClient for API routes
+export function createClient(cookieStore = cookies()) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    logSupabaseEnvVars();
+    throw new Error('Supabase URL and anon key are required for client');
+  }
+  
+  return supabaseCreateClient(supabaseUrl, supabaseKey, {
+    cookies: {
+      get(name) {
+        return cookieStore.get(name)?.value;
+      },
+    },
+  });
+}
 
 // Log Supabase environment variables for debugging
 export function logSupabaseEnvVars() {
