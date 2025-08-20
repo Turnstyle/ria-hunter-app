@@ -1,16 +1,16 @@
 'use client';
 
 import React from 'react';
-import { useCredits } from '@/hooks/useCredits';
+import { useCredits } from '@/app/hooks/useCredits';
 
 interface CreditsCounterProps {
 	className?: string;
 }
 
 const CreditsCounter: React.FC<CreditsCounterProps> = ({ className = "" }) => {
-	const { credits, isSubscriber, loading } = useCredits();
+	const { credits, isSubscriber, isLoadingCredits } = useCredits();
 
-	if (loading) {
+	if (isLoadingCredits) {
 		return (
 			<div className={`animate-pulse ${className}`}>
 				<div className="h-20 bg-gray-200 rounded-lg"></div>
