@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import UpgradeButton from '@/app/components/subscription/UpgradeButton'
 import { useAuth } from '@/app/contexts/AuthContext'
-import { useCredits } from '@/hooks/useCredits'
+import { useCredits } from '@/app/hooks/useCredits'
 
 interface SubscriptionDetailsProps {
   userId: string
@@ -11,7 +11,7 @@ interface SubscriptionDetailsProps {
 
 export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps) {
   const { session } = useAuth()
-  const { isSubscriber, subscriptionStatus, loading: creditsLoading } = useCredits()
+  const { credits, isSubscriber, subscriptionStatus, isLoadingCredits } = useCredits()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null)
 
@@ -44,15 +44,20 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
       }
     }
     
-    if (!creditsLoading) {
+    if (!isLoadingCredits) {
       loadDetails()
     }
-  }, [userId, session?.access_token, creditsLoading])
+  }, [userId, session?.access_token, isLoadingCredits])
 
-  if (loading || creditsLoading) {
+  if (loading || isLoadingCredits) {
     return (
       <div className="bg-white shadow rounded-lg p-6">
-        <div className="animate-pulse h-5 bg-gray-200 w-40 rounded" />
+        <div className="animate-pulse space-y-3">
+          <div className="h-6 bg-secondary-200 w-40 rounded"></div>
+          <div className="h-4 bg-secondary-200 w-32 rounded"></div>
+          <div className="h-4 bg-secondary-200 w-24 rounded"></div>
+          <div className="h-10 bg-secondary-200 w-36 rounded-md"></div>
+        </div>
       </div>
     )
   }
@@ -62,18 +67,86 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
                        subscriptionStatus === 'none' ? 'Free Plan' : 
                        subscriptionStatus;
 
+  // Calculate remaining time if on trial
+  const isOnTrial = subscriptionDetails?.subscription?.trial_end && 
+                   new Date(subscriptionDetails.subscription.trial_end) > new Date();
+  
+  const daysLeft = isOnTrial ? 
+    Math.ceil((new Date(subscriptionDetails.subscription.trial_end).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 
+    null;
+
+  // Format renewal date
+  const renewalDate = subscriptionDetails?.subscription?.current_period_end ? 
+    new Date(subscriptionDetails.subscription.current_period_end).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }) : null;
+
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-2">Subscription</h2>
-      <div className="text-sm text-gray-900">Status: {displayStatus}</div>
+    <div className="bg-white shadow-md rounded-lg p-6 border border-secondary-200">
+      <h2 className="text-lg font-semibold text-secondary-900 mb-4">Subscription Status</h2>
       
-      {subscriptionDetails?.subscription?.current_period_end && (
-        <div className="text-xs text-gray-600 mt-1">
-          Renews: {new Date(subscriptionDetails.subscription.current_period_end).toLocaleDateString()}
+      <div className="mb-4">
+        <div className="flex items-center mb-2">
+          <div className={`w-3 h-3 rounded-full mr-2 ${isSubscriber ? 'bg-accent-500' : 'bg-primary-500'}`}></div>
+          <span className="text-secondary-900 font-medium">{displayStatus}</span>
+        </div>
+        
+        {isOnTrial && (
+          <div className="text-sm text-secondary-600 mt-1 ml-5">
+            Trial period: {daysLeft} day{daysLeft !== 1 ? 's' : ''} remaining
+          </div>
+        )}
+        
+        {renewalDate && (
+          <div className="text-sm text-secondary-600 mt-1 ml-5">
+            Next billing date: {renewalDate}
+          </div>
+        )}
+        
+        {!isSubscriber && (
+          <div className="text-sm text-secondary-600 mt-1 ml-5">
+            Available credits: <span className="font-medium">{credits}</span>
+          </div>
+        )}
+      </div>
+      
+      {subscriptionDetails?.plan && (
+        <div className="mb-4 p-4 bg-secondary-50 rounded-md border border-secondary-200">
+          <h3 className="text-sm font-semibold text-secondary-900 mb-2">Current Plan Features</h3>
+          <ul className="text-sm text-secondary-700 space-y-1">
+            <li className="flex items-start">
+              <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              {isSubscriber ? 'Unlimited searches' : `${credits} searches remaining`}
+            </li>
+            <li className="flex items-start">
+              <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              {isSubscriber ? 'Advanced filters and sorting' : 'Basic search functionality'}
+            </li>
+            <li className="flex items-start">
+              <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              {isSubscriber ? 'RAG-powered search with citations' : 'Limited RAG capabilities'}
+            </li>
+            {isSubscriber && (
+              <li className="flex items-start">
+                <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Priority support
+              </li>
+            )}
+          </ul>
         </div>
       )}
       
-      <div className="mt-4">
+      <div className="mt-5">
         {isSubscriber ? (
           <ManageBillingButton />
         ) : (
@@ -115,7 +188,7 @@ function ManageBillingButton() {
     <button
       onClick={handleClick}
       disabled={isLoading}
-      className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+      className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 transition-colors"
     >
       {isLoading ? 'Opening…' : 'Manage Billing'}
     </button>

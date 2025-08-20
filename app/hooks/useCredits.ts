@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { getSubscriptionStatus } from '@/services/ria';
+import { getSubscriptionStatus } from '@/app/services/ria';
 
 export function useCredits() {
   const { user, session } = useAuth();
   const [credits, setCredits] = useState<number>(2);
   const [isSubscriber, setIsSubscriber] = useState<boolean>(false);
-  const [loading, setLoading] = useState(true);
+  const [isLoadingCredits, setIsLoadingCredits] = useState(true);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('none');
 
   const checkStatus = useCallback(async () => {
@@ -16,12 +16,12 @@ export function useCredits() {
       setCredits(2);
       setIsSubscriber(false);
       setSubscriptionStatus('none');
-      setLoading(false);
+      setIsLoadingCredits(false);
       return;
     }
 
     try {
-      setLoading(true);
+      setIsLoadingCredits(true);
       const status = await getSubscriptionStatus(session.access_token);
       
       // Debug logging for promotional subscription diagnosis
@@ -56,7 +56,7 @@ export function useCredits() {
       setIsSubscriber(false);
       setSubscriptionStatus('error');
     } finally {
-      setLoading(false);
+      setIsLoadingCredits(false);
     }
   }, [user, session?.access_token]);
 
@@ -65,6 +65,66 @@ export function useCredits() {
     if (response?.isSubscriber !== undefined) setIsSubscriber(response.isSubscriber);
   }, []);
 
+  // Decrement credits function to be used when a search is performed
+  const decrementCredits = useCallback((amount: number = 1) => {
+    if (isSubscriber) return; // No need to decrement for subscribers
+    
+    setCredits(prevCredits => {
+      const newValue = Math.max(0, prevCredits - amount);
+      
+      // Update server about credit usage
+      if (session?.access_token) {
+        fetch('/api/subscription-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            action: 'use_credit',
+            amount: amount
+          })
+        }).catch(err => {
+          console.error('Failed to update credit usage on server:', err);
+        });
+      }
+      
+      return newValue;
+    });
+  }, [isSubscriber, session]);
+
+  // Earn bonus credits (e.g., for social sharing)
+  const earnCredits = useCallback(async (source: string, amount: number = 1) => {
+    if (isSubscriber || !user || !session?.access_token) return;
+    
+    try {
+      const response = await fetch('/api/subscription-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          action: 'earn_credit',
+          source,
+          amount
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setCredits(prev => prev + amount);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to earn credits:', error);
+      return false;
+    }
+  }, [isSubscriber, user, session]);
+
   useEffect(() => {
     checkStatus();
   }, [checkStatus]);
@@ -72,9 +132,11 @@ export function useCredits() {
   return {
     credits: isSubscriber ? -1 : credits,
     isSubscriber,
-    loading,
+    isLoadingCredits,
     subscriptionStatus,
     refreshStatus: checkStatus,
     updateFromQueryResponse,
+    decrementCredits,
+    earnCredits
   };
 }

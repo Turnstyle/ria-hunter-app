@@ -1,5 +1,4 @@
 const { withAxiom } = require('next-axiom');
-const { withSentryConfig } = require('@sentry/nextjs');
 const path = require('path');
 
 /** @type {import('next').NextConfig} */
@@ -32,21 +31,5 @@ const nextConfig = {
   },
 };
 
-// First wrap with Axiom
-const withAxiomConfig = withAxiom(nextConfig);
-
-// Then wrap with Sentry
-const sentryConfig = {
-  silent: true,
-  org: "stonewater-solutions",
-  project: "riahunter",
-  widenClientFileUpload: true,
-  transpileClientSDK: true,
-  tunnelRoute: "/monitoring",
-  hideSourceMaps: true,
-  disableLogger: true,
-  autoInstrumentServerFunctions: true,
-  autoInstrumentMiddleware: true,
-};
-
-module.exports = withSentryConfig(withAxiomConfig, sentryConfig);
+// Wrap with Axiom
+module.exports = withAxiom(nextConfig);
