@@ -1,30 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies, headers as nextHeaders } from 'next/headers';
-import { createClient } from '@/app/lib/supabase-server';
+import { headers as nextHeaders } from 'next/headers';
+import { withAuth } from '@/app/lib/api-wrapper';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, user: any, supabase: any) => {
   try {
     const reqHeaders = await nextHeaders();
     const requestId = reqHeaders?.get?.('x-request-id') || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    
-    // Extract user credentials from cookies
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
-    
-    // Check user authentication
-    const { data: { session }, error: authError } = await supabase.auth.getSession();
-    
-    if (authError || !session) {
-      console.error('Authentication error:', authError);
-      return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
-    }
-    
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError || !user) {
-      console.error('User error:', userError);
-      return NextResponse.json({ error: 'Unable to get user data' }, { status: 401 });
-    }
     
     // Parse request body
     const body = await request.json().catch(() => ({}));
@@ -96,4 +77,4 @@ export async function POST(request: NextRequest) {
     console.error('RIA search error:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
-}
+});
