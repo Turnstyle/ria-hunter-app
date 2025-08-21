@@ -35,11 +35,49 @@ async function parseJsonSafe(res: Response) {
   try { return text ? JSON.parse(text) : null; } catch { return null; }
 }
 
-export async function queryRia(query: string): Promise<QueryResponse> {
+export async function queryRia(query: string, authToken?: string): Promise<QueryResponse> {
+  // If auth token is not provided, try to get it from cookies/storage
+  if (!authToken && typeof window !== 'undefined') {
+    // Try to get token from session storage or local storage
+    const sbSession = localStorage.getItem('sb-auth-token');
+    if (sbSession) {
+      try {
+        const parsed = JSON.parse(sbSession);
+        authToken = parsed?.access_token;
+      } catch (e) {
+        console.error('Error parsing auth token:', e);
+      }
+    }
+    
+    // If no token in storage, try to extract from cookies
+    if (!authToken) {
+      const cookies = document.cookie.split(';');
+      for (const cookie of cookies) {
+        if (cookie.trim().startsWith('sb-access-token=')) {
+          authToken = cookie.split('=')[1];
+          break;
+        }
+        if (cookie.trim().startsWith('sb-')) {
+          try {
+            const cookieValue = decodeURIComponent(cookie.split('=')[1]);
+            const parsed = JSON.parse(cookieValue);
+            if (parsed?.access_token) {
+              authToken = parsed.access_token;
+              break;
+            }
+          } catch (e) {
+            // Continue to next cookie if parsing fails
+          }
+        }
+      }
+    }
+  }
+  
   const response = await fetch('/api/v1/ria/query', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
     },
     body: JSON.stringify({ query }),
   });
