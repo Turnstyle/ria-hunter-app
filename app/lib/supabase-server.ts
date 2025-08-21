@@ -12,8 +12,38 @@ export function createClient(cookieStore?: any) {
     throw new Error('Supabase URL and anon key are required for client');
   }
   
-  // Use the basic client without cookies for server-side components
-  return supabaseCreateClient(supabaseUrl, supabaseKey);
+  // Use the cookieStore if provided to properly handle auth
+  const cookieOptions = cookieStore ? {
+    cookies: {
+      get: (name: string) => {
+        return cookieStore.get(name)?.value;
+      },
+      set: (name: string, value: string, options: any) => {
+        try {
+          cookieStore.set(name, value, options);
+        } catch (error) {
+          // Cookie setter might be unavailable in some contexts
+          console.error('Failed to set cookie:', error);
+        }
+      },
+      remove: (name: string, options: any) => {
+        try {
+          cookieStore.set(name, '', { ...options, maxAge: 0 });
+        } catch (error) {
+          console.error('Failed to remove cookie:', error);
+        }
+      },
+    },
+  } : undefined;
+  
+  return supabaseCreateClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: true,
+      detectSessionInUrl: true,
+      autoRefreshToken: true,
+      ...cookieOptions
+    }
+  });
 }
 
 // Log Supabase environment variables for debugging

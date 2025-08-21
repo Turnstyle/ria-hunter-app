@@ -12,10 +12,18 @@ export async function POST(request: NextRequest) {
     const supabase = createClient(cookieStore);
     
     // Check user authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (authError || !session) {
+      console.error('Authentication error:', authError);
+      return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+    }
+    
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error('User error:', userError);
+      return NextResponse.json({ error: 'Unable to get user data' }, { status: 401 });
     }
     
     // Parse request body
