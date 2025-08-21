@@ -18,6 +18,7 @@ export function useAskApi() {
 
 		try {
 			const response = await queryRia(query, session?.access_token);
+			return response;
 		} catch (err: any) {
 			if (err.code === 'PAYMENT_REQUIRED') {
 				setError('Credits exhausted - upgrade to continue');
@@ -28,7 +29,7 @@ export function useAskApi() {
 		} finally {
 			setIsLoading(false);
 		}
-	}, []);
+	}, [session]);
 
 	return { askQuestion, isLoading, error };
 }
