@@ -61,7 +61,7 @@ const SearchPage = () => {
       const processedQuery = query.toLowerCase().trim();
       
       // Call search API
-      const searchResponse = await fetch('/api/ria/search', {
+      const searchResponse = await fetch('/api/v1/ria/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,7 +69,9 @@ const SearchPage = () => {
         body: JSON.stringify({
           query: processedQuery,
           hybrid: useHybridSearch,
-          efSearch: 64, // Default parameter for HNSW search
+          match_threshold: 0.6, // Default similarity threshold
+          match_count: 20, // Default number of results
+          // Add optional state_filter and min_aum if needed
         }),
       });
       
@@ -88,7 +90,7 @@ const SearchPage = () => {
         // Option 1: Streaming response
         if (window.ReadableStream && 'getReader' in ReadableStream.prototype) {
           setIsStreaming(true);
-          const answerResponse = await fetch('/api/ria/answer', {
+          const answerResponse = await fetch('/api/v1/ria/answer', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -134,7 +136,7 @@ const SearchPage = () => {
         } 
         // Option 2: Non-streaming response
         else {
-          const answerResponse = await fetch('/api/ria/answer', {
+          const answerResponse = await fetch('/api/v1/ria/answer', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
