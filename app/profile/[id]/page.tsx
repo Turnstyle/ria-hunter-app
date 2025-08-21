@@ -165,7 +165,7 @@ function RIAProfileContent() {
       console.error('Error fetching profile:', error);
       setError(error instanceof Error ? error.message : 'Failed to load profile');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
