@@ -30,99 +30,126 @@ interface SubscriptionStatusResponse {
 const API_VERSION = process.env.NEXT_PUBLIC_API_VERSION || 'v1';
 const USE_STREAM = false;
 
+import { fetchWithRetry, createApiError } from '@/app/lib/apiClient';
+
 async function parseJsonSafe(res: Response) {
   const text = await res.text();
   try { return text ? JSON.parse(text) : null; } catch { return null; }
 }
 
-export async function queryRia(query: string, authToken?: string): Promise<QueryResponse> {
-  // If auth token is not provided, try to get it from cookies/storage
-  if (!authToken && typeof window !== 'undefined') {
-    // Try to get token from session storage or local storage
-    const sbSession = localStorage.getItem('sb-auth-token');
-    if (sbSession) {
-      try {
-        const parsed = JSON.parse(sbSession);
-        authToken = parsed?.access_token;
-      } catch (e) {
-        console.error('Error parsing auth token:', e);
-      }
-    }
-    
-    // If no token in storage, try to extract from cookies
-    if (!authToken) {
-      const cookies = document.cookie.split(';');
-      for (const cookie of cookies) {
-        if (cookie.trim().startsWith('sb-access-token=')) {
-          authToken = cookie.split('=')[1];
-          break;
-        }
-        if (cookie.trim().startsWith('sb-')) {
-          try {
-            const cookieValue = decodeURIComponent(cookie.split('=')[1]);
-            const parsed = JSON.parse(cookieValue);
-            if (parsed?.access_token) {
-              authToken = parsed.access_token;
-              break;
-            }
-          } catch (e) {
-            // Continue to next cookie if parsing fails
-          }
-        }
-      }
-    }
-  }
-  
-  const response = await fetch('/api/v1/ria/query', {
+export async function queryRia(
+  query: string,
+  authToken?: string,
+  options: { maxResults?: number; includeDetails?: boolean; onRetry?: (attempt: number, delay: number) => void } = {}
+): Promise<QueryResponse> {
+  const { maxResults, includeDetails, onRetry } = options;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+  const response = await fetchWithRetry('/api/ask', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-    },
-    body: JSON.stringify({ query }),
+    headers,
+    body: JSON.stringify({
+      query,
+      userToken: authToken,
+      maxResults,
+      includeDetails
+    })
+  }, {
+    maxRetries: 3,
+    onRetry
   });
 
   if (!response.ok) {
     if (response.status === 402) {
       throw { code: 'PAYMENT_REQUIRED', message: 'Credits exhausted' };
     }
+    if (response.status === 401) {
+      throw { code: 'UNAUTHORIZED', message: 'Authentication required' };
+    }
+    if (response.status === 429) {
+      throw { code: 'RATE_LIMITED', message: 'Too many requests. Please try again later.' };
+    }
     throw new Error(`Query failed: ${response.statusText}`);
   }
 
   const data = await response.json();
   
-  // Handle both direct backend response and normalized response formats
-  let items: QueryResultItem[] = [];
-  
-  if (data.sources) {
-    // Normalized response format from /api/ask
-    items = data.sources.map((source: any) => ({
-      name: source.legal_name,
-      city: source.city,
-      state: source.state,
-      crdNumbers: [source.crd_number?.toString()].filter(Boolean),
-      aum: source.vc_total_aum,
-      vcFunds: source.vc_fund_count,
-      vcAum: source.vc_total_aum,
-    }));
-  } else if (data.results || data.data) {
-    // Raw backend response format from /api/v1/ria/query
-    const results = data.results || data.data || [];
-    items = results.map((item: any) => ({
-      name: item?.legal_name || item?.firm_name || item?.name || 'Unknown',
-      city: item?.city || item?.main_addr_city || item?.main_office_location?.city || '',
-      state: item?.state || item?.main_addr_state || item?.main_office_location?.state || '',
-      crdNumbers: [item?.crd_number?.toString() || item?.crd?.toString() || item?.crdNumber?.toString()].filter(Boolean),
-      aum: item?.total_aum || item?.private_fund_aum || 0,
-      vcFunds: item?.private_fund_count || item?.vc_count || item?.private_fund_vc_count || 0,
-      vcAum: item?.private_fund_aum || item?.total_aum || 0,
-    }));
-  }
+  // Handle normalized response format from /api/ask
+  const items: QueryResultItem[] = data.sources?.map((source: any) => ({
+    name: source.legal_name || source.name,
+    city: source.city,
+    state: source.state,
+    crdNumbers: [source.crd_number?.toString()].filter(Boolean),
+    aum: source.vc_total_aum || source.total_aum,
+    vcFunds: source.vc_fund_count,
+    vcAum: source.vc_total_aum || source.total_aum,
+  })) || [];
 
   return {
     items,
     remaining: data.remaining || data.queriesRemaining,
     isSubscriber: data.isSubscriber || data.hasActiveSubscription,
+    relaxed: data.relaxed,
+    relaxationLevel: data.relaxationLevel,
+    resolvedRegion: data.resolvedRegion,
+  };
+}
+
+export type SearchResponse = {
+  items: QueryResultItem[];
+  total?: number;
+  page?: number;
+  hasMore?: boolean;
+  isSubscriber?: boolean;
+};
+
+export async function searchRia(
+  params: Record<string, string | number | boolean>,
+  authToken?: string,
+  options: { onRetry?: (attempt: number, delay: number) => void } = {}
+): Promise<SearchResponse> {
+  const { onRetry } = options;
+  const queryString = new URLSearchParams(params as any).toString();
+  const headers: Record<string, string> = {};
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  
+  const response = await fetchWithRetry(`/api/v1/ria/search?${queryString}`, {
+    headers,
+    cache: 'no-store'
+  }, {
+    maxRetries: 3,
+    onRetry
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw { code: 'UNAUTHORIZED', message: 'Authentication required' };
+    }
+    if (response.status === 429) {
+      throw { code: 'RATE_LIMITED', message: 'Too many requests. Please try again later.' };
+    }
+    throw new Error(`Search failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  
+  const items: QueryResultItem[] = data.results?.map((item: any) => ({
+    name: item.legal_name || item.name,
+    city: item.city,
+    state: item.state,
+    crdNumbers: [item.crd_number?.toString()].filter(Boolean),
+    aum: item.total_aum,
+    vcFunds: item.private_fund_count,
+    vcAum: item.private_fund_aum,
+  })) || [];
+
+  return {
+    items,
+    total: data.total,
+    page: data.page,
+    hasMore: data.hasMore,
+    isSubscriber: data.isSubscriber,
   };
 }
 

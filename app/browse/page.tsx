@@ -148,7 +148,7 @@ export default function BrowsePage() {
     
     try {
       // Call the API endpoint to get paginated RIAs
-      const response = await fetch('/api/v1/ria/query', {
+      const response = await fetch('/api/ask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

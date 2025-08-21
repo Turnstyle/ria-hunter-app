@@ -8,10 +8,18 @@ import { useCredits } from '@/hooks/useCredits';
 import type { QueryResultItem, QueryResponse } from '@/services/ria';
 import AssistantMessage from './AssistantMessage';
 import QuerySuggestions from './QuerySuggestions';
+import ErrorDisplay from './ErrorDisplay';
+import { getErrorMessageFromException } from '@/app/lib/errorMessages';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [showOptions, setShowOptions] = useState(false);
+  const [queryOptions, setQueryOptions] = useState({
+    maxResults: 5,
+    includeDetails: true
+  });
+  const [retryStatus, setRetryStatus] = useState<string | null>(null);
   const { isLoading, error, askQuestion } = useAskApi();
   const { credits, isSubscriber, updateFromQueryResponse } = useCredits();
 
@@ -29,7 +37,13 @@ export default function ChatInterface() {
     setInput('');
 
     try {
-      const apiResponse = await askQuestion(query);
+      const apiResponse = await askQuestion(query, {
+        ...queryOptions,
+        onRetry: (attempt, delay) => {
+          setRetryStatus(`Retrying... (attempt ${attempt}, waiting ${Math.round(delay / 1000)}s)`);
+          setTimeout(() => setRetryStatus(null), delay);
+        }
+      });
       if (apiResponse) {
         updateFromQueryResponse(apiResponse);
 
@@ -59,13 +73,11 @@ export default function ChatInterface() {
         }
       }
     } catch (err: any) {
-      let errorContent = '';
-      if (err.code === 'PAYMENT_REQUIRED') {
-        errorContent = isSubscriber
-          ? 'Your subscription may have expired. Please check your billing status.'
-          : "You've used all your free queries. Upgrade to Pro for unlimited access to continue exploring RIA data.";
-      } else {
-        errorContent = 'I encountered an error processing your request. Please try again or rephrase your question.';
+      const errorDetails = getErrorMessageFromException(err);
+      let errorContent = errorDetails.message;
+      
+      if (err.code === 'PAYMENT_REQUIRED' && isSubscriber) {
+        errorContent = 'Your subscription may have expired. Please check your billing status.';
       }
 
       const errorMessage: ChatMessage = {
@@ -74,6 +86,7 @@ export default function ChatInterface() {
         content: errorContent,
         sources: [],
         isLoading: false,
+        error: err,
       };
 
       setMessages((prev) => prev.map((msg) => (msg.id === errorMessage.id ? errorMessage : msg)));
@@ -147,23 +160,83 @@ export default function ChatInterface() {
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about RIAs…"
-          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={!isSubscriber && credits <= 0}
-        />
-        <button
-          type="submit"
-          disabled={isLoading || !input.trim() || (!isSubscriber && credits <= 0)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg disabled:opacity-50"
-        >
-          {isLoading ? 'Asking…' : 'Ask'}
-        </button>
-      </form>
-      {error && <div className="text-sm text-red-600 mt-2">{error}</div>}
+      <div>
+        {/* Query Options Panel */}
+        {showOptions && (
+          <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-gray-900">Query Options</h3>
+              <button
+                type="button"
+                onClick={() => setShowOptions(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Max Results
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={queryOptions.maxResults}
+                  onChange={(e) => setQueryOptions(prev => ({ ...prev, maxResults: parseInt(e.target.value) || 5 }))}
+                  className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                />
+              </div>
+              <div className="flex items-center">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={queryOptions.includeDetails}
+                    onChange={(e) => setQueryOptions(prev => ({ ...prev, includeDetails: e.target.checked }))}
+                    className="mr-2"
+                  />
+                  <span className="text-sm text-gray-700">Include Details</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask about RIAs…"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={!isSubscriber && credits <= 0}
+          />
+          <button
+            type="button"
+            onClick={() => setShowOptions(!showOptions)}
+            className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-200 border border-gray-300"
+            title="Query Options"
+          >
+            ⚙️
+          </button>
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim() || (!isSubscriber && credits <= 0)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+          >
+            {isLoading ? 'Asking…' : 'Ask'}
+          </button>
+        </form>
+        {retryStatus && <div className="text-sm text-orange-600 mt-2">{retryStatus}</div>}
+        {error && (
+          <div className="mt-2">
+            <ErrorDisplay 
+              error={{ message: error }} 
+              onRetry={() => window.location.reload()} 
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

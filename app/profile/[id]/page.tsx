@@ -159,94 +159,13 @@ function RIAProfileContent() {
         return;
       }
       
-      // Fallback to query endpoint with more specific query
-      const fallbackResponse = await fetch('/api/v1/ria/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query: `Find exact RIA profile with CRD number ${id} or CIK ${id}`,
-          crd_number: id, // Add explicit CRD parameter for backend
-          exact_match: true // Request exact matching if backend supports it
-        })
-      });
-      
-      if (!fallbackResponse.ok) {
-        throw new Error('Profile not found');
-      }
-      
-      const fallbackData = await fallbackResponse.json();
-      
-      // FIX: Search for the specific ID in results instead of taking first result
-      let item = null;
-      if (fallbackData.results?.length > 0) {
-        // Try to find exact match by CIK, CRD, or included in CRD numbers array
-        item = fallbackData.results.find((result: any) => 
-          result.cik === id || 
-          result.crd_number === id ||
-          result.crd_number === Number(id) ||
-          result.cik === Number(id) ||
-          (result.crd_numbers && result.crd_numbers.includes(id)) ||
-          (result.crd_numbers && result.crd_numbers.includes(Number(id)))
-        );
-      }
-      
-      // Fallback to first result only if no specific match found and we want to be permissive
-      // For now, let's be strict and not show wrong profiles
-      if (!item && fallbackData.data?.length > 0) {
-        item = fallbackData.data[0];
-      }
-      
-      if (!item) {
-        throw new Error('No profile data found');
-      }
-      
-      // Validate fallback data before normalization  
-      if (!item?.legal_name && !item?.firm_name) {
-        throw new Error(`Invalid fallback data for identifier ${id}: missing legal_name and firm_name`);
-      }
-      
-      // Normalize fallback data to match our interface
-      const normalized: RIAProfile = {
-        cik: Number(item?.cik || item?.crd_number || id),
-        crd_number: Number(item?.crd_number || id) || null,
-        legal_name: item?.legal_name || item?.firm_name,
-        main_addr_street1: item?.main_addr_street1 || item?.main_office_location?.street || null,
-        main_addr_street2: item?.main_addr_street2 || null,
-        main_addr_city: item?.main_addr_city || item?.main_office_location?.city || null,
-        main_addr_state: item?.main_addr_state || item?.main_office_location?.state || null,
-        main_addr_zip: item?.main_addr_zip || item?.main_office_location?.zipcode || null,
-        main_addr_country: item?.main_addr_country || item?.main_office_location?.country || null,
-        phone_number: item?.phone_number || null,
-        fax_number: item?.fax_number || null,
-        website: item?.website || null,
-        is_st_louis_msa: item?.is_st_louis_msa ?? null,
-        executives: Array.isArray(item?.executives)
-          ? item.executives.map((e: any) => ({
-              name: e?.name || e?.person_name || '',
-              title: e?.title ?? null,
-            })).filter((e: { name: string }) => e.name)
-          : [],
-        filings: (item?.filings || []).map((f: any) => ({
-          filing_id: String(f.id ?? f.filing_id ?? ''),
-          filing_date: f.filing_date,
-          total_aum: f.total_aum ?? null,
-          manages_private_funds_flag: f.manages_private_funds_flag ?? (f.private_fund_count ? f.private_fund_count > 0 : null),
-          report_period_end_date: f.report_period_end_date ?? null,
-        })),
-        private_funds: (item?.private_funds || []).map((pf: any) => ({
-          fund_id: String(pf.id ?? pf.fund_id ?? ''),
-          fund_name: pf.fund_name,
-          fund_type: pf.fund_type ?? null,
-          gross_asset_value: pf.gross_asset_value ?? null,
-          min_investment: pf.min_investment ?? null,
-        })),
-      };
-      
-      setProfile(normalized);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load profile');
+      // Profile not found with direct lookup, show not found state
+      throw new Error('Profile not found');
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load profile');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 

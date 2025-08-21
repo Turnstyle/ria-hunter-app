@@ -34,4 +34,5 @@ export interface ChatMessage {
   content: string;
   sources?: Source[];
   isLoading?: boolean;
+  error?: any;
 }

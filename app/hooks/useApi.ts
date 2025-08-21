@@ -10,18 +10,23 @@ export function useAskApi() {
 	const [error, setError] = useState<string | null>(null);
 	const { session } = useAuth();
 
-	const askQuestion = useCallback(async (query: string): Promise<QueryResponse | null> => {
+	const askQuestion = useCallback(async (
+		query: string, 
+		options?: { maxResults?: number; includeDetails?: boolean; onRetry?: (attempt: number, delay: number) => void }
+	): Promise<QueryResponse | null> => {
 		if (!query.trim()) return null;
 
 		setIsLoading(true);
 		setError(null);
 
 		try {
-			const response = await queryRia(query, session?.access_token);
+			const response = await queryRia(query, session?.access_token, options);
 			return response;
 		} catch (err: any) {
 			if (err.code === 'PAYMENT_REQUIRED') {
 				setError('Credits exhausted - upgrade to continue');
+			} else if (err.code === 'RATE_LIMITED') {
+				setError('Too many requests. Please try again later.');
 			} else {
 				setError(err.message || 'An error occurred while processing your query');
 			}
