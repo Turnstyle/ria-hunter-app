@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { AuthProvider } from '@/app/contexts/AuthContext';
 import { Header } from '@/app/components/layout/Header';
+import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,15 +35,17 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
       </head>
-      <AuthProvider>
-        <body className="bg-gray-50 min-h-screen overflow-x-hidden">
-          <Header />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Analytics />
-        </body>
-      </AuthProvider>
+      <body className="bg-gray-50 min-h-screen overflow-x-hidden">
+        <ErrorBoundary>
+          <AuthProvider>
+            <Header />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Analytics />
+          </AuthProvider>
+        </ErrorBoundary>
+      </body>
     </html>
   );
 }

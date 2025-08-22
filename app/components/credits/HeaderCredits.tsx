@@ -1,56 +1,57 @@
+// app/components/credits/HeaderCredits.tsx
+// Shows real credit count in the header
+
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
 import { useCredits } from '@/app/hooks/useCredits';
+import { CreditCard, Infinity } from 'lucide-react';
 
-export const HeaderCredits: React.FC = () => {
+export function HeaderCredits() {
   const { credits, isSubscriber, isLoadingCredits } = useCredits();
-  const router = useRouter();
-
+  
+  // Don't show anything while loading
   if (isLoadingCredits) {
     return (
-      <div className="flex items-center space-x-3">
-        <div className="text-sm font-medium text-secondary-500 animate-pulse">
-          Loading...
-        </div>
+      <div className="flex items-center space-x-2 text-gray-400">
+        <CreditCard className="w-5 h-5" />
+        <span className="text-sm">Loading...</span>
       </div>
     );
   }
-
-  // For Pro subscribers, show "Unlimited"
-  if (isSubscriber || credits === -1) {
+  
+  // Subscriber display
+  if (isSubscriber) {
     return (
-      <div className="flex items-center space-x-3">
-        <div className="text-sm font-medium text-secondary-700">
-          <span className="font-semibold text-accent-600">
-            Pro Plan (Unlimited)
-          </span>
-        </div>
+      <div className="flex items-center space-x-2 text-green-600">
+        <Infinity className="w-5 h-5" />
+        <span className="text-sm font-semibold">Pro Plan (Unlimited)</span>
       </div>
     );
   }
-
-  // For free users, show remaining credits with appropriate styling
-  const colorClass = credits === 0 ? 'text-red-600' : 
-                   credits === 1 ? 'text-orange-600' : 'text-primary-600';
-
+  
+  // Free user display with color coding
+  const getCreditsColor = () => {
+    if (credits === 0) return 'text-red-600';
+    if (credits === 1) return 'text-orange-600';
+    if (credits <= 3) return 'text-yellow-600';
+    return 'text-gray-600';
+  };
+  
   return (
-    <div className="flex items-center">
-      <div className="text-sm font-medium text-secondary-700 mr-3">
-        <span className={`font-semibold ${colorClass}`}>
-          {credits} Credit{credits === 1 ? '' : 's'}
-        </span>
-      </div>
+    <div className={`flex items-center space-x-2 ${getCreditsColor()}`}>
+      <CreditCard className="w-5 h-5" />
+      <span className="text-sm font-semibold">
+        {credits} {credits === 1 ? 'Credit' : 'Credits'} Remaining
+      </span>
       
-      {credits < 3 && (
-        <button
-          onClick={() => router.push('/subscription')}
-          className="text-xs px-3 py-1 rounded-md bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+      {credits <= 3 && (
+        <a
+          href="/subscription"
+          className="text-xs underline hover:no-underline"
         >
           Upgrade
-        </button>
+        </a>
       )}
     </div>
   );
-};
+}
