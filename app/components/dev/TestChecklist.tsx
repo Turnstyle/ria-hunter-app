@@ -8,13 +8,6 @@ import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { apiClient } from '@/app/lib/api/client';
 import { useCredits } from '@/app/hooks/useCredits';
 
-// Only show in development
-if (process.env.NODE_ENV !== 'development') {
-  export function TestChecklist() {
-    return null;
-  }
-}
-
 interface TestResult {
   name: string;
   status: 'pending' | 'pass' | 'fail' | 'skip';
@@ -22,6 +15,10 @@ interface TestResult {
 }
 
 export function TestChecklist() {
+  // Only show in development
+  if (process.env.NODE_ENV !== 'development') {
+    return null;
+  }
   const [tests, setTests] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const { credits, isSubscriber } = useCredits();

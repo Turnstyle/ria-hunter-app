@@ -18,7 +18,7 @@ interface Message {
   isStreaming?: boolean;
 }
 
-export function ChatInterface() {
+function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -135,7 +135,7 @@ export function ChatInterface() {
               : msg
           ));
           
-          setError(error.message);
+          setError(error instanceof Error ? error.message : String(error));
           setIsStreaming(false);
           streamingMessageIdRef.current = null;
         }
@@ -144,11 +144,12 @@ export function ChatInterface() {
       console.error('Failed to send query:', error);
       
       // Handle specific error types
-      if (error.message === 'CREDITS_EXHAUSTED') {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage === 'CREDITS_EXHAUSTED') {
         setError('You have used all your credits. Please upgrade to continue.');
-      } else if (error.message === 'AUTHENTICATION_REQUIRED') {
+      } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
         setError('Please sign in to continue.');
-      } else if (error.message === 'RATE_LIMITED') {
+      } else if (errorMessage === 'RATE_LIMITED') {
         setError('You are sending too many requests. Please slow down.');
       } else {
         setError('Failed to process your query. Please try again.');
@@ -318,3 +319,5 @@ export function ChatInterface() {
     </div>
   );
 }
+
+export default ChatInterface;

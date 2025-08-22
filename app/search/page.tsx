@@ -111,11 +111,12 @@ export default function SearchPage() {
     } catch (error) {
       console.error('Search failed:', error);
       
-      if (error.message === 'CREDITS_EXHAUSTED') {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage === 'CREDITS_EXHAUSTED') {
         setError('You have used all your credits. Please upgrade to continue.');
-      } else if (error.message === 'AUTHENTICATION_REQUIRED') {
+      } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
         setError('Please sign in to search.');
-      } else if (error.message === 'RATE_LIMITED') {
+      } else if (errorMessage === 'RATE_LIMITED') {
         setError('Too many searches. Please wait a moment and try again.');
       } else {
         setError('Search failed. Please try again.');

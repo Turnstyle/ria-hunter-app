@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { queryRia, QueryResponse } from '@/services/ria';
+import { queryRia } from '@/services/ria';
+import { type AskResponse } from '@/app/lib/api/client';
 import type { ApiError } from '@/lib/types';
 import { useAuth } from '@/app/contexts/AuthContext';
 
@@ -13,14 +14,14 @@ export function useAskApi() {
 	const askQuestion = useCallback(async (
 		query: string, 
 		options?: { maxResults?: number; includeDetails?: boolean; onRetry?: (attempt: number, delay: number) => void }
-	): Promise<QueryResponse | null> => {
+	): Promise<AskResponse | null> => {
 		if (!query.trim()) return null;
 
 		setIsLoading(true);
 		setError(null);
 
 		try {
-			const response = await queryRia(query, session?.access_token, options);
+			const response = await queryRia(query, options, session);
 			return response;
 		} catch (err: any) {
 			if (err.code === 'PAYMENT_REQUIRED') {

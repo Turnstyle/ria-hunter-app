@@ -292,8 +292,10 @@ export class RIAHunterAPIClient {
         }
       }
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        onError(error as Error);
+      if (error instanceof Error && error.name !== 'AbortError') {
+        onError(error);
+      } else if (!(error instanceof Error)) {
+        onError(new Error(String(error)));
       }
     }
     

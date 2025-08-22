@@ -11,7 +11,7 @@ interface SubscriptionDetailsProps {
 
 export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps) {
   const { session } = useAuth()
-  const { credits, isSubscriber, subscriptionStatus, isLoadingCredits } = useCredits()
+  const { credits, isSubscriber, isLoadingCredits } = useCredits()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null)
 
@@ -63,9 +63,7 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
   }
 
   // Determine display status
-  const displayStatus = isSubscriber ? 'Pro Subscriber' : 
-                       subscriptionStatus === 'none' ? 'Free Plan' : 
-                       subscriptionStatus;
+  const displayStatus = isSubscriber ? 'Pro Subscriber' : 'Free Plan';
 
   // Calculate remaining time if on trial
   const isOnTrial = subscriptionDetails?.subscription?.trial_end && 

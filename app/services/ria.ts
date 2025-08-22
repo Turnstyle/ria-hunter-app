@@ -33,9 +33,10 @@ export async function queryRia(
   });
   
   // CRITICAL: Update credits from metadata
-  // This fixes the "always shows 2 credits" bug
+  // This fixes the "always shows 2 credits" bug and syncs across pages
   if (typeof window !== 'undefined' && response.metadata?.remaining !== undefined) {
     // Dispatch custom event that useCredits hook will listen for
+    // This will also persist the values and sync across tabs
     window.dispatchEvent(
       new CustomEvent('credits-updated', {
         detail: {
