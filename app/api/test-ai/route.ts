@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     // Test the Google AI Studio API with the Gemini model
     const result = await generateText({
-      model: googleClient('gemini-1.0-pro'), // Using 1.0 Pro to match backend and optimize for text generation quality
+      model: googleClient('gemini-1.5-flash'), // Using 1.5 Flash for better throughput
       prompt: query,
       maxTokens: 150,
     });
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       success: true,
       query,
       response: result.text,
-      model: 'gemini-1.0-pro',
+      model: 'gemini-1.5-flash',
       tokenUsage: result.usage,
       provider: 'google-ai-studio'
     });
