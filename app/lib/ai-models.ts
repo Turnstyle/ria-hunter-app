@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 // Ensure your API keys are set in .env.local
 // For OpenAI: OPENAI_API_KEY is usually automatically picked up by the SDK.
-// For Google: GOOGLE_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY
+// For Google: GOOGLE_AI_STUDIO_API_KEY (preferred, from Google AI Studio) or GOOGLE_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY
 
 // OpenAI client - typically doesn't need explicit instantiation if API key is in env
 export { openai };
@@ -20,7 +20,7 @@ export function getGoogleClient(): GoogleClientType | undefined {
     return googleClient;
   }
 
-  const googleApiKey = process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const googleApiKey = process.env.GOOGLE_AI_STUDIO_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   
   if (googleApiKey) {
     googleClient = createGoogleGenerativeAI({
