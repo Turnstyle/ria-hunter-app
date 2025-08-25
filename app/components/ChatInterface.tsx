@@ -26,7 +26,7 @@ function ChatInterface() {
   const [error, setError] = useState<string | null>(null);
   
   const { session } = useAuth();
-  const { credits, isSubscriber, updateFromResponse } = useCredits();
+  const { credits, isSubscriber, updateFromResponse, isLoadingCredits } = useCredits();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -77,6 +77,7 @@ function ChatInterface() {
     
     try {
       setIsStreaming(true);
+      setIsLoading(true);
       
       // Set auth token
       if (session?.access_token) {
@@ -102,88 +103,104 @@ function ChatInterface() {
         },
         // On complete
         (response: AskResponse) => {
-          // Update credits from response
-          updateFromResponse(response);
-          
-          // Update message with final content and sources
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: response.answer || msg.content,
-                  sources: response.sources,
-                  isStreaming: false,
-                }
-              : msg
-          ));
-          
-          setIsStreaming(false);
-          streamingMessageIdRef.current = null;
+          try {
+            // Update credits from response
+            updateFromResponse(response);
+            
+            // Update message with final content and sources
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: response.answer || msg.content,
+                    sources: response.sources,
+                    isStreaming: false,
+                  }
+                : msg
+            ));
+          } catch (innerError) {
+            console.error("Error in completion handler:", innerError);
+          } finally {
+            setIsStreaming(false);
+            setIsLoading(false);
+            streamingMessageIdRef.current = null;
+          }
         },
         // On error
         (error: Error) => {
-          console.error('[ChatInterface] Streaming error:', error);
-          
-          // Parse error message for specific handling
-          const errorMessage = error.message;
-          
-          // Update message with appropriate error
-          let displayMessage = 'I encountered an error processing your request. Please try again.';
-          
-          if (errorMessage.includes('METHOD_NOT_ALLOWED')) {
-            displayMessage = 'Technical error: The server configuration has changed. Please refresh the page and try again.';
-            console.error('METHOD ERROR: Frontend sending wrong HTTP method to backend');
-            setError('Technical error: The server configuration has changed. Please refresh the page and try again.');
-          } else if (errorMessage === 'CREDITS_EXHAUSTED') {
-            displayMessage = 'You have used all your free searches. Please upgrade to continue.';
-            setError('You have used all your free searches. Please upgrade to continue.');
-          } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
-            displayMessage = 'Please sign in to continue.';
-            setError('Please sign in to continue.');
-          } else if (errorMessage === 'RATE_LIMITED') {
-            displayMessage = 'You are sending too many requests. Please wait a moment and try again.';
-            setError('You are sending too many requests. Please wait a moment and try again.');
-          } else if (errorMessage.includes('Stream request failed: 405')) {
-            displayMessage = 'Server configuration error. Please contact support.';
-            console.error('405 ERROR: Check that backend /api/ask-stream accepts POST');
-            setError('Server configuration error. Please contact support.');
-          } else {
-            setError('Failed to process your query. Please try again.');
+          try {
+            console.error('[ChatInterface] Streaming error:', error);
+            
+            // Parse error message for specific handling
+            const errorMessage = error.message;
+            
+            // Update message with appropriate error
+            let displayMessage = 'I encountered an error processing your request. Please try again.';
+            
+            if (errorMessage.includes('METHOD_NOT_ALLOWED')) {
+              displayMessage = 'Technical error: The server configuration has changed. Please refresh the page and try again.';
+              console.error('METHOD ERROR: Frontend sending wrong HTTP method to backend');
+              setError('Technical error: The server configuration has changed. Please refresh the page and try again.');
+            } else if (errorMessage === 'CREDITS_EXHAUSTED') {
+              displayMessage = 'You have used all your free searches. Please upgrade to continue.';
+              setError('You have used all your free searches. Please upgrade to continue.');
+            } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
+              displayMessage = 'Please sign in to continue.';
+              setError('Please sign in to continue.');
+            } else if (errorMessage === 'RATE_LIMITED') {
+              displayMessage = 'You are sending too many requests. Please wait a moment and try again.';
+              setError('You are sending too many requests. Please wait a moment and try again.');
+            } else if (errorMessage.includes('Stream request failed: 405')) {
+              displayMessage = 'Server configuration error. Please contact support.';
+              console.error('405 ERROR: Check that backend /api/ask-stream accepts POST');
+              setError('Server configuration error. Please contact support.');
+            } else {
+              setError('Failed to process your query. Please try again.');
+            }
+            
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: displayMessage,
+                    isStreaming: false,
+                  }
+                : msg
+            ));
+          } catch (innerError) {
+            console.error("Error in error handler:", innerError);
+          } finally {
+            setIsStreaming(false);
+            setIsLoading(false);
+            streamingMessageIdRef.current = null;
           }
-          
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: displayMessage,
-                  isStreaming: false,
-                }
-              : msg
-          ));
-          
-          setIsStreaming(false);
-          streamingMessageIdRef.current = null;
         }
       );
     } catch (error) {
       console.error('Failed to send query:', error);
       
-      // Handle specific error types
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage === 'CREDITS_EXHAUSTED') {
-        setError('You have used all your credits. Please upgrade to continue.');
-      } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
-        setError('Please sign in to continue.');
-      } else if (errorMessage === 'RATE_LIMITED') {
-        setError('You are sending too many requests. Please slow down.');
-      } else {
-        setError('Failed to process your query. Please try again.');
+      try {
+        // Handle specific error types
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage === 'CREDITS_EXHAUSTED') {
+          setError('You have used all your credits. Please upgrade to continue.');
+        } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
+          setError('Please sign in to continue.');
+        } else if (errorMessage === 'RATE_LIMITED') {
+          setError('You are sending too many requests. Please slow down.');
+        } else {
+          setError('Failed to process your query. Please try again.');
+        }
+        
+        // Remove the placeholder message
+        setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+      } catch (innerError) {
+        console.error("Error in catch handler:", innerError);
+      } finally {
+        setIsStreaming(false);
+        setIsLoading(false);
+        streamingMessageIdRef.current = null;
       }
-      
-      // Remove the placeholder message
-      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-      setIsStreaming(false);
-      streamingMessageIdRef.current = null;
     }
   };
   
@@ -279,7 +296,7 @@ function ChatInterface() {
         <div ref={messagesEndRef} />
       </div>
       
-      {/* Error Display */}
+      {/* Error Display - Inline non-blocking error */}
       {error && (
         <div className="mx-4 mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-start">
           <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
@@ -312,7 +329,7 @@ function ChatInterface() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about RIAs, venture capital activity, executives..."
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading || isStreaming || (!isSubscriber && credits <= 0)}
+            disabled={isStreaming || (!isSubscriber && credits <= 0)}
           />
           
           {isStreaming ? (
@@ -326,7 +343,7 @@ function ChatInterface() {
           ) : (
             <button
               type="submit"
-              disabled={!input.trim() || isLoading || (!isSubscriber && credits <= 0)}
+              disabled={!input.trim() || isStreaming || (!isSubscriber && credits <= 0)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-5 h-5" />
@@ -334,10 +351,14 @@ function ChatInterface() {
           )}
         </div>
         
-        {/* Credits indicator */}
+        {/* Credits indicator with fallback */}
         {!isSubscriber && (
           <p className="mt-2 text-sm text-gray-600">
-            {credits > 0 ? `${credits} credits remaining` : 'No credits remaining'}
+            {isLoadingCredits 
+              ? '— credits' 
+              : credits > 0 
+                ? `${credits} credits remaining` 
+                : 'No credits remaining'}
           </p>
         )}
       </form>
