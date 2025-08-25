@@ -137,7 +137,7 @@ export default function BrowsePage() {
   ];
 
   const handleSearch = async (page = 1) => {
-    if (credits <= 0 && !isSubscriber) {
+    if ((credits === 0 || credits === null) && !isSubscriber) {
       setError('You need credits or an active subscription to browse RIAs.');
       return;
     }
