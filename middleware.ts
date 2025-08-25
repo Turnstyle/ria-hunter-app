@@ -1,23 +1,20 @@
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 export function middleware(req: NextRequest) {
-  // Allow API routes to bypass middleware protection
-  if (req.nextUrl.pathname.startsWith('/api/')) {
-    // We don't block API routes here, authentication is handled within each API route
-    return NextResponse.next()
+  const res = NextResponse.next();
+  if (!req.cookies.has('uid')) {
+    res.cookies.set({
+      name: 'uid',
+      value: crypto.randomUUID(),          // web crypto is available in middleware
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,          // 1 year
+    });
   }
-  
-  // Rewrite missing favicon.ico to an existing SVG to avoid 404s in logs
-  if (req.nextUrl.pathname === '/favicon.ico') {
-    const url = new URL('/og-image.svg', req.url)
-    return NextResponse.rewrite(url)
-  }
-  
-  return NextResponse.next()
+  return res;
 }
 
-export const config = {
-  matcher: ['/((?!_next/static|_next/image).*)'],
-}
+export const config = { matcher: ['/:path*'] }; // run for all routes (incl. /_backend)
