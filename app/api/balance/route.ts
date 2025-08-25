@@ -2,8 +2,6 @@
 // New consolidated balance endpoint that replaces credits/balance
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 
 // Re-export the handler from the existing balance endpoint
 export async function GET(request: NextRequest) {
