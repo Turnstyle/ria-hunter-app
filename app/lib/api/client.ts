@@ -207,10 +207,11 @@ export class RIAHunterAPIClient {
     const normalizedRequest = this.normalizeAskRequest(request);
     
     // Make the API call with retry logic
-    const response = await this.fetchWithRetry(url, {
+          const response = await this.fetchWithRetry(url, {
       method: 'POST',
       headers: this.buildHeaders(),
       body: JSON.stringify(normalizedRequest),
+      cache: 'no-store',
     });
     
     if (!response.ok) {
@@ -291,7 +292,7 @@ export class RIAHunterAPIClient {
         body: JSON.stringify(normalizedRequest),
         signal: controller.signal,
         credentials: this.authToken ? 'include' : 'omit', // Only include credentials when authenticated
-        mode: 'cors', // Explicit CORS mode
+        cache: 'no-store', // Prevent buffering of streaming responses
       });
       
       if (DEBUG_MODE) {

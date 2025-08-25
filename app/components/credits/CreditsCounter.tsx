@@ -10,6 +10,7 @@ interface CreditsCounterProps {
 const CreditsCounter: React.FC<CreditsCounterProps> = ({ className = "" }) => {
 	const { credits, isSubscriber, isLoadingCredits } = useCredits();
 
+	// Show loading state or fallback
 	if (isLoadingCredits) {
 		return (
 			<div className={`animate-pulse ${className}`}>
@@ -44,7 +45,9 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ className = "" }) => {
 		);
 	}
 
-	const isLowCredits = credits <= 1;
+	// Consider displaying a fallback value if credits is undefined
+	const displayCredits = credits ?? "—";
+	const isLowCredits = typeof credits === 'number' && credits <= 1;
 
 	return (
 		<div className={`bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 ${className}`}>
@@ -70,7 +73,7 @@ const CreditsCounter: React.FC<CreditsCounterProps> = ({ className = "" }) => {
 				</div>
 				<div className="text-right">
 					<div className={`text-2xl font-bold ${isLowCredits ? 'text-orange-800' : 'text-blue-800'}`}>
-						{credits}
+						{displayCredits}
 					</div>
 					<div className={`text-xs ${isLowCredits ? 'text-orange-600' : 'text-blue-600'}`}>
 						Credits

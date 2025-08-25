@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/app/contexts/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface LoginButtonProps {
   className?: string;
@@ -11,6 +11,24 @@ interface LoginButtonProps {
 export default function LoginButton({ className = '', redirectTo }: LoginButtonProps) {
   const { signInWithGoogle, loading } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [showButton, setShowButton] = useState(false);
+  
+  // Check for required environment variables on the client side
+  useEffect(() => {
+    // Only enable the button if Supabase URL and key are available
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    // Explicit check for environment variables availability
+    // This ensures the Google SSO button is visible in production
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.warn('Supabase environment variables not found. SSO button will be hidden.');
+    }
+    
+    // Show button only if environment variables are available
+    // In production, these should always be set
+    setShowButton(!!supabaseUrl && !!supabaseAnonKey);
+  }, []);
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
@@ -27,6 +45,11 @@ export default function LoginButton({ className = '', redirectTo }: LoginButtonP
       setIsSigningIn(false);
     }
   };
+
+  // Don't render anything if required environment variables are missing
+  if (!showButton) {
+    return null;
+  }
 
   const isLoading = loading || isSigningIn;
 
