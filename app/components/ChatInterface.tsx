@@ -122,20 +122,45 @@ function ChatInterface() {
         },
         // On error
         (error: Error) => {
-          console.error('Streaming error:', error);
+          console.error('[ChatInterface] Streaming error:', error);
           
-          // Update message with error
+          // Parse error message for specific handling
+          const errorMessage = error.message;
+          
+          // Update message with appropriate error
+          let displayMessage = 'I encountered an error processing your request. Please try again.';
+          
+          if (errorMessage.includes('METHOD_NOT_ALLOWED')) {
+            displayMessage = 'Technical error: The server configuration has changed. Please refresh the page and try again.';
+            console.error('METHOD ERROR: Frontend sending wrong HTTP method to backend');
+            setError('Technical error: The server configuration has changed. Please refresh the page and try again.');
+          } else if (errorMessage === 'CREDITS_EXHAUSTED') {
+            displayMessage = 'You have used all your free searches. Please upgrade to continue.';
+            setError('You have used all your free searches. Please upgrade to continue.');
+          } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
+            displayMessage = 'Please sign in to continue.';
+            setError('Please sign in to continue.');
+          } else if (errorMessage === 'RATE_LIMITED') {
+            displayMessage = 'You are sending too many requests. Please wait a moment and try again.';
+            setError('You are sending too many requests. Please wait a moment and try again.');
+          } else if (errorMessage.includes('Stream request failed: 405')) {
+            displayMessage = 'Server configuration error. Please contact support.';
+            console.error('405 ERROR: Check that backend /api/ask-stream accepts POST');
+            setError('Server configuration error. Please contact support.');
+          } else {
+            setError('Failed to process your query. Please try again.');
+          }
+          
           setMessages(prev => prev.map(msg => 
             msg.id === assistantMessageId
               ? {
                   ...msg,
-                  content: 'I encountered an error processing your request. Please try again.',
+                  content: displayMessage,
                   isStreaming: false,
                 }
               : msg
           ));
           
-          setError(error instanceof Error ? error.message : String(error));
           setIsStreaming(false);
           streamingMessageIdRef.current = null;
         }

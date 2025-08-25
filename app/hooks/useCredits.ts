@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { getSubscriptionStatus } from '@/app/services/ria';
+import { apiClient } from '@/app/lib/api/client';
 
 interface UseCreditsReturn {
   credits: number;
@@ -95,10 +95,10 @@ export function useCredits(): UseCreditsReturn {
     
     try {
       if (!user && !session) {
-        // Anonymous users get 2 free credits
-        // But we still check with backend first
-        const status = await getSubscriptionStatus(null);
-        const credits = status.credits || 2;
+        // Anonymous users get credits from backend
+        // No hardcoded fallback values
+        const status = await apiClient.getSubscriptionStatus();
+        const credits = status.credits || 0;
         const isSubscriber = false;
         
         setCredits(credits);
@@ -106,7 +106,7 @@ export function useCredits(): UseCreditsReturn {
         storeCredits(credits, isSubscriber);
       } else {
         // Authenticated users - get actual credit count
-        const status = await getSubscriptionStatus(session);
+        const status = await apiClient.getSubscriptionStatus();
         const credits = status.credits;
         const isSubscriber = status.isSubscriber;
         
@@ -123,8 +123,9 @@ export function useCredits(): UseCreditsReturn {
         setCredits(stored.credits);
         setIsSubscriber(stored.isSubscriber);
       } else {
-        // Final fallback values
-        const fallbackCredits = !user ? 2 : 0;
+        // Final fallback values - always use 0 to be safe
+        // This prevents users from using credits if backend is down
+        const fallbackCredits = 0;
         const fallbackSubscriber = false;
         
         setCredits(fallbackCredits);

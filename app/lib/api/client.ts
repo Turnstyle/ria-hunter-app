@@ -103,8 +103,8 @@ export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
 
 // Configuration object - single source of truth for API settings
 const API_CONFIG = {
-  // Backend URL - uses environment variable or same-origin
-  baseUrl: process.env.NEXT_PUBLIC_RIA_HUNTER_BACKEND_URL || '',
+  // Use environment variable for backend URL
+  baseUrl: process.env.NEXT_PUBLIC_RIA_HUNTER_BACKEND_URL || 'https://api.ria-hunter.app',
   
   // CRITICAL: These are the ONLY endpoints we should call
   // DO NOT use /api/v1/ria/query - it returns raw data without LLM processing
@@ -124,8 +124,12 @@ const API_CONFIG = {
   },
   
   // Request timeout
-  timeoutMs: 30000,
+  timeoutMs: 60000, // 60 seconds for streaming
 };
+
+// Debug mode flag
+const DEBUG_MODE = process.env.NODE_ENV === 'development' || 
+                 process.env.NEXT_PUBLIC_DEBUG === 'true';
 
 // Main API client class
 export class RIAHunterAPIClient {
@@ -225,26 +229,63 @@ export class RIAHunterAPIClient {
     onComplete: (response: AskResponse) => void,
     onError: (error: Error) => void
   ): Promise<AbortController> {
+    // Build absolute URL
     const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.askStream}`;
     const controller = new AbortController();
+    
+    if (DEBUG_MODE) {
+      console.log('[askStream] Request URL:', url);
+      console.log('[askStream] Request method: POST');
+      console.log('[askStream] Request body:', { query: request.query });
+    }
     
     try {
       const normalizedRequest = this.normalizeAskRequest(request);
       
       const response = await fetch(url, {
-        method: 'POST',
+        method: 'POST', // MUST BE POST
         headers: {
-          ...this.buildHeaders(),
+          'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
+          'X-Request-Id': `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          ...(this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {})
         },
         body: JSON.stringify(normalizedRequest),
         signal: controller.signal,
+        credentials: 'include', // Include cookies for anonymous tracking
+        mode: 'cors', // Explicit CORS mode
       });
       
-      if (!response.ok) {
-        throw new Error(`Stream request failed: ${response.status}`);
+      if (DEBUG_MODE) {
+        console.log('[askStream] Response status:', response.status);
+        console.log('[askStream] Response headers:', Object.fromEntries(response.headers.entries()));
       }
       
+      if (!response.ok) {
+        // Log detailed error information
+        const errorText = await response.text();
+        console.error('[askStream] Error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        
+        // Parse error based on status code
+        if (response.status === 405) {
+          throw new Error('METHOD_NOT_ALLOWED: Backend expects POST but may be receiving GET');
+        } else if (response.status === 402) {
+          throw new Error('CREDITS_EXHAUSTED');
+        } else if (response.status === 401) {
+          throw new Error('AUTHENTICATION_REQUIRED');
+        } else if (response.status === 429) {
+          throw new Error('RATE_LIMITED');
+        } else {
+          throw new Error(`Stream request failed: ${response.status} ${errorText}`);
+        }
+      }
+      
+      // Process SSE stream
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error('No response body reader available');
@@ -257,6 +298,7 @@ export class RIAHunterAPIClient {
         const { done, value } = await reader.read();
         
         if (done) {
+          if (DEBUG_MODE) console.log('[askStream] Stream completed');
           break;
         }
         
@@ -271,7 +313,7 @@ export class RIAHunterAPIClient {
             const data = line.slice(6);
             
             if (data === '[DONE]') {
-              // Stream completed
+              if (DEBUG_MODE) console.log('[askStream] Received [DONE] marker');
               continue;
             }
             
@@ -285,13 +327,28 @@ export class RIAHunterAPIClient {
               if (parsed.complete) {
                 onComplete(parsed);
               }
+              
+              // Update credits from response metadata
+              if (parsed.metadata?.remaining !== undefined) {
+                if (DEBUG_MODE) console.log('[askStream] Credits remaining:', parsed.metadata.remaining);
+              }
             } catch (e) {
-              console.error('Failed to parse SSE data:', e);
+              console.error('[askStream] Failed to parse SSE data:', e, 'Raw data:', data);
+            }
+          } else if (line.startsWith('event: ')) {
+            const event = line.slice(7);
+            if (DEBUG_MODE) console.log('[askStream] Received event:', event);
+            
+            if (event === 'error') {
+              // Next data line should contain error details
+              continue;
             }
           }
         }
       }
     } catch (error) {
+      console.error('[askStream] Stream error:', error);
+      
       if (error instanceof Error && error.name !== 'AbortError') {
         onError(error);
       } else if (!(error instanceof Error)) {
@@ -337,12 +394,18 @@ export class RIAHunterAPIClient {
   }> {
     const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.subscriptionStatus}`;
     
+    if (DEBUG_MODE) {
+      console.log('[getSubscriptionStatus] Request URL:', url);
+    }
+    
     const response = await this.fetchWithRetry(url, {
       method: 'GET',
       headers: this.buildHeaders(),
+      credentials: 'include', // Include cookies for anonymous tracking
     });
     
     if (!response.ok) {
+      console.error('[getSubscriptionStatus] Error:', response.status, response.statusText);
       // Return default values if status check fails
       return {
         credits: 0,
@@ -352,6 +415,10 @@ export class RIAHunterAPIClient {
     }
     
     const data = await response.json();
+    
+    if (DEBUG_MODE) {
+      console.log('[getSubscriptionStatus] Response:', data);
+    }
     
     return {
       credits: data.credits || 0,
