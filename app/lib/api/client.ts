@@ -104,7 +104,7 @@ export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
 // Configuration object - single source of truth for API settings
 const API_CONFIG = {
   // Use environment variable for backend URL
-  baseUrl: process.env.NEXT_PUBLIC_RIA_HUNTER_BACKEND_URL || 'https://api.ria-hunter.app',
+  baseUrl: process.env.NEXT_PUBLIC_RIA_HUNTER_BACKEND_URL || 'https://ria-hunter.vercel.app',
   
   // CRITICAL: These are the ONLY endpoints we should call
   // DO NOT use /api/v1/ria/query - it returns raw data without LLM processing
