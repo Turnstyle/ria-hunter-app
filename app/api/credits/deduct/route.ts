@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getServerSupabaseClient } from '@/app/lib/supabase-server';
 import { 
   deductCredits,
@@ -32,8 +31,8 @@ export async function POST(request: NextRequest) {
     userId = session.user.id;
   } else {
     // Anonymous user - use stable ID from cookie
-    const cookieStore = cookies();
-    const anonId = cookieStore.get('ria-hunter-anon-id')?.value;
+    const cookiesList = request.cookies;
+    const anonId = cookiesList.get('ria-hunter-anon-id')?.value;
     
     if (!anonId) {
       return NextResponse.json(

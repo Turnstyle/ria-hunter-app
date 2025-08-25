@@ -25,20 +25,19 @@ export async function GET(request: NextRequest) {
     userId = session.user.id;
   } else {
     // Anonymous user - use stable ID from cookie
-    const cookieStore = cookies();
-    let anonId = cookieStore.get('ria-hunter-anon-id')?.value;
+    const cookiesList = request.cookies;
+    const anonId = cookiesList.get('ria-hunter-anon-id')?.value;
     
     if (!anonId) {
       // Create a new anonymous ID
-      anonId = `anon-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-      // Set cookie for 30 days
-      // Note: We can't set cookies directly in route handlers in Next.js 14+
-      // Instead, return the cookie in the response
+      const newAnonId = `anon-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      // We'll set the cookie in the response
+      userId = generateStableAnonId(newAnonId);
       isNewUser = true;
+    } else {
+      // Generate stable ID from the cookie value
+      userId = generateStableAnonId(anonId);
     }
-    
-    // Generate stable ID from the cookie value
-    userId = generateStableAnonId(anonId);
   }
   
   try {
