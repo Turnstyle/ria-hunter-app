@@ -42,7 +42,7 @@ export function HeaderCredits() {
     <div className={`flex items-center space-x-2 ${getCreditsColor()}`}>
       <CreditCard className="w-5 h-5" />
       <span className="text-sm font-semibold">
-        {credits === null ? '—' : `${credits} ${credits === 1 ? 'Credit' : 'Credits'} Remaining`}
+        {credits === null ? '— Credits' : `${credits} ${credits === 1 ? 'Credit' : 'Credits'} Remaining`}
       </span>
       
       {credits !== null && credits <= 3 && (

@@ -434,38 +434,63 @@ export class RIAHunterAPIClient {
       console.log('[getCreditsBalance] Request URL:', url);
     }
     
-    const response = await this.fetchWithRetry(url, {
-      method: 'GET',
-      headers: this.buildHeaders(),
-      credentials: this.authToken ? 'include' : 'omit',
-      cache: 'no-store',
-    });
-    
-    if (!response.ok) {
-      console.error('[getCreditsBalance] Error:', response.status, response.statusText);
-      // Return null values if balance check fails
+    try {
+      const response = await this.fetchWithRetry(url, {
+        method: 'GET',
+        headers: this.buildHeaders(),
+        credentials: this.authToken ? 'include' : 'omit',
+        cache: 'no-store',
+      });
+      
+      // Treat ANY non-200 as credits=null
+      if (!response.ok) {
+        console.error('[getCreditsBalance] Error:', response.status, response.statusText);
+        return {
+          credits: null,
+          isSubscriber: false
+        };
+      }
+      
+      const data = await response.json();
+      
+      // If response JSON has {balance:null} → display '—' and allow input
+      if (data?.balance === null) {
+        return {
+          credits: null,
+          isSubscriber: false
+        };
+      }
+      
+      const parsed = CreditBalanceResponseSchema.safeParse(data);
+      
+      if (!parsed.success) {
+        console.error('Invalid credits balance response:', parsed.error);
+        return {
+          credits: null,
+          isSubscriber: false
+        };
+      }
+      
+      // If the parsed data has null credits, ensure we return null (not 0)
+      if (parsed.data.credits === null) {
+        return {
+          credits: null,
+          isSubscriber: parsed.data.isSubscriber
+        };
+      }
+      
+      if (DEBUG_MODE) {
+        console.log('[getCreditsBalance] Response:', parsed.data);
+      }
+      
+      return parsed.data;
+    } catch (error) {
+      console.error('[getCreditsBalance] Error:', error);
       return {
         credits: null,
         isSubscriber: false
       };
     }
-    
-    const data = await response.json();
-    const parsed = CreditBalanceResponseSchema.safeParse(data);
-    
-    if (!parsed.success) {
-      console.error('Invalid credits balance response:', parsed.error);
-      return {
-        credits: null,
-        isSubscriber: false
-      };
-    }
-    
-    if (DEBUG_MODE) {
-      console.log('[getCreditsBalance] Response:', parsed.data);
-    }
-    
-    return parsed.data;
   }
   
   // Get credit debug information
