@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabaseClient } from '@/app/lib/supabase-server';
 import { 
   getCreditsDebugInfo,
-  generateStableAnonId
+  generateStableAnonId,
+  CreditsSource
 } from '@/app/lib/credits-ledger';
 
 /**
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
     
     if (action === 'add') {
       newBalance = await addCredits(targetUser, amount, {
-        source: 'admin_adjust',
+        source: CreditsSource.ADMIN_ADJUST,
         refType: 'admin_adjustment',
         refId: idempotencyKey,
         idempotencyKey,
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       newBalance = await deductCredits(targetUser, amount, {
-        source: 'admin_adjust',
+        source: CreditsSource.ADMIN_ADJUST,
         refType: 'admin_adjustment',
         refId: idempotencyKey,
         idempotencyKey,

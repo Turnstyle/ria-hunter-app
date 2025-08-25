@@ -3,7 +3,8 @@ import { getServerSupabaseClient } from '@/app/lib/supabase-server';
 import { 
   deductCredits,
   getCreditsStatus,
-  generateStableAnonId
+  generateStableAnonId,
+  CreditsSource
 } from '@/app/lib/credits-ledger';
 
 /**
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
     
     // Deduct credits
     const newBalance = await deductCredits(userId, amount, {
-      source: 'usage',
+      source: CreditsSource.USAGE,
       refType,
       refId,
       idempotencyKey: idempotencyKey || `${refType}_${refId}_${Date.now()}`,
