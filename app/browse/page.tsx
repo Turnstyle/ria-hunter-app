@@ -398,7 +398,7 @@ export default function BrowsePage() {
       )}
 
       {/* Results Section */}
-      {hasSearched && (credits > 0 || isSubscriber) && (
+      {hasSearched && ((credits !== null && credits > 0) || isSubscriber) && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-secondary-800">
