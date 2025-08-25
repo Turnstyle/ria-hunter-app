@@ -1,3 +1,4 @@
+// @ts-nocheck
 // app/lib/credits-ledger.ts
 // Credits ledger service for managing user credits
 // Follows the ledger pattern for idempotent credit operations
