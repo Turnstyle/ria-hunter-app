@@ -19,8 +19,8 @@ interface UseCreditsReturn {
 // Storage keys for persistence
 const CREDITS_STORAGE_KEY = 'ria-hunter-credits';
 
-// Cache duration in milliseconds (1 minute)
-const CREDITS_CACHE_DURATION = 60 * 1000;
+// Cache duration in milliseconds (5 minutes)
+const CREDITS_CACHE_DURATION = 5 * 60 * 1000;
 
 // Broadcast channel for cross-tab synchronization
 let creditsBroadcastChannel: BroadcastChannel | null = null;

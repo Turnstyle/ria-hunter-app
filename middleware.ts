@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export function middleware(req: NextRequest) {
   const res = NextResponse.next();
-  if (!req.cookies.has('uid')) {
+  if (!req.cookies.get('uid')) {
     res.cookies.set({
       name: 'uid',
       value: crypto.randomUUID(),
@@ -18,4 +18,6 @@ export function middleware(req: NextRequest) {
   return res;
 }
 
-export const config = { matcher: ['/:path*'] };
+export const config = {
+  matcher: ['/((?!_next|_vercel|.*\\.(?:png|jpg|jpeg|svg|ico|css|js|map|txt|webp|woff2?)$).*)'],
+};

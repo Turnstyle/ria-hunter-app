@@ -45,7 +45,7 @@ export function HeaderCredits() {
         {credits === null ? '— Credits' : `${credits} ${credits === 1 ? 'Credit' : 'Credits'} Remaining`}
       </span>
       
-      {credits !== null && credits <= 3 && (
+      {(credits === null || credits <= 3) && (
         <a
           href="/subscription"
           className="text-xs underline hover:no-underline"

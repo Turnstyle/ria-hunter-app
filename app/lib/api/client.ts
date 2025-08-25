@@ -343,46 +343,40 @@ export class RIAHunterAPIClient {
         
         buffer += decoder.decode(value, { stream: true });
         
-        // Process complete SSE messages
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              if (DEBUG_MODE) console.log('[askStream] Received [DONE] marker');
-              continue;
-            }
-            
+        // Process complete SSE events separated by \n\n
+        for (;;) {
+          const idx = buffer.indexOf('\n\n');
+          if (idx === -1) break;
+          const chunk = buffer.slice(0, idx);  // one event
+          buffer = buffer.slice(idx + 2);
+
+          // Handle possible multi-line SSE event: use last 'data:' line
+          const lines = chunk.split('\n').filter(l => l.startsWith('data:'));
+          if (lines.length === 0) continue;
+          const raw = lines.map(l => l.slice(5).trim()).join('\n'); // support multi-line
+
+          let token = '';
+          if (raw && raw[0] === '{' && raw[raw.length - 1] === '}') {
             try {
-              const parsed = JSON.parse(data);
+              const obj = JSON.parse(raw);
+              token = obj.delta ?? obj.content ?? obj.text ?? obj.token ?? obj.message ?? '';
               
-              if (parsed.token) {
-                onToken(parsed.token);
-              }
-              
-              if (parsed.complete) {
-                onComplete(parsed);
+              if (obj.complete) {
+                onComplete(obj);
               }
               
               // Update credits from response metadata
-              if (parsed.metadata?.remaining !== undefined) {
-                if (DEBUG_MODE) console.log('[askStream] Credits remaining:', parsed.metadata.remaining);
+              if (obj.metadata?.remaining !== undefined) {
+                if (DEBUG_MODE) console.log('[askStream] Credits remaining:', obj.metadata.remaining);
               }
-            } catch (e) {
-              console.error('[askStream] Failed to parse SSE data:', e, 'Raw data:', data);
+            } catch {
+              token = raw; // fallback to raw text
             }
-          } else if (line.startsWith('event: ')) {
-            const event = line.slice(7);
-            if (DEBUG_MODE) console.log('[askStream] Received event:', event);
-            
-            if (event === 'error') {
-              // Next data line should contain error details
-              continue;
-            }
+          } else {
+            token = raw; // plain text frames
           }
+
+          if (token) onToken(token); // your streaming callback
         }
       }
     } catch (error) {
