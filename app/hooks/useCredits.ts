@@ -35,7 +35,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Helper to store credits in localStorage
-const storeCredits = (credits: number, isSubscriber: boolean) => {
+const storeCredits = (credits: number | null, isSubscriber: boolean) => {
   if (typeof window === 'undefined') return;
   
   try {
@@ -142,7 +142,7 @@ export function useCredits(): UseCreditsReturn {
   // Update credits from API response
   // CRITICAL: This is what keeps the UI in sync with backend
   const updateFromResponse = useCallback((response: any) => {
-    if (response?.metadata?.remaining !== undefined && response.metadata.remaining !== null) {
+    if (response?.metadata?.remaining !== undefined) {
       const newCredits = response.metadata.remaining;
       const newIsSubscriber = response.metadata.isSubscriber || false;
       
