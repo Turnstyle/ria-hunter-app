@@ -257,7 +257,7 @@ export default function SearchPage() {
           {/* Credits Display */}
           {!isSubscriber && (
             <span className="text-sm text-gray-600">
-              {credits > 0 ? `${credits} credits remaining` : 'No credits remaining'}
+              {credits === null ? '— credits' : credits > 0 ? `${credits} credits remaining` : 'No credits remaining'}
             </span>
           )}
         </div>
