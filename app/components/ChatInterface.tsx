@@ -21,7 +21,7 @@ interface Message {
 function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -44,7 +44,7 @@ function ChatInterface() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!input.trim() || isLoading || isStreaming) {
+    if (!input.trim() || isSubmitting || isStreaming) {
       return;
     }
     
@@ -80,7 +80,7 @@ function ChatInterface() {
     
     try {
       setIsStreaming(true);
-      setIsLoading(true);
+      setIsSubmitting(true);
       
       // Set auth token
       if (session?.access_token) {
@@ -125,7 +125,7 @@ function ChatInterface() {
             console.error("Error in completion handler:", innerError);
           } finally {
             setIsStreaming(false);
-            setIsLoading(false);
+            setIsSubmitting(false);
             streamingMessageIdRef.current = null;
           }
         },
@@ -174,7 +174,7 @@ function ChatInterface() {
             console.error("Error in error handler:", innerError);
           } finally {
             setIsStreaming(false);
-            setIsLoading(false);
+            setIsSubmitting(false);
             streamingMessageIdRef.current = null;
           }
         }
@@ -332,7 +332,7 @@ function ChatInterface() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about RIAs, venture capital activity, executives..."
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isStreaming || isLoading}
+            disabled={isStreaming || isSubmitting}
           />
           
           {isStreaming ? (
@@ -346,7 +346,7 @@ function ChatInterface() {
           ) : (
             <button
               type="submit"
-              disabled={!input.trim() || isStreaming || isLoading}
+              disabled={!input.trim() || isStreaming || isSubmitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-5 h-5" />

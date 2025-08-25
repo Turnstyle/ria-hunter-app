@@ -1,21 +1,21 @@
-import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export function middleware(req: NextRequest) {
   const res = NextResponse.next();
   if (!req.cookies.has('uid')) {
     res.cookies.set({
       name: 'uid',
-      value: crypto.randomUUID(),          // web crypto is available in middleware
+      value: crypto.randomUUID(),
       httpOnly: true,
       secure: true,
       sameSite: 'lax',
       path: '/',
-      domain: '.ria-hunter.app',
-      maxAge: 60 * 60 * 24 * 365,          // 1 year
+      domain: '.ria-hunter.app',   // critical
+      maxAge: 60 * 60 * 24 * 365,
     });
   }
   return res;
 }
 
-export const config = { matcher: ['/:path*'] }; // run for all routes (incl. /_backend)
+export const config = { matcher: ['/:path*'] };

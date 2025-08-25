@@ -39,7 +39,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <AuthProvider>
             <Header />
-            <main className="flex-1 min-h-screen pt-2">
+            <main className="flex-1 min-h-screen pt-16">
               {children}
             </main>
             <Analytics />
