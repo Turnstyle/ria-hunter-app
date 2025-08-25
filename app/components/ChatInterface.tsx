@@ -49,7 +49,7 @@ function ChatInterface() {
     }
     
     // Check credits - only block if we know for sure credits are zero
-    // Note: If credits are null, allow the request to proceed
+    // Note: If credits are null or undefined, allow the request to proceed
     if (!isSubscriber && credits === 0) {
       setError('You have no credits remaining. Please upgrade your plan.');
       return;

@@ -103,12 +103,22 @@ export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
 
 // Schema for credit balance response
 export const CreditBalanceResponseSchema = z.object({
-  credits: z.number().nullable(),
+  credits: z.number().nullable().optional(),
+  balance: z.number().nullable().optional(),
   isSubscriber: z.boolean(),
-  userId: z.string().optional()
+  userId: z.string().optional(),
+  source: z.enum(['cookie', 'db']).optional()
 });
 
 export type CreditBalanceResponse = z.infer<typeof CreditBalanceResponseSchema>;
+
+// Helper function to convert any balance response to a standard format
+export function toCredits(resp: CreditBalanceResponse): { credits: number; isSubscriber: boolean } {
+  const n = typeof resp.credits === 'number' ? resp.credits
+          : typeof resp.balance === 'number' ? resp.balance
+          : 0;
+  return { credits: Math.max(0, n), isSubscriber: !!resp.isSubscriber };
+}
 
 // Schema for credit debug response
 export const CreditDebugResponseSchema = z.object({
@@ -465,19 +475,29 @@ export class RIAHunterAPIClient {
         };
       }
       
-      // If the parsed data has null credits, ensure we return null (not 0)
-      if (parsed.data.credits === null) {
+      // If the parsed data has both null credits and null balance, ensure we return null (not 0)
+      if (parsed.data.credits === null && parsed.data.balance === null) {
         return {
           credits: null,
           isSubscriber: parsed.data.isSubscriber
         };
       }
       
+      // Convert to standard format with toCredits helper
+      const standardized = toCredits(parsed.data);
+      
+      // Return the standardized credits but keep all original fields for reference
+      const result = {
+        ...parsed.data,
+        credits: standardized.credits,
+        isSubscriber: standardized.isSubscriber
+      };
+      
       if (DEBUG_MODE) {
-        console.log('[getCreditsBalance] Response:', parsed.data);
+        console.log('[getCreditsBalance] Response:', result);
       }
       
-      return parsed.data;
+      return result;
     } catch (error) {
       console.error('[getCreditsBalance] Error:', error);
       return {

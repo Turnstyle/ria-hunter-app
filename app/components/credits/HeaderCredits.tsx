@@ -24,7 +24,7 @@ export function HeaderCredits() {
     return (
       <div className="flex items-center space-x-2 text-green-600">
         <Infinity className="w-5 h-5" />
-        <span className="text-sm font-semibold">Pro Plan (Unlimited)</span>
+        <span className="text-sm font-semibold">Pro</span>
       </div>
     );
   }
@@ -45,7 +45,8 @@ export function HeaderCredits() {
         {credits === null ? '— Credits' : `${credits} ${credits === 1 ? 'Credit' : 'Credits'} Remaining`}
       </span>
       
-      {(credits === null || credits <= 3) && (
+      {/* Only show Upgrade link for non-subscribers */}
+      {!isSubscriber && (
         <a
           href="/subscription"
           className="text-xs underline hover:no-underline"

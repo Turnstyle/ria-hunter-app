@@ -63,7 +63,7 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
   }
 
   // Determine display status
-  const displayStatus = isSubscriber ? 'Pro Subscriber' : 'Free Plan';
+  const displayStatus = isSubscriber ? 'Pro Plan' : 'Free Plan';
 
   // Calculate remaining time if on trial
   const isOnTrial = subscriptionDetails?.subscription?.trial_end && 
@@ -105,7 +105,13 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
         
         {!isSubscriber && (
           <div className="text-sm text-secondary-600 mt-1 ml-5">
-            Available credits: <span className="font-medium">{credits}</span>
+            Available credits: <span className="font-medium">{credits ?? '—'}</span>
+          </div>
+        )}
+        
+        {isSubscriber && (
+          <div className="text-sm text-secondary-600 mt-1 ml-5">
+            Managed via Stripe
           </div>
         )}
       </div>
@@ -118,7 +124,7 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
               <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
               </svg>
-              {isSubscriber ? 'Unlimited searches' : `${credits} searches remaining`}
+              {isSubscriber ? 'Unlimited searches' : `${credits ?? '—'} searches remaining`}
             </li>
             <li className="flex items-start">
               <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
