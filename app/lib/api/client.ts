@@ -447,11 +447,11 @@ export class RIAHunterAPIClient {
       
       const data = await response.json();
       
-      // If response JSON has {balance:null} → display '—' and allow input
-      if (data?.balance === null) {
+      // If response JSON has {credits:null} or {balance:null} → display '—' and allow input
+      if (data?.credits === null || data?.balance === null) {
         return {
           credits: null,
-          isSubscriber: false
+          isSubscriber: data?.isSubscriber || false
         };
       }
       
