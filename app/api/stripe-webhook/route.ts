@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
               const idempotencyKey = `${event.id}_${refType}_${refId}`;
               
               await addCredits(userId, creditsToAdd, {
-                source: 'subscription' as CreditsSource,
+                source: CreditsSource.SUBSCRIPTION,
                 refType,
                 refId,
                 idempotencyKey,
@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
             if (creditsToAdd > 0) {
               // Add one-time purchase credits
               await addCredits(userId, creditsToAdd, {
-                source: 'coupon' as CreditsSource, // Using coupon as the source for one-time purchases
+                source: CreditsSource.COUPON, // Using coupon as the source for one-time purchases
                 refType: 'checkout_credits',
                 refId: session.id,
                 idempotencyKey: `checkout_${session.id}`,
@@ -322,13 +322,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Webhook processing error:', error);
     await recordStripeEvent(
       event?.id || `error_${Date.now()}`, 
       event?.type || 'processing_error',
       false,
-      error.message
+      error.message || 'Unknown error'
     );
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }

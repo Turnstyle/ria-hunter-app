@@ -2,7 +2,7 @@
 // Credits ledger service for managing user credits
 // Follows the ledger pattern for idempotent credit operations
 
-import { PrismaClient, CreditsSource } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import { getServerSupabaseClient } from './supabase-server';
@@ -10,6 +10,16 @@ import { randomBytes } from 'crypto';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
+
+// Export CreditsSource enum for use in other files
+export enum CreditsSource {
+  USAGE = 'usage',
+  SUBSCRIPTION = 'subscription',
+  COUPON = 'coupon',
+  ADMIN_ADJUST = 'admin_adjust',
+  REFUND = 'refund',
+  MIGRATION = 'migration'
+}
 
 /**
  * Interface for credit operation options
@@ -101,7 +111,7 @@ export async function addCredits(
         id: uuidv4(),
         userId,
         delta: amount,
-        source: options.source,
+        source: options.source.toString(),
         refType: options.refType,
         refId: options.refId,
         idempotencyKey,
@@ -149,7 +159,7 @@ export async function deductCredits(
     const currentBalance = await getBalance(userId);
     
     // Only allow negative balance for admin adjustments
-    if (currentBalance < amount && options.source !== 'admin_adjust') {
+    if (currentBalance < amount && options.source !== CreditsSource.ADMIN_ADJUST) {
       throw new Error(`Insufficient credits: current=${currentBalance}, requested=${amount}`);
     }
 
@@ -159,7 +169,7 @@ export async function deductCredits(
         id: uuidv4(),
         userId,
         delta: -amount, // Negative amount for deduction
-        source: options.source,
+        source: options.source.toString(),
         refType: options.refType,
         refId: options.refId,
         idempotencyKey,
@@ -361,7 +371,7 @@ export async function initializeUserCredits(
   initialCredits: number = 5
 ): Promise<number> {
   const options: CreditOperationOptions = {
-    source: 'migration',
+    source: CreditsSource.MIGRATION,
     refType: 'user_initialization',
     refId: userId,
     idempotencyKey: `init_${userId}`,
