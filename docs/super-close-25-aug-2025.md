@@ -42,9 +42,18 @@ All QA checklist items have been implemented and should behave as expected:
 - Logged-in subscriber → header shows "Pro — Unlimited" and a "Manage" link; no "Upgrade"
 - Usage & Billing reflects the same states
 
+### Deployment
+
+The changes have been successfully deployed to production:
+- Commit: `feat(ui-billing): render Pro/Unlimited from balance, add Manage link to Stripe portal, keep legacy balance alias`
+- Production URL: https://ria-hunter-8ucejtqon-turnerpeters-6002s-projects.vercel.app
+- Deployment completed successfully with no build errors
+
 ## Potential Future Improvements
 
 1. **Error Handling**: Add more robust error handling and user feedback for the Stripe portal redirects
 2. **Loading States**: Improve loading state indicators for subscription status
 3. **Cache Management**: Consider finer-grained cache invalidation when subscription status changes
+4. **API Endpoint Standardization**: Consider standardizing the portal session creation under `/api/stripe/portal` instead of having two separate endpoints (`/api/create-portal-session` and `/api/stripe/portal`)
+5. **Authentication Resilience**: Add more robust fallback mechanisms for authentication methods in the portal endpoint
 
