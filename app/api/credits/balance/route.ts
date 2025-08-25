@@ -32,12 +32,8 @@ export async function GET(request: NextRequest) {
       // Create a new anonymous ID
       anonId = `anon-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
       // Set cookie for 30 days
-      cookieStore.set('ria-hunter-anon-id', anonId, { 
-        expires: Date.now() + 30 * 24 * 60 * 60 * 1000,
-        path: '/',
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production'
-      });
+      // Note: We can't set cookies directly in route handlers in Next.js 14+
+      // Instead, return the cookie in the response
       isNewUser = true;
     }
     
@@ -54,11 +50,23 @@ export async function GET(request: NextRequest) {
     // Get current balance and subscription status
     const { balance, isSubscriber } = await getCreditsStatus(userId);
     
-    return NextResponse.json({
+    const response = NextResponse.json({
       credits: balance,
       isSubscriber,
       userId: session?.user ? userId : undefined // Only return userId for authenticated users
     });
+    
+    // Set cookie for anonymous users if needed
+    if (!session?.user && isNewUser) {
+      response.cookies.set('ria-hunter-anon-id', userId, {
+        expires: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        path: '/',
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production'
+      });
+    }
+    
+    return response;
   } catch (error) {
     console.error('Error getting credit balance:', error);
     return NextResponse.json(
