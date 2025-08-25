@@ -367,7 +367,7 @@ export default function BrowsePage() {
       )}
 
       {/* Upgrade Prompt for Non-Subscribers with no credits */}
-      {!isSubscriber && credits <= 0 && (
+      {!isSubscriber && credits !== null && credits <= 0 && (
         <div className="bg-gradient-to-r from-primary-50 to-secondary-50 border border-primary-200 rounded-lg p-6 mb-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="mb-4 md:mb-0 md:mr-6">
