@@ -5,9 +5,11 @@
 
 import { useCredits } from '@/app/hooks/useCredits';
 import { CreditCard, Infinity } from 'lucide-react';
+import { useState } from 'react';
 
 export function HeaderCredits() {
   const { credits, isSubscriber, isLoadingCredits } = useCredits();
+  const [isManaging, setIsManaging] = useState(false);
   
   // Don't show anything while loading
   if (isLoadingCredits) {
@@ -19,12 +21,52 @@ export function HeaderCredits() {
     );
   }
   
+  const handleManageClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsManaging(true);
+    
+    try {
+      const response = await fetch('/_backend/api/stripe/portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create portal session');
+      }
+      
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error('No portal URL returned');
+      }
+    } catch (error) {
+      console.error('Error opening Stripe portal:', error);
+      setIsManaging(false);
+    }
+  };
+  
   // Subscriber display
   if (isSubscriber) {
     return (
-      <div className="flex items-center space-x-2 text-green-600">
-        <Infinity className="w-5 h-5" />
-        <span className="text-sm font-semibold">Pro</span>
+      <div className="flex items-center space-x-2">
+        <div className="flex items-center text-green-600">
+          <Infinity className="w-5 h-5" />
+          <span className="text-sm font-semibold ml-1">Pro — Unlimited</span>
+        </div>
+        
+        <a
+          href="#"
+          onClick={handleManageClick}
+          className="text-xs underline hover:no-underline ml-2"
+          aria-disabled={isManaging}
+        >
+          {isManaging ? 'Opening...' : 'Manage'}
+        </a>
       </div>
     );
   }

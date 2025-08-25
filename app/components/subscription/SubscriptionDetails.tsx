@@ -166,15 +166,16 @@ function ManageBillingButton() {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleClick = async () => {
-    if (!session?.access_token) return
     setIsLoading(true)
     try {
-      const resp = await fetch('/api/create-portal-session', {
+      const resp = await fetch('/_backend/api/stripe/portal', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
         },
+        credentials: 'include',
       })
+      
       const data = await resp.json()
       if (!resp.ok || !data?.url) {
         throw new Error(data?.error || 'Failed to open billing portal')
@@ -194,7 +195,7 @@ function ManageBillingButton() {
       disabled={isLoading}
       className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 transition-colors"
     >
-      {isLoading ? 'Opening…' : 'Manage Billing'}
+      {isLoading ? 'Opening…' : 'Manage Subscription'}
     </button>
   )
 }
