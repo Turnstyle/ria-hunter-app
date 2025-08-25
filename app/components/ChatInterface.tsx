@@ -48,8 +48,8 @@ function ChatInterface() {
       return;
     }
     
-    // Check credits
-    if (!isSubscriber && (credits === 0 || credits === null)) {
+    // Check credits - only block if we know for sure credits are zero
+    if (!isSubscriber && credits === 0) {
       setError('You have no credits remaining. Please upgrade your plan.');
       return;
     }
@@ -234,7 +234,6 @@ function ChatInterface() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 mt-8">
-            <p className="text-lg font-semibold mb-2">Welcome to RIA Hunter</p>
             <p>Ask me anything about registered investment advisors.</p>
             <p className="text-sm mt-4">
               Example: "Show me the top 10 RIAs in Missouri with venture capital activity"
@@ -357,11 +356,11 @@ function ChatInterface() {
         {/* Credits indicator with fallback */}
         {!isSubscriber && (
           <p className="mt-2 text-sm text-gray-600">
-            {isLoadingCredits || credits === null
-              ? '— credits' 
+            {credits === null
+              ? '—' 
               : credits > 0 
                 ? `${credits} credits remaining` 
-                : credits === 0 ? 'No credits remaining' : '— credits'}
+                : '0 Credits Remaining'}
           </p>
         )}
       </form>

@@ -12,7 +12,7 @@ export function middleware(req: NextRequest) {
       sameSite: 'lax',
       path: '/',
       domain: '.ria-hunter.app',   // critical
-      maxAge: 60 * 60 * 24 * 365,
+      maxAge: 60 * 60 * 24 * 365,  // 1 year in seconds
     });
   }
   return res;

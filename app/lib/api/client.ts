@@ -405,6 +405,7 @@ export class RIAHunterAPIClient {
     const response = await this.fetchWithRetry(url, {
       method: 'GET',
       headers: this.buildHeaders(),
+      cache: 'no-store',
     });
     
     if (!response.ok) {
@@ -437,6 +438,7 @@ export class RIAHunterAPIClient {
       method: 'GET',
       headers: this.buildHeaders(),
       credentials: this.authToken ? 'include' : 'omit',
+      cache: 'no-store',
     });
     
     if (!response.ok) {
@@ -475,6 +477,7 @@ export class RIAHunterAPIClient {
         method: 'GET',
         headers: this.buildHeaders(),
         credentials: this.authToken ? 'include' : 'omit',
+        cache: 'no-store',
       });
       
       if (!response.ok) {
@@ -528,6 +531,7 @@ export class RIAHunterAPIClient {
       const response = await fetch(url, {
         method: 'GET',
         signal: AbortSignal.timeout(5000), // 5 second timeout for health check
+        cache: 'no-store',
       });
       
       if (!response.ok) {
