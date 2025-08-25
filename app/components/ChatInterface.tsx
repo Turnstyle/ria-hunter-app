@@ -32,9 +32,12 @@ function ChatInterface() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive, but only when there's already content
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only auto-scroll if we have more than 1 message (prevents initial scroll on page load)
+    if (messages.length > 1) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
   
   // Handle message submission
@@ -329,7 +332,7 @@ function ChatInterface() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about RIAs, venture capital activity, executives..."
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isStreaming || (!isSubscriber && credits <= 0)}
+            disabled={isStreaming || isLoading}
           />
           
           {isStreaming ? (
@@ -343,7 +346,7 @@ function ChatInterface() {
           ) : (
             <button
               type="submit"
-              disabled={!input.trim() || isStreaming || (!isSubscriber && credits <= 0)}
+              disabled={!input.trim() || isStreaming || isLoading}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-5 h-5" />
@@ -354,11 +357,11 @@ function ChatInterface() {
         {/* Credits indicator with fallback */}
         {!isSubscriber && (
           <p className="mt-2 text-sm text-gray-600">
-            {isLoadingCredits 
+            {isLoadingCredits || credits === null
               ? '— credits' 
               : credits > 0 
                 ? `${credits} credits remaining` 
-                : 'No credits remaining'}
+                : credits === 0 ? 'No credits remaining' : '— credits'}
           </p>
         )}
       </form>

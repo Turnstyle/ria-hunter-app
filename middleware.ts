@@ -11,6 +11,7 @@ export function middleware(req: NextRequest) {
       secure: true,
       sameSite: 'lax',
       path: '/',
+      domain: '.ria-hunter.app',
       maxAge: 60 * 60 * 24 * 365,          // 1 year
     });
   }

@@ -31,6 +31,7 @@ export function HeaderCredits() {
   
   // Free user display with color coding
   const getCreditsColor = () => {
+    if (credits === null) return 'text-gray-400';
     if (credits === 0) return 'text-red-600';
     if (credits === 1) return 'text-orange-600';
     if (credits <= 3) return 'text-yellow-600';
@@ -41,10 +42,10 @@ export function HeaderCredits() {
     <div className={`flex items-center space-x-2 ${getCreditsColor()}`}>
       <CreditCard className="w-5 h-5" />
       <span className="text-sm font-semibold">
-        {credits} {credits === 1 ? 'Credit' : 'Credits'} Remaining
+        {credits === null ? '—' : `${credits} ${credits === 1 ? 'Credit' : 'Credits'} Remaining`}
       </span>
       
-      {credits <= 3 && (
+      {credits !== null && credits <= 3 && (
         <a
           href="/subscription"
           className="text-xs underline hover:no-underline"

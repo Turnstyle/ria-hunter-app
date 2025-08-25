@@ -7,9 +7,10 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { apiClient } from '@/app/lib/api/client';
 
 interface UseCreditsReturn {
-  credits: number;
+  credits: number | null;
   isSubscriber: boolean;
   isLoadingCredits: boolean;
+  error?: string;
   refreshCredits: () => Promise<void>;
   updateFromResponse: (response: any) => void;
 }
@@ -85,9 +86,10 @@ export function useCredits(): UseCreditsReturn {
     return stored?.isSubscriber ?? false;
   }, []);
 
-  const [credits, setCredits] = useState<number>(getInitialCredits);
+  const [credits, setCredits] = useState<number | null>(getInitialCredits);
   const [isSubscriber, setIsSubscriber] = useState<boolean>(getInitialSubscriber);
   const [isLoadingCredits, setIsLoadingCredits] = useState<boolean>(true);
+  const [error, setError] = useState<string | undefined>(undefined);
   
   const { user, session } = useAuth();
   
@@ -110,9 +112,11 @@ export function useCredits(): UseCreditsReturn {
       
       setCredits(credits);
       setIsSubscriber(isSubscriber);
+      setError(undefined);
       storeCredits(credits, isSubscriber);
     } catch (error) {
       console.error('Failed to fetch credit status:', error);
+      setError('unavailable');
       
       // Use stored values as fallback if available
       if (stored) {
@@ -120,14 +124,10 @@ export function useCredits(): UseCreditsReturn {
         setCredits(stored.credits);
         setIsSubscriber(stored.isSubscriber);
       } else {
-        // Final fallback values - always use 0 to be safe
-        // This prevents users from using credits if backend is down
-        const fallbackCredits = 0;
-        const fallbackSubscriber = false;
-        
-        setCredits(fallbackCredits);
-        setIsSubscriber(fallbackSubscriber);
-        storeCredits(fallbackCredits, fallbackSubscriber);
+        // If no stored value, set to null to indicate unknown
+        // This prevents disabling user input when credits are unknown
+        setCredits(null);
+        setIsSubscriber(false);
       }
     } finally {
       setIsLoadingCredits(false);
@@ -183,6 +183,7 @@ export function useCredits(): UseCreditsReturn {
     credits,
     isSubscriber,
     isLoadingCredits,
+    error,
     refreshCredits,
     updateFromResponse
   };

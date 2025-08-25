@@ -13,21 +13,18 @@ export default function LoginButton({ className = '', redirectTo }: LoginButtonP
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [showButton, setShowButton] = useState(false);
   
-  // Check for required environment variables on the client side
+  // Always show the button by default
   useEffect(() => {
-    // Only enable the button if Supabase URL and key are available
+    // Always set showButton to true - we'll only hide if a hard error occurs during auth
+    setShowButton(true);
+    
+    // Optional log for debugging
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
-    // Explicit check for environment variables availability
-    // This ensures the Google SSO button is visible in production
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('Supabase environment variables not found. SSO button will be hidden.');
+      console.warn('Some Supabase environment variables are missing, but auth will be attempted anyway');
     }
-    
-    // Show button only if environment variables are available
-    // In production, these should always be set
-    setShowButton(!!supabaseUrl && !!supabaseAnonKey);
   }, []);
 
   const handleSignIn = async () => {
@@ -36,10 +33,22 @@ export default function LoginButton({ className = '', redirectTo }: LoginButtonP
       const { error } = await signInWithGoogle(redirectTo);
       if (error) {
         console.error('Login error:', error);
-        alert('Failed to sign in. Please try again.');
+        // Only hide the button on catastrophic auth configuration errors
+        if (error.message && (
+          error.message.includes('configuration') || 
+          error.message.includes('not configured') ||
+          error.message.includes('Invalid provider')
+        )) {
+          setShowButton(false);
+          alert('Authentication is not available. Please try again later.');
+        } else {
+          // For normal auth errors, just show a message but keep the button
+          alert('Failed to sign in. Please try again.');
+        }
       }
     } catch (error) {
       console.error('Unexpected login error:', error);
+      // Don't hide the button for unexpected errors
       alert('An unexpected error occurred. Please try again.');
     } finally {
       setIsSigningIn(false);

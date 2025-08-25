@@ -207,7 +207,7 @@ export class RIAHunterAPIClient {
     const normalizedRequest = this.normalizeAskRequest(request);
     
     // Make the API call with retry logic
-          const response = await this.fetchWithRetry(url, {
+    const response = await this.fetchWithRetry(url, {
       method: 'POST',
       headers: this.buildHeaders(),
       body: JSON.stringify(normalizedRequest),
@@ -644,6 +644,7 @@ export class RIAHunterAPIClient {
       const response = await fetch(url, {
         ...options,
         signal: AbortSignal.timeout(API_CONFIG.timeoutMs),
+        cache: 'no-store', // Always disable caching for all API requests
       });
       
       // Retry on 5xx errors or 429 (rate limit)
