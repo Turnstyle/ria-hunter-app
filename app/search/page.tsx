@@ -66,7 +66,7 @@ export default function SearchPage() {
     }
     
     // Check credits
-    if (!isSubscriber && credits <= 0) {
+    if (!isSubscriber && (credits === 0 || credits === null)) {
       setError('You have no credits remaining. Please upgrade your plan.');
       return;
     }
