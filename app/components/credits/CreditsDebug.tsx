@@ -64,7 +64,7 @@ export default function CreditsDebug() {
         <h3 className="text-md font-medium mb-2">User Information</h3>
         <div className="bg-white p-3 rounded border">
           <div><span className="font-semibold">User ID:</span> {debugData.userId}</div>
-          <div><span className="font-semibold">Current Balance:</span> {debugData.balance} credits</div>
+          <div><span className="font-semibold">Current Credits:</span> {debugData.credits || debugData.balance} credits</div>
           <div><span className="font-semibold">Subscriber:</span> {debugData.isSubscriber ? 'Yes' : 'No'}</div>
         </div>
       </div>

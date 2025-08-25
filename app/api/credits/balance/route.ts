@@ -46,11 +46,12 @@ export async function GET(request: NextRequest) {
       await initializeUserCredits(userId, 5); // Start with 5 free credits
     }
     
-    // Get current balance and subscription status
-    const { balance, isSubscriber } = await getCreditsStatus(userId);
+    // Get current credits and subscription status
+    const { credits, balance, isSubscriber } = await getCreditsStatus(userId);
     
     const response = NextResponse.json({
-      credits: balance,
+      credits,
+      balance, // Kept for backwards compatibility
       isSubscriber,
       userId: session?.user ? userId : undefined // Only return userId for authenticated users
     });

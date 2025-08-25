@@ -42,7 +42,8 @@ export interface CreditOperationOptions {
  * Interface for credit balance result
  */
 export interface CreditBalance {
-  balance: number;
+  credits: number;
+  balance?: number; // Kept for backwards compatibility
   isSubscriber: boolean;
 }
 
@@ -228,7 +229,8 @@ export async function getCreditsStatus(userId: string): Promise<CreditBalance> {
       (!subscription.currentPeriodEnd || new Date(subscription.currentPeriodEnd) > now);
 
     return {
-      balance,
+      credits: balance,
+      balance, // Kept for backwards compatibility
       isSubscriber: !!isSubscriber
     };
   } catch (error) {
@@ -400,7 +402,8 @@ export async function getCreditsDebugInfo(userId: string): Promise<any> {
 
     return {
       userId,
-      balance,
+      credits: balance,
+      balance, // Kept for backwards compatibility
       isSubscriber: !!isSubscriber,
       ledgerEntries,
       stripeEvents

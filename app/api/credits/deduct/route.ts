@@ -68,26 +68,27 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Check current balance and subscription status
-    const { balance, isSubscriber } = await getCreditsStatus(userId);
+    // Check current credits and subscription status
+    const { credits, isSubscriber } = await getCreditsStatus(userId);
     
     // Subscribers don't need to deduct credits
     if (isSubscriber) {
       return NextResponse.json({
         success: true,
         deducted: 0,
-        remaining: balance,
+        remaining: credits,
         isSubscriber: true
       });
     }
     
     // Check if user has enough credits
-    if (balance < amount) {
+    if (credits < amount) {
       return NextResponse.json(
         { 
           error: 'Insufficient credits', 
           code: 'INSUFFICIENT_CREDITS',
-          remaining: balance,
+          credits,
+          remaining: credits, // Keep for backwards compatibility
           requested: amount
         },
         { status: 402 }
@@ -106,7 +107,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       deducted: amount,
-      remaining: newBalance,
+      credits: newBalance, // Use the standardized field name
+      remaining: newBalance, // Keep for backwards compatibility
       isSubscriber: false
     });
   } catch (error: any) {
