@@ -111,15 +111,21 @@ export function useCredits(): UseCreditsReturn {
     }
     
     try {
-      // Use the new credits balance API
-      const { credits, isSubscriber } = await apiClient.getCreditsBalance();
+      // Use the credits balance API
+      const response = await apiClient.getCreditsBalance();
       
-      // Handle potentially undefined credits by converting to null
-      const creditsValue = credits !== undefined ? credits : null;
+      // Determine credits: prefer credits field, then balance, then null
+      const creditsValue = typeof response.credits === 'number' ? response.credits
+                        : typeof response.balance === 'number' ? response.balance
+                        : null;
+                        
+      // Always use isSubscriber as the source of truth for Pro status
+      const isSubscriberValue = !!response.isSubscriber;
+      
       setCredits(creditsValue);
-      setIsSubscriber(isSubscriber || false);
+      setIsSubscriber(isSubscriberValue);
       setError(undefined);
-      storeCredits(creditsValue, isSubscriber || false);
+      storeCredits(creditsValue, isSubscriberValue);
     } catch (error) {
       console.error('Failed to fetch credit status:', error);
       setError('unavailable');
@@ -144,9 +150,12 @@ export function useCredits(): UseCreditsReturn {
   // Update credits from API response
   // CRITICAL: This is what keeps the UI in sync with backend
   const updateFromResponse = useCallback((response: any) => {
-    if (response?.metadata?.remaining !== undefined) {
-      const newCredits = response.metadata.remaining;
-      const newIsSubscriber = response.metadata.isSubscriber || false;
+    if (response?.metadata) {
+      // Use the most reliable data available
+      const newCredits = response.metadata.remaining !== undefined ? response.metadata.remaining : null;
+      
+      // CRITICAL: Always use isSubscriber as the source of truth for Pro status
+      const newIsSubscriber = !!response.metadata.isSubscriber;
       
       setCredits(newCredits);
       setIsSubscriber(newIsSubscriber);

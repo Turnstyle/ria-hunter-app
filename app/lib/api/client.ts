@@ -113,7 +113,13 @@ export const CreditBalanceResponseSchema = z.object({
 export type CreditBalanceResponse = z.infer<typeof CreditBalanceResponseSchema>;
 
 // Helper function to convert any balance response to a standard format
-export function toCredits(resp: CreditBalanceResponse): { credits: number; isSubscriber: boolean } {
+export function toCredits(resp: CreditBalanceResponse): { credits: number | null; isSubscriber: boolean } {
+  // Check if either credits or balance is explicitly null (not undefined)
+  if (resp.credits === null || resp.balance === null) {
+    return { credits: null, isSubscriber: !!resp.isSubscriber };
+  }
+  
+  // Prefer credits over balance, falling back to 0 if both are undefined
   const n = typeof resp.credits === 'number' ? resp.credits
           : typeof resp.balance === 'number' ? resp.balance
           : 0;
@@ -159,7 +165,7 @@ const API_CONFIG = {
     askStream: '/api/ask-stream',        // Streaming version of ask
     profile: '/api/v1/ria/profile',      // Individual profile details
     subscriptionStatus: '/api/subscription-status',
-    creditsBalance: '/api/balance', // Get credit balance
+    creditsBalance: '/api/credits/balance', // Get credit balance - UPDATED PATH
     creditsDebug: '/api/credits/debug',   // Credit debug info
     health: '/api/health',
   },
@@ -451,46 +457,36 @@ export class RIAHunterAPIClient {
         console.error('[getCreditsBalance] Error:', response.status, response.statusText);
         return {
           credits: null,
+          balance: null,
           isSubscriber: false
         };
       }
       
       const data = await response.json();
-      
-      // If response JSON has {credits:null} or {balance:null} → display '—' and allow input
-      if (data?.credits === null || data?.balance === null) {
-        return {
-          credits: null,
-          isSubscriber: data?.isSubscriber || false
-        };
-      }
-      
       const parsed = CreditBalanceResponseSchema.safeParse(data);
       
       if (!parsed.success) {
         console.error('Invalid credits balance response:', parsed.error);
         return {
           credits: null,
+          balance: null,
           isSubscriber: false
         };
       }
       
-      // If the parsed data has both null credits and null balance, ensure we return null (not 0)
-      if (parsed.data.credits === null && parsed.data.balance === null) {
-        return {
-          credits: null,
-          isSubscriber: parsed.data.isSubscriber
-        };
-      }
+      // Following the new specs, prefer new fields when present
+      const credits = typeof parsed.data.credits === 'number' ? parsed.data.credits 
+                     : typeof parsed.data.balance === 'number' ? parsed.data.balance 
+                     : null;
       
-      // Convert to standard format with toCredits helper
-      const standardized = toCredits(parsed.data);
+      // Always use isSubscriber as the source of truth for Pro status
+      const isSubscriber = !!parsed.data.isSubscriber;
       
-      // Return the standardized credits but keep all original fields for reference
+      // Return both the original parsed data and the normalized values
       const result = {
         ...parsed.data,
-        credits: standardized.credits,
-        isSubscriber: standardized.isSubscriber
+        credits,
+        isSubscriber
       };
       
       if (DEBUG_MODE) {
@@ -502,6 +498,7 @@ export class RIAHunterAPIClient {
       console.error('[getCreditsBalance] Error:', error);
       return {
         credits: null,
+        balance: null,
         isSubscriber: false
       };
     }

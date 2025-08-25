@@ -111,7 +111,7 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
         
         {isSubscriber && (
           <div className="text-sm text-secondary-600 mt-1 ml-5">
-            Managed via Stripe
+            Managed via Stripe {/* Credits: Unlimited while subscribed */}
           </div>
         )}
       </div>
