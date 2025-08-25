@@ -201,7 +201,7 @@ function ChatInterface() {
         console.error("Error in catch handler:", innerError);
       } finally {
         setIsStreaming(false);
-        setIsLoading(false);
+        setIsSubmitting(false);
         streamingMessageIdRef.current = null;
       }
     }
