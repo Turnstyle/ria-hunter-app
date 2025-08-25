@@ -20,7 +20,7 @@ This document tracks the implementation progress of high-priority UI/UX stabiliz
 ## Deployment Status
 
 - ✅ Successfully deployed to production
-- Production URL: https://ria-hunter-d5e31u4k1-turnerpeters-6002s-projects.vercel.app
+- Production URL: https://ria-hunter-qy2a8qoou-turnerpeters-6002s-projects.vercel.app
 
 ## Implementation Details
 
