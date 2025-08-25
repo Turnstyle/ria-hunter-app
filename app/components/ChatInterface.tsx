@@ -26,7 +26,7 @@ function ChatInterface() {
   const [error, setError] = useState<string | null>(null);
   
   const { session } = useAuth();
-  const { credits, isSubscriber, updateFromResponse, isLoadingCredits } = useCredits();
+  const { credits, isSubscriber, updateFromResponse, isLoadingCredits, isSubmitting: creditsSubmitting } = useCredits();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);

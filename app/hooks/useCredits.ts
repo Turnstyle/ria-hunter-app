@@ -10,6 +10,7 @@ interface UseCreditsReturn {
   credits: number | null;
   isSubscriber: boolean;
   isLoadingCredits: boolean;
+  isSubmitting: boolean;
   error?: string;
   refreshCredits: () => Promise<void>;
   updateFromResponse: (response: any) => void;
@@ -78,7 +79,7 @@ export function useCredits(): UseCreditsReturn {
   // Initialize with stored values or defaults
   const getInitialCredits = useCallback(() => {
     const stored = getStoredCredits();
-    return stored?.credits ?? 0;
+    return stored?.credits ?? null;
   }, []);
 
   const getInitialSubscriber = useCallback(() => {
@@ -89,6 +90,7 @@ export function useCredits(): UseCreditsReturn {
   const [credits, setCredits] = useState<number | null>(getInitialCredits);
   const [isSubscriber, setIsSubscriber] = useState<boolean>(getInitialSubscriber);
   const [isLoadingCredits, setIsLoadingCredits] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | undefined>(undefined);
   
   const { user, session } = useAuth();
@@ -96,6 +98,7 @@ export function useCredits(): UseCreditsReturn {
   // Fetch credits from backend with fallback to stored values
   const refreshCredits = useCallback(async () => {
     setIsLoadingCredits(true);
+    setIsSubmitting(true);
     
     // Check if we have fresh cached data
     const stored = getStoredCredits();
@@ -103,6 +106,7 @@ export function useCredits(): UseCreditsReturn {
       setCredits(stored.credits);
       setIsSubscriber(stored.isSubscriber);
       setIsLoadingCredits(false);
+      setIsSubmitting(false);
       return;
     }
     
@@ -131,6 +135,7 @@ export function useCredits(): UseCreditsReturn {
       }
     } finally {
       setIsLoadingCredits(false);
+      setIsSubmitting(false);
     }
   }, []);
   
@@ -183,6 +188,7 @@ export function useCredits(): UseCreditsReturn {
     credits,
     isSubscriber,
     isLoadingCredits,
+    isSubmitting,
     error,
     refreshCredits,
     updateFromResponse

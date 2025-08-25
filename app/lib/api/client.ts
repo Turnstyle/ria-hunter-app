@@ -149,7 +149,7 @@ const API_CONFIG = {
     askStream: '/api/ask-stream',        // Streaming version of ask
     profile: '/api/v1/ria/profile',      // Individual profile details
     subscriptionStatus: '/api/subscription-status',
-    creditsBalance: '/api/credits/balance', // Get credit balance
+    creditsBalance: '/api/balance', // Get credit balance
     creditsDebug: '/api/credits/debug',   // Credit debug info
     health: '/api/health',
   },
@@ -443,9 +443,9 @@ export class RIAHunterAPIClient {
     
     if (!response.ok) {
       console.error('[getCreditsBalance] Error:', response.status, response.statusText);
-      // Return default values if balance check fails
+      // Return null values if balance check fails
       return {
-        credits: 0,
+        credits: null,
         isSubscriber: false
       };
     }
@@ -456,7 +456,7 @@ export class RIAHunterAPIClient {
     if (!parsed.success) {
       console.error('Invalid credits balance response:', parsed.error);
       return {
-        credits: 0,
+        credits: null,
         isSubscriber: false
       };
     }
