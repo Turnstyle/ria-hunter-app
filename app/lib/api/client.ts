@@ -506,7 +506,7 @@ export class RIAHunterAPIClient {
   
   // Get subscription status and credit count (legacy method)
   async getSubscriptionStatus(): Promise<{
-    credits: number;
+    credits: number | null;
     isSubscriber: boolean;
     subscriptionTier: string;
   }> {
