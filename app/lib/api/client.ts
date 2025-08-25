@@ -101,18 +101,56 @@ export const ProfileResponseSchema = z.object({
 
 export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
 
+// Schema for credit balance response
+export const CreditBalanceResponseSchema = z.object({
+  credits: z.number(),
+  isSubscriber: z.boolean(),
+  userId: z.string().optional()
+});
+
+export type CreditBalanceResponse = z.infer<typeof CreditBalanceResponseSchema>;
+
+// Schema for credit debug response
+export const CreditDebugResponseSchema = z.object({
+  userId: z.string(),
+  balance: z.number(),
+  isSubscriber: z.boolean(),
+  ledgerEntries: z.array(z.object({
+    id: z.string(),
+    userId: z.string(),
+    delta: z.number(),
+    source: z.string(),
+    refType: z.string(),
+    refId: z.string(),
+    metadata: z.record(z.any()),
+    createdAt: z.string().datetime()
+  })),
+  stripeEvents: z.array(z.object({
+    eventId: z.string(),
+    type: z.string(),
+    receivedAt: z.string().datetime(),
+    processedOk: z.boolean().nullable(),
+    processedAt: z.string().datetime().nullable(),
+    error: z.string().nullable()
+  }))
+});
+
+export type CreditDebugResponse = z.infer<typeof CreditDebugResponseSchema>;
+
 // Configuration object - single source of truth for API settings
 const API_CONFIG = {
-  // Use environment variable for backend URL
-  baseUrl: process.env.NEXT_PUBLIC_RIA_HUNTER_BACKEND_URL || 'https://ria-hunter.vercel.app',
+  // Use proxied endpoint through Next.js rewrites to avoid CORS issues
+  baseUrl: '/_backend',
   
   // CRITICAL: These are the ONLY endpoints we should call
-  // DO NOT use /api/v1/ria/query - it returns raw data without LLM processing
+  // Using the proxy via /_backend to avoid CORS issues
   endpoints: {
     ask: '/api/ask',                    // Main RAG endpoint - USE THIS
     askStream: '/api/ask-stream',        // Streaming version of ask
     profile: '/api/v1/ria/profile',      // Individual profile details
     subscriptionStatus: '/api/subscription-status',
+    creditsBalance: '/api/credits/balance', // Get credit balance
+    creditsDebug: '/api/credits/debug',   // Credit debug info
     health: '/api/health',
   },
   
@@ -252,7 +290,7 @@ export class RIAHunterAPIClient {
         },
         body: JSON.stringify(normalizedRequest),
         signal: controller.signal,
-        credentials: 'include', // Include cookies for anonymous tracking
+        credentials: this.authToken ? 'include' : 'omit', // Only include credentials when authenticated
         mode: 'cors', // Explicit CORS mode
       });
       
@@ -386,44 +424,95 @@ export class RIAHunterAPIClient {
     return parsed.data;
   }
   
-  // Get subscription status and credit count
-  async getSubscriptionStatus(): Promise<{
-    credits: number;
-    isSubscriber: boolean;
-    subscriptionTier: string;
-  }> {
-    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.subscriptionStatus}`;
+  // Get credit balance
+  async getCreditsBalance(): Promise<CreditBalanceResponse> {
+    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.creditsBalance}`;
     
     if (DEBUG_MODE) {
-      console.log('[getSubscriptionStatus] Request URL:', url);
+      console.log('[getCreditsBalance] Request URL:', url);
     }
     
     const response = await this.fetchWithRetry(url, {
       method: 'GET',
       headers: this.buildHeaders(),
-      credentials: 'include', // Include cookies for anonymous tracking
+      credentials: this.authToken ? 'include' : 'omit',
     });
     
     if (!response.ok) {
-      console.error('[getSubscriptionStatus] Error:', response.status, response.statusText);
-      // Return default values if status check fails
+      console.error('[getCreditsBalance] Error:', response.status, response.statusText);
+      // Return default values if balance check fails
       return {
         credits: 0,
-        isSubscriber: false,
-        subscriptionTier: 'free',
+        isSubscriber: false
       };
     }
     
     const data = await response.json();
+    const parsed = CreditBalanceResponseSchema.safeParse(data);
     
-    if (DEBUG_MODE) {
-      console.log('[getSubscriptionStatus] Response:', data);
+    if (!parsed.success) {
+      console.error('Invalid credits balance response:', parsed.error);
+      return {
+        credits: 0,
+        isSubscriber: false
+      };
     }
     
+    if (DEBUG_MODE) {
+      console.log('[getCreditsBalance] Response:', parsed.data);
+    }
+    
+    return parsed.data;
+  }
+  
+  // Get credit debug information
+  async getCreditsDebug(): Promise<CreditDebugResponse | null> {
+    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.creditsDebug}`;
+    
+    try {
+      const response = await this.fetchWithRetry(url, {
+        method: 'GET',
+        headers: this.buildHeaders(),
+        credentials: this.authToken ? 'include' : 'omit',
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.log('Authentication required for credits debug');
+          return null;
+        }
+        console.error('[getCreditsDebug] Error:', response.status, response.statusText);
+        return null;
+      }
+      
+      const data = await response.json();
+      const parsed = CreditDebugResponseSchema.safeParse(data);
+      
+      if (!parsed.success) {
+        console.error('Invalid credits debug response:', parsed.error);
+        return null;
+      }
+      
+      return parsed.data;
+    } catch (error) {
+      console.error('Error getting credits debug info:', error);
+      return null;
+    }
+  }
+  
+  // Get subscription status and credit count (legacy method)
+  async getSubscriptionStatus(): Promise<{
+    credits: number;
+    isSubscriber: boolean;
+    subscriptionTier: string;
+  }> {
+    // Use the new credits balance endpoint instead
+    const { credits, isSubscriber } = await this.getCreditsBalance();
+    
     return {
-      credits: data.credits || 0,
-      isSubscriber: data.isSubscriber || false,
-      subscriptionTier: data.tier || 'free',
+      credits,
+      isSubscriber,
+      subscriptionTier: isSubscriber ? 'pro' : 'free',
     };
   }
   
@@ -546,6 +635,11 @@ export class RIAHunterAPIClient {
     attempt = 1
   ): Promise<Response> {
     try {
+      // If credentials aren't explicitly set, set based on auth status
+      if (options.credentials === undefined) {
+        options.credentials = this.authToken ? 'include' : 'omit';
+      }
+      
       const response = await fetch(url, {
         ...options,
         signal: AbortSignal.timeout(API_CONFIG.timeoutMs),

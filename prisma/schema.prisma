@@ -1,0 +1,97 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - this likely already exists in your schema
+// Include it only if needed and adjust to match your existing user model
+model User {
+  id                  String            @id @default(uuid())
+  email               String            @unique
+  // Other user fields...
+  
+  // Relations
+  creditsAccount      CreditsAccount?
+  creditsLedgerEntries CreditsLedger[]
+  subscription        Subscription?
+}
+
+// Credits account model for balance cache
+model CreditsAccount {
+  userId       String   @id @map("user_id")
+  balanceCache Int      @default(0) @map("balance_cache")
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  user         User     @relation(fields: [userId], references: [id])
+  
+  @@map("credits_account")
+}
+
+// Credits ledger model for tracking all credits operations
+model CreditsLedger {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id")
+  delta          Int
+  source         CreditsSource
+  refType        String        @map("ref_type")
+  refId          String        @map("ref_id")
+  idempotencyKey String        @unique @map("idempotency_key")
+  metadata       Json          @default("{}") @db.JsonB
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  user           User          @relation(fields: [userId], references: [id])
+  
+  @@index([userId], name: "ix_credits_ledger_user")
+  @@index([createdAt], name: "ix_credits_ledger_created")
+  @@map("credits_ledger")
+}
+
+// Stripe events model for tracking webhook processing
+model StripeEvent {
+  eventId     String    @id @map("event_id")
+  type        String
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedOk Boolean?  @map("processed_ok")
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  error       String?
+  
+  @@map("stripe_events")
+}
+
+// Subscription model - adjust if you already have one
+model Subscription {
+  userId              String    @id @map("user_id")
+  stripeSubscriptionId String?   @map("stripe_subscription_id")
+  stripeCustomerId    String?   @map("stripe_customer_id")
+  status              String?
+  currentPeriodStart  DateTime? @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd    DateTime? @map("current_period_end") @db.Timestamptz(6)
+  trialEnd            DateTime? @map("trial_end") @db.Timestamptz(6)
+  cancelledAt         DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  
+  // Relations
+  user                User      @relation(fields: [userId], references: [id])
+  
+  @@map("subscriptions")
+}
+
+// Enum for credit sources
+enum CreditsSource {
+  usage
+  subscription
+  coupon
+  admin_adjust
+  refund
+  migration
+  
+  @@map("credits_source")
+}

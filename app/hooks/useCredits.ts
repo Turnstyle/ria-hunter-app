@@ -16,50 +16,61 @@ interface UseCreditsReturn {
 
 // Storage keys for persistence
 const CREDITS_STORAGE_KEY = 'ria-hunter-credits';
-const SUBSCRIBER_STORAGE_KEY = 'ria-hunter-is-subscriber';
-const CREDITS_TIMESTAMP_KEY = 'ria-hunter-credits-timestamp';
 
-// Cache duration (5 minutes)
-const CREDITS_CACHE_DURATION = 5 * 60 * 1000;
+// Cache duration in milliseconds (1 minute)
+const CREDITS_CACHE_DURATION = 60 * 1000;
 
-// Utility functions for localStorage
-const getStoredCredits = (): { credits: number; isSubscriber: boolean; timestamp: number } | null => {
-  if (typeof window === 'undefined') return null;
-  
+// Broadcast channel for cross-tab synchronization
+let creditsBroadcastChannel: BroadcastChannel | null = null;
+
+// Initialize broadcast channel for cross-tab synchronization
+if (typeof window !== 'undefined') {
   try {
-    const credits = localStorage.getItem(CREDITS_STORAGE_KEY);
-    const isSubscriber = localStorage.getItem(SUBSCRIBER_STORAGE_KEY);
-    const timestamp = localStorage.getItem(CREDITS_TIMESTAMP_KEY);
-    
-    if (credits !== null && isSubscriber !== null && timestamp !== null) {
-      return {
-        credits: parseInt(credits, 10),
-        isSubscriber: isSubscriber === 'true',
-        timestamp: parseInt(timestamp, 10),
-      };
-    }
-  } catch (error) {
-    console.error('Error reading credits from storage:', error);
+    creditsBroadcastChannel = new BroadcastChannel('ria-hunter-credits-sync');
+  } catch (e) {
+    console.warn('BroadcastChannel not supported in this browser. Credits will not sync across tabs.');
   }
-  
-  return null;
-};
+}
 
-const storeCredits = (credits: number, isSubscriber: boolean): void => {
+// Helper to store credits in localStorage
+const storeCredits = (credits: number, isSubscriber: boolean) => {
   if (typeof window === 'undefined') return;
   
   try {
-    const timestamp = Date.now();
-    localStorage.setItem(CREDITS_STORAGE_KEY, credits.toString());
-    localStorage.setItem(SUBSCRIBER_STORAGE_KEY, isSubscriber.toString());
-    localStorage.setItem(CREDITS_TIMESTAMP_KEY, timestamp.toString());
-  } catch (error) {
-    console.error('Error storing credits to storage:', error);
+    const data = {
+      credits,
+      isSubscriber,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(CREDITS_STORAGE_KEY, JSON.stringify(data));
+    
+    // Broadcast to other tabs
+    if (creditsBroadcastChannel) {
+      creditsBroadcastChannel.postMessage(data);
+    }
+  } catch (e) {
+    console.warn('Failed to store credits in localStorage', e);
   }
 };
 
-const isCreditsDataFresh = (timestamp: number): boolean => {
-  return Date.now() - timestamp < CREDITS_CACHE_DURATION;
+// Helper to get stored credits from localStorage
+const getStoredCredits = () => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const data = localStorage.getItem(CREDITS_STORAGE_KEY);
+    if (!data) return null;
+    
+    return JSON.parse(data);
+  } catch (e) {
+    console.warn('Failed to parse stored credits', e);
+    return null;
+  }
+};
+
+// Check if stored credits data is fresh enough to use
+const isCreditsDataFresh = (data: { timestamp: number }) => {
+  return Date.now() - data.timestamp < CREDITS_CACHE_DURATION;
 };
 
 export function useCredits(): UseCreditsReturn {
@@ -94,26 +105,12 @@ export function useCredits(): UseCreditsReturn {
     }
     
     try {
-      if (!user && !session) {
-        // Anonymous users get credits from backend
-        // No hardcoded fallback values
-        const status = await apiClient.getSubscriptionStatus();
-        const credits = status.credits || 0;
-        const isSubscriber = false;
-        
-        setCredits(credits);
-        setIsSubscriber(isSubscriber);
-        storeCredits(credits, isSubscriber);
-      } else {
-        // Authenticated users - get actual credit count
-        const status = await apiClient.getSubscriptionStatus();
-        const credits = status.credits;
-        const isSubscriber = status.isSubscriber;
-        
-        setCredits(credits);
-        setIsSubscriber(isSubscriber);
-        storeCredits(credits, isSubscriber);
-      }
+      // Use the new credits balance API
+      const { credits, isSubscriber } = await apiClient.getCreditsBalance();
+      
+      setCredits(credits);
+      setIsSubscriber(isSubscriber);
+      storeCredits(credits, isSubscriber);
     } catch (error) {
       console.error('Failed to fetch credit status:', error);
       
@@ -135,123 +132,58 @@ export function useCredits(): UseCreditsReturn {
     } finally {
       setIsLoadingCredits(false);
     }
-  }, [user, session]);
+  }, []);
   
   // Update credits from API response
   // CRITICAL: This is what keeps the UI in sync with backend
   const updateFromResponse = useCallback((response: any) => {
-    let newCredits: number | undefined;
-    let newIsSubscriber: boolean | undefined;
-    
-    // Check for metadata.remaining first (new format)
-    if (response?.metadata?.remaining !== undefined) {
-      newCredits = Math.max(0, response.metadata.remaining);
+    if (response?.metadata?.remaining !== undefined && response.metadata.remaining !== null) {
+      const newCredits = response.metadata.remaining;
+      const newIsSubscriber = response.metadata.isSubscriber || false;
       
-      if (response.metadata.isSubscriber !== undefined) {
-        newIsSubscriber = response.metadata.isSubscriber;
-      }
-    }
-    // Fallback to checking top-level remaining (backward compatibility)
-    else if (response?.remaining !== undefined) {
-      newCredits = Math.max(0, response.remaining);
-    }
-    
-    if (response?.isSubscriber !== undefined) {
-      newIsSubscriber = response.isSubscriber;
-    }
-    
-    // Update state and persist if values changed
-    if (newCredits !== undefined) {
       setCredits(newCredits);
-    }
-    if (newIsSubscriber !== undefined) {
       setIsSubscriber(newIsSubscriber);
+      storeCredits(newCredits, newIsSubscriber);
     }
-    
-    // Persist to storage if we have values to update
-    if (newCredits !== undefined || newIsSubscriber !== undefined) {
-      const currentCredits = newCredits ?? credits;
-      const currentSubscriber = newIsSubscriber ?? isSubscriber;
-      storeCredits(currentCredits, currentSubscriber);
-      
-      // Broadcast to other tabs/windows
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: CREDITS_STORAGE_KEY,
-          newValue: currentCredits.toString(),
-        }));
-      }
-    }
-  }, [credits, isSubscriber]);
+  }, []);
   
-  // Listen for credit update events and cross-tab synchronization
+  // Handle cross-tab synchronization
   useEffect(() => {
-    const handleCreditUpdate = (event: CustomEvent) => {
-      if (event.detail?.remaining !== undefined) {
-        const newCredits = Math.max(0, event.detail.remaining);
-        setCredits(newCredits);
-        
-        // Persist the update
-        const currentSubscriber = event.detail?.isSubscriber ?? isSubscriber;
-        storeCredits(newCredits, currentSubscriber);
-      }
-      if (event.detail?.isSubscriber !== undefined) {
-        setIsSubscriber(event.detail.isSubscriber);
-      }
+    const handleCreditSync = (event: MessageEvent) => {
+      const { credits: newCredits, isSubscriber: newIsSubscriber } = event.data;
+      
+      setCredits(newCredits);
+      setIsSubscriber(newIsSubscriber);
     };
     
-    // Listen for storage changes from other tabs/windows
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === CREDITS_STORAGE_KEY && event.newValue !== null) {
-        try {
-          const newCredits = parseInt(event.newValue, 10);
-          if (!isNaN(newCredits)) {
-            setCredits(newCredits);
-          }
-        } catch (error) {
-          console.error('Error parsing credits from storage event:', error);
-        }
-      } else if (event.key === SUBSCRIBER_STORAGE_KEY && event.newValue !== null) {
-        setIsSubscriber(event.newValue === 'true');
-      }
-    };
-    
-    // Listen for visibility change to refresh when returning to tab
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Check if data is stale when tab becomes visible
-        const stored = getStoredCredits();
-        if (!stored || !isCreditsDataFresh(stored.timestamp)) {
-          refreshCredits();
-        }
-      }
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('credits-updated', handleCreditUpdate as EventListener);
-      window.addEventListener('storage', handleStorageChange);
-      document.addEventListener('visibilitychange', handleVisibilityChange);
+    if (creditsBroadcastChannel) {
+      creditsBroadcastChannel.addEventListener('message', handleCreditSync);
     }
     
     return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('credits-updated', handleCreditUpdate as EventListener);
-        window.removeEventListener('storage', handleStorageChange);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (creditsBroadcastChannel) {
+        creditsBroadcastChannel.removeEventListener('message', handleCreditSync);
       }
     };
-  }, [isSubscriber, refreshCredits]);
+  }, []);
   
-  // Initial load and auth changes
+  // Fetch credits on mount and when user/session changes
   useEffect(() => {
     refreshCredits();
-  }, [refreshCredits]);
+    
+    // Set up periodic refresh
+    const refreshInterval = setInterval(refreshCredits, CREDITS_CACHE_DURATION);
+    
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [refreshCredits, user, session]);
   
   return {
     credits,
     isSubscriber,
     isLoadingCredits,
     refreshCredits,
-    updateFromResponse,
+    updateFromResponse
   };
 }
