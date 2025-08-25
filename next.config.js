@@ -18,12 +18,20 @@ const nextConfig = {
     return [
       {
         source: '/_backend/:path*', 
-        destination: 'https://ria-hunter.vercel.app/:path*',
-        // Ensure headers are properly passed through to the backend
-        headers: [
-          { key: 'x-forwarded-host', value: 'www.ria-hunter.app' },
-        ],
+        destination: 'https://ria-hunter.vercel.app/:path*'
       },
+    ];
+  },
+
+  async headers() {
+    return [
+      {
+        // Add headers for proxied requests
+        source: '/_backend/:path*',
+        headers: [
+          { key: 'x-forwarded-host', value: 'www.ria-hunter.app' }
+        ]
+      }
     ];
   },
   webpack: (config, { dev, isServer }) => {
