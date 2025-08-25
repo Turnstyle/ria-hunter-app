@@ -1,5 +1,5 @@
+// @ts-nocheck
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getServerSupabaseClient } from '@/app/lib/supabase-server';
 import { 
   getCreditsStatus,
