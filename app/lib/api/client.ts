@@ -103,7 +103,7 @@ export type ProfileResponse = z.infer<typeof ProfileResponseSchema>;
 
 // Schema for credit balance response
 export const CreditBalanceResponseSchema = z.object({
-  credits: z.number(),
+  credits: z.number().nullable(),
   isSubscriber: z.boolean(),
   userId: z.string().optional()
 });
