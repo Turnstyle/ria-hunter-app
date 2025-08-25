@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       remaining: newBalance,
       isSubscriber: false
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deducting credits:', error);
     
     if (error.message?.includes('Insufficient credits')) {
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: 'Failed to deduct credits', details: error.message },
+      { error: 'Failed to deduct credits', details: error.message || 'Unknown error' },
       { status: 500 }
     );
   }

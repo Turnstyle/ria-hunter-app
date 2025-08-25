@@ -166,10 +166,13 @@ export async function POST(request: NextRequest) {
       userId: targetUser,
       newBalance
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error performing admin credit operation:', error);
     return NextResponse.json(
-      { error: 'Failed to perform credit operation', details: error.message },
+      { 
+        error: 'Failed to perform credit operation', 
+        details: error.message || 'Unknown error'
+      },
       { status: 500 }
     );
   }
