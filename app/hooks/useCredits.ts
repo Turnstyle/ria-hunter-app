@@ -114,10 +114,12 @@ export function useCredits(): UseCreditsReturn {
       // Use the new credits balance API
       const { credits, isSubscriber } = await apiClient.getCreditsBalance();
       
-      setCredits(credits);
-      setIsSubscriber(isSubscriber);
+      // Handle potentially undefined credits by converting to null
+      const creditsValue = credits !== undefined ? credits : null;
+      setCredits(creditsValue);
+      setIsSubscriber(isSubscriber || false);
       setError(undefined);
-      storeCredits(credits, isSubscriber);
+      storeCredits(creditsValue, isSubscriber || false);
     } catch (error) {
       console.error('Failed to fetch credit status:', error);
       setError('unavailable');

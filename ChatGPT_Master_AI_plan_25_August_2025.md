@@ -49,4 +49,5 @@ This document tracks the implementation of the Master AI agent's plan to fix fro
 - The API client has been updated to handle both legacy `{ balance }` and new `{ credits }` response formats
 - The `toCredits()` helper ensures we always have a consistent format regardless of which API shape is returned
 - HeaderCredits now properly shows "Pro" for subscribers and hides the Upgrade link
-- No linter errors were found in the updated files
+- Fixed TypeScript error in useCredits hook to handle potentially undefined credits values
+- Initial Vercel deployment failed due to TypeScript error, which has been fixed
