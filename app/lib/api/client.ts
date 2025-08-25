@@ -552,10 +552,13 @@ export class RIAHunterAPIClient {
     // Use the new credits balance endpoint instead
     const { credits, isSubscriber } = await this.getCreditsBalance();
     
+    // Handle potentially undefined credits by converting to null
+    const creditsValue = credits !== undefined ? credits : null;
+    
     return {
-      credits,
-      isSubscriber,
-      subscriptionTier: isSubscriber ? 'pro' : 'free',
+      credits: creditsValue,
+      isSubscriber: isSubscriber || false,
+      subscriptionTier: (isSubscriber || false) ? 'pro' : 'free',
     };
   }
   
