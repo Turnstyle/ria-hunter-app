@@ -334,9 +334,9 @@ export default function BrowsePage() {
         <div className="flex justify-between items-center">
           <button
             onClick={() => handleSearch(1)}
-            disabled={loading || (credits <= 0 && !isSubscriber)}
+            disabled={loading || ((credits === 0 || credits === null) && !isSubscriber)}
             className={`px-4 py-2 rounded-md text-white ${
-              loading || (credits <= 0 && !isSubscriber)
+              loading || ((credits === 0 || credits === null) && !isSubscriber)
                 ? 'bg-secondary-400 cursor-not-allowed'
                 : 'bg-primary-600 hover:bg-primary-700'
             }`}
@@ -344,7 +344,7 @@ export default function BrowsePage() {
             {loading ? 'Searching...' : 'Search RIAs'}
           </button>
 
-          {!isSubscriber && credits <= 2 && (
+          {!isSubscriber && credits !== null && credits <= 2 && (
             <div className="text-right">
               <p className="text-sm text-secondary-600 mb-2">
                 You have {credits} credit{credits === 1 ? '' : 's'} remaining
