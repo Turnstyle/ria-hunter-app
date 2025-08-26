@@ -175,6 +175,10 @@ function ChatInterface() {
               displayMessage = 'Server configuration error. Please contact support.';
               console.error('405 ERROR: Check that backend /api/ask-stream accepts POST');
               setError('Server configuration error. Please contact support.');
+            } else if (errorMessage.includes('Stream request failed: 500') || errorMessage.includes('status 500')) {
+              displayMessage = 'Server configuration issue. Our team has been notified.';
+              console.error('Backend routing issue - /api endpoints may need configuration');
+              setError('Server configuration issue. Our team has been notified.');
             } else {
               setError('Failed to process your query. Please try again.');
             }
@@ -209,6 +213,9 @@ function ChatInterface() {
           setError('Please sign in to continue.');
         } else if (errorMessage === 'RATE_LIMITED') {
           setError('You are sending too many requests. Please slow down.');
+        } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+          setError('Server configuration issue. Our team has been notified.');
+          console.error('Backend routing issue - /api endpoints may need configuration');
         } else {
           setError('Failed to process your query. Please try again.');
         }
