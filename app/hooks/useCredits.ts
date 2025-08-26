@@ -111,37 +111,52 @@ export function useCredits(): UseCreditsReturn {
     }
     
     try {
-      // Use the credits balance API
+      // Call credits balance API without requiring auth first
+      // The backend should handle both authenticated and anonymous users
       const response = await apiClient.getCreditsBalance();
       
-      // Determine credits: prefer credits field, then balance, then null
-      // Following standardized API response format
-      const creditsValue = typeof response.credits === 'number' ? response.credits
-                        : typeof response.balance === 'number' ? response.balance
-                        : null;
-                        
-      // Always use isSubscriber as the source of truth for Pro status
-      const isSubscriberValue = !!response.isSubscriber;
-      
-      setCredits(creditsValue);
-      setIsSubscriber(isSubscriberValue);
-      setError(undefined);
-      storeCredits(creditsValue, isSubscriberValue);
+      // Check if we got a successful response (200)
+      if (response.credits !== null || response.balance !== null || response.isSubscriber) {
+        // Determine credits: prefer credits field, then balance
+        const creditsValue = typeof response.credits === 'number' ? response.credits
+                          : typeof response.balance === 'number' ? response.balance
+                          : null;
+                          
+        // Always use isSubscriber as the source of truth for Pro status
+        const isSubscriberValue = !!response.isSubscriber;
+        
+        setCredits(creditsValue ?? 0);
+        setIsSubscriber(isSubscriberValue);
+        setError(undefined);
+        storeCredits(creditsValue ?? 0, isSubscriberValue);
+      } else {
+        // If we got null credits (likely a 401 for older deployments)
+        // Set anonymous defaults: 15 free credits, not a subscriber
+        console.log('Anonymous user detected, setting 15 free credits');
+        setCredits(15);
+        setIsSubscriber(false);
+        setError(undefined);
+        storeCredits(15, false);
+        
+        // Schedule a silent retry in 2-3 seconds in case auth updates
+        setTimeout(() => {
+          refreshCredits();
+        }, 2500);
+      }
     } catch (error) {
       console.error('Failed to fetch credit status:', error);
-      setError('unavailable');
       
-      // Use stored values as fallback if available
-      if (stored) {
-        console.log('Using stored credits as fallback:', stored);
-        setCredits(stored.credits);
-        setIsSubscriber(stored.isSubscriber);
-      } else {
-        // If no stored value, set to null to indicate unknown
-        // This prevents disabling user input when credits are unknown
-        setCredits(null);
-        setIsSubscriber(false);
-      }
+      // For any error, optimistically set anonymous defaults
+      console.log('Error fetching credits, defaulting to anonymous (15 free credits)');
+      setCredits(15);
+      setIsSubscriber(false);
+      setError(undefined);
+      storeCredits(15, false);
+      
+      // Schedule a silent retry
+      setTimeout(() => {
+        refreshCredits();
+      }, 3000);
     } finally {
       setIsLoadingCredits(false);
       setIsSubmitting(false);

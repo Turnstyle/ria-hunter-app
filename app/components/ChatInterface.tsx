@@ -99,9 +99,26 @@ function ChatInterface() {
         },
         // On token received
         (token: string) => {
+          // Check if we're in debug mode
+          const urlParams = new URLSearchParams(window.location.search);
+          const isDebugMode = urlParams.get('debug') === '1';
+          
+          // Process token if needed for gobbledygook text
+          let processedToken = token;
+          if (isDebugMode && token.length > 50) {
+            // Check if this looks like raw context (long runs of text without spaces)
+            const noSpaceRuns = token.match(/[A-Za-z]{20,}/g);
+            if (noSpaceRuns && noSpaceRuns.length > 2) {
+              console.log('[ChatInterface] Detected possible gobbledygook, applying normalizer');
+              // Simple normalizer: add spaces between capital letters that seem to start new words
+              processedToken = token.replace(/([a-z])([A-Z])/g, '$1 $2')
+                                   .replace(/([A-Z]{2,})([A-Z][a-z])/g, '$1 $2');
+            }
+          }
+          
           setMessages(prev => prev.map(msg => 
             msg.id === assistantMessageId
-              ? { ...msg, content: msg.content + token }
+              ? { ...msg, content: msg.content + processedToken }
               : msg
           ));
         },

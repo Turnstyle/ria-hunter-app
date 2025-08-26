@@ -11,7 +11,7 @@ export function HeaderCredits() {
   const { credits, isSubscriber, isLoadingCredits } = useCredits();
   const [isManaging, setIsManaging] = useState(false);
   
-  // Don't show anything while loading
+  // Show loading state briefly
   if (isLoadingCredits) {
     return (
       <div className="flex items-center space-x-2 text-gray-400">
@@ -76,18 +76,21 @@ export function HeaderCredits() {
   
   // Free user display with color coding
   const getCreditsColor = () => {
-    if (credits === null) return 'text-gray-400';
+    if (credits === null || credits === undefined) return 'text-gray-400';
     if (credits === 0) return 'text-red-600';
     if (credits === 1) return 'text-orange-600';
     if (credits <= 3) return 'text-yellow-600';
     return 'text-gray-600';
   };
   
+  // Ensure credits is displayed as a number (default to 15 for anonymous)
+  const displayCredits = credits ?? 15;
+  
   return (
     <div className={`flex items-center space-x-2 ${getCreditsColor()}`}>
       <CreditCard className="w-5 h-5" />
       <span className="text-sm font-semibold">
-        {credits === null ? '— Credits' : `${credits} ${credits === 1 ? 'Credit' : 'Credits'} Remaining`}
+        {`${displayCredits} ${displayCredits === 1 ? 'Credit' : 'Credits'} Remaining`}
       </span>
       
       {/* Only show Upgrade link for non-subscribers */}

@@ -348,51 +348,104 @@ export class RIAHunterAPIClient {
       
       const decoder = new TextDecoder();
       let buffer = '';
+      let lastActivityTime = Date.now();
+      let inactivityTimeoutId: NodeJS.Timeout | null = null;
+      let streamCompleted = false;
       
-      while (true) {
-        const { done, value } = await reader.read();
+      // Setup inactivity timeout (5 seconds)
+      const resetInactivityTimeout = () => {
+        lastActivityTime = Date.now();
         
-        if (done) {
-          if (DEBUG_MODE) console.log('[askStream] Stream completed');
-          break;
+        if (inactivityTimeoutId) {
+          clearTimeout(inactivityTimeoutId);
         }
         
-        buffer += decoder.decode(value, { stream: true });
-        
-        // Process complete SSE events separated by \n\n
-        for (;;) {
-          const idx = buffer.indexOf('\n\n');
-          if (idx === -1) break;
-          const chunk = buffer.slice(0, idx);  // one event
-          buffer = buffer.slice(idx + 2);
-
-          // Handle possible multi-line SSE event: use last 'data:' line
-          const lines = chunk.split('\n').filter(l => l.startsWith('data:'));
-          if (lines.length === 0) continue;
-          const raw = lines.map(l => l.slice(5).trim()).join('\n'); // support multi-line
-
-          let token = '';
-          if (raw && raw[0] === '{' && raw[raw.length - 1] === '}') {
-            try {
-              const obj = JSON.parse(raw);
-              token = obj.delta ?? obj.content ?? obj.text ?? obj.token ?? obj.message ?? '';
-              
-              if (obj.complete) {
-                onComplete(obj);
-              }
-              
-              // Update credits from response metadata
-              if (obj.metadata?.remaining !== undefined) {
-                if (DEBUG_MODE) console.log('[askStream] Credits remaining:', obj.metadata.remaining);
-              }
-            } catch {
-              token = raw; // fallback to raw text
-            }
-          } else {
-            token = raw; // plain text frames
+        inactivityTimeoutId = setTimeout(() => {
+          if (!streamCompleted) {
+            console.log('[askStream] Inactivity timeout - finalizing stream');
+            onToken(' (response ended)');
+            onComplete({ answer: '(Stream ended due to inactivity)', sources: [] });
+            streamCompleted = true;
+            reader.cancel();
           }
+        }, 5000);
+      };
+      
+      // Start the inactivity timer
+      resetInactivityTimeout();
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            if (DEBUG_MODE) console.log('[askStream] Stream completed');
+            streamCompleted = true;
+            break;
+          }
+          
+          // Reset inactivity timer on new data
+          resetInactivityTimeout();
+          
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Process complete SSE events separated by \n\n
+          for (;;) {
+            const idx = buffer.indexOf('\n\n');
+            if (idx === -1) break;
+            const chunk = buffer.slice(0, idx);  // one event
+            buffer = buffer.slice(idx + 2);
 
-          if (token) onToken(token); // your streaming callback
+            // Handle possible multi-line SSE event: use last 'data:' line
+            const lines = chunk.split('\n').filter(l => l.startsWith('data:'));
+            if (lines.length === 0) continue;
+            const raw = lines.map(l => l.slice(5).trim()).join('\n'); // support multi-line
+
+            // Check for [DONE] marker
+            if (raw === '[DONE]') {
+              if (DEBUG_MODE) console.log('[askStream] Received [DONE] marker');
+              streamCompleted = true;
+              
+              // Report to debug overlay if available
+              if (typeof window !== 'undefined' && (window as any).__reportStreamDone) {
+                (window as any).__reportStreamDone();
+              }
+              
+              onComplete({ answer: '', sources: [] });
+              break;
+            }
+
+            let token = '';
+            if (raw && raw[0] === '{' && raw[raw.length - 1] === '}') {
+              try {
+                const obj = JSON.parse(raw);
+                token = obj.delta ?? obj.content ?? obj.text ?? obj.token ?? obj.message ?? '';
+                
+                if (obj.complete) {
+                  streamCompleted = true;
+                  onComplete(obj);
+                }
+                
+                // Update credits from response metadata
+                if (obj.metadata?.remaining !== undefined) {
+                  if (DEBUG_MODE) console.log('[askStream] Credits remaining:', obj.metadata.remaining);
+                }
+              } catch {
+                token = raw; // fallback to raw text
+              }
+            } else {
+              token = raw; // plain text frames
+            }
+
+            if (token) onToken(token); // your streaming callback
+          }
+          
+          if (streamCompleted) break;
+        }
+      } finally {
+        // Clean up inactivity timeout
+        if (inactivityTimeoutId) {
+          clearTimeout(inactivityTimeoutId);
         }
       }
     } catch (error) {
@@ -442,18 +495,32 @@ export class RIAHunterAPIClient {
     
     if (DEBUG_MODE) {
       console.log('[getCreditsBalance] Request URL:', url);
+      console.log('[getCreditsBalance] Has auth token:', !!this.authToken);
     }
     
     try {
       const response = await this.fetchWithRetry(url, {
         method: 'GET',
         headers: this.buildHeaders(),
-        credentials: this.authToken ? 'include' : 'omit',
+        credentials: 'include', // Always include credentials for cookie-based sessions
         cache: 'no-store',
       });
       
-      // Treat ANY non-200 as credits=null
+      // Handle non-200 responses
       if (!response.ok) {
+        console.log(`[getCreditsBalance] Response status: ${response.status}`);
+        
+        // For 401 errors on older deployments, return null to trigger anonymous fallback
+        if (response.status === 401) {
+          console.log('[getCreditsBalance] 401 detected, will use anonymous fallback');
+          return {
+            credits: null,
+            balance: null,
+            isSubscriber: false
+          };
+        }
+        
+        // For other errors, also return null
         console.error('[getCreditsBalance] Error:', response.status, response.statusText);
         return {
           credits: null,

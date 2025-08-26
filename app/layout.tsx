@@ -3,6 +3,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { AuthProvider } from '@/app/contexts/AuthContext';
 import { Header } from '@/app/components/layout/Header';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
+import { DebugOverlay } from '@/app/components/DebugOverlay';
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,6 +43,7 @@ export default function RootLayout({
             <main className="flex-1 min-h-screen pt-16">
               {children}
             </main>
+            <DebugOverlay />
             <Analytics />
           </AuthProvider>
         </ErrorBoundary>
