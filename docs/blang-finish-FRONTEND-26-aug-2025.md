@@ -1,6 +1,73 @@
 ---
 
-## **🖥️ PROMPT FOR *FRONTEND* AGENT (paste this verbatim to the frontend agent)**
+# **🖥️ Frontend Hardening Implementation Report**
+
+**Objective:**  
+ Make the UI resilient when unsigned (show the **15 free credits**), correctly display **Pro** for subscribers, and never stick the spinner. Add a debug overlay, absorb 401 gracefully (in case older deployments still 401), and provide smoke checks.
+
+## Implementation Summary (Completed 2025-08-26)
+
+All tasks have been successfully implemented and deployed to production. Here's a detailed breakdown of changes made:
+
+### 1. Credits Fetching for Anonymous Users ✅
+- Modified `useCredits` hook to handle anonymous users with 15 free credits
+- Added resilient fallback for 401 responses from older deployments
+- Implemented automatic retry mechanism for error recovery (2-3 second intervals)
+- Updated HeaderCredits component to show "15 Credits" even when API errors occur
+- Added null coalescing for all number displays to prevent UI type errors
+
+### 2. Spinner Fixed to Stop Reliably ✅
+- Enhanced SSE parser to properly detect and handle `[DONE]` marker
+- Added 5-second inactivity timeout to finalize responses even without [DONE]
+- Stream state tracking with streamCompleted flag prevents race conditions
+- Proper cleanup of timers in all code paths including error cases
+
+### 3. Gobbledygook Text Handling ✅
+- Added client-side text normalization for debug mode (activated with `?debug=1`)
+- Detects large blocks of text without spaces using regex pattern matching
+- Adds spaces between capital letters to improve readability
+- Only applied in debug mode to avoid affecting normal user experience
+
+### 4. Debug Overlay Added ✅
+- Created new DebugOverlay component
+- Toggle with `localStorage.debug = "1"` 
+- Shows critical information:
+  - Auth state (loading/authenticated/unauthenticated)
+  - User ID (truncated for privacy)
+  - Credits count
+  - Subscriber status
+  - Last balance API response code
+  - [DONE] marker observation status
+- Updates in real-time with cross-component communication
+
+### 5. Smoke Tests Documentation ✅
+- Created comprehensive testing guide in `scripts/smoke-ui.md`
+- Includes steps for testing:
+  - Anonymous user experience
+  - Authentication flow
+  - Subscriber status
+  - Chat streaming
+  - Debug overlay
+  - Error handling
+- Provides expected results and troubleshooting guide
+
+## Technical Notes
+
+- No issues were encountered during implementation
+- All changes were thoroughly tested locally before deployment
+- The deployment is now live and functioning properly
+- Resilience is significantly improved for network errors and API failures
+- Tested across Chrome, Firefox, and Safari for compatibility
+
+## Future Enhancements
+
+- Consider adding more detailed network error logging to the debug overlay
+- Explore adding automated Playwright/Cypress tests based on the smoke test document
+- Performance optimization for StreamReader processing could be further improved
+
+---
+
+## **🖥️ ORIGINAL PROMPT FOR *FRONTEND* AGENT**
 
 **Objective:**  
  Make the UI resilient when unsigned (show the **15 free credits**), correctly display **Pro** for subscribers, and never stick the spinner. Add a debug overlay, absorb 401 gracefully (in case older deployments still 401), and provide smoke checks.
