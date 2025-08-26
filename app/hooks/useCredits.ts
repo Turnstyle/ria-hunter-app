@@ -115,6 +115,7 @@ export function useCredits(): UseCreditsReturn {
       const response = await apiClient.getCreditsBalance();
       
       // Determine credits: prefer credits field, then balance, then null
+      // Following standardized API response format
       const creditsValue = typeof response.credits === 'number' ? response.credits
                         : typeof response.balance === 'number' ? response.balance
                         : null;

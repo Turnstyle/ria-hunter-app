@@ -54,9 +54,12 @@ export function HeaderCredits() {
   if (isSubscriber) {
     return (
       <div className="flex items-center space-x-2">
-        <div className="flex items-center text-green-600">
-          <Infinity className="w-5 h-5" />
-          <span className="text-sm font-semibold ml-1">Pro — Unlimited</span>
+        <div className="flex items-center">
+          <div className="bg-green-600 text-white px-2 py-0.5 rounded-full text-xs font-semibold">
+            Pro
+          </div>
+          <Infinity className="w-5 h-5 text-green-600 ml-1" />
+          <span className="text-sm font-semibold ml-1 text-green-600">Unlimited</span>
         </div>
         
         <a

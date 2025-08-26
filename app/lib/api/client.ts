@@ -474,7 +474,7 @@ export class RIAHunterAPIClient {
         };
       }
       
-      // Following the new specs, prefer new fields when present
+      // Following the standardized API response, prefer credits field over balance
       const credits = typeof parsed.data.credits === 'number' ? parsed.data.credits 
                      : typeof parsed.data.balance === 'number' ? parsed.data.balance 
                      : null;
