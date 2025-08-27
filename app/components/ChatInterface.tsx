@@ -8,6 +8,7 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { apiClient, type AskResponse } from '@/app/lib/api/client';
 import { AlertCircle, Send, Loader2, StopCircle } from 'lucide-react';
+import { errorManager } from '@/app/components/ErrorBanner';
 
 interface Message {
   id: string;
@@ -154,32 +155,30 @@ function ChatInterface() {
             // Parse error message for specific handling
             const errorMessage = error.message;
             
-            // Update message with appropriate error
-            let displayMessage = 'I encountered an error processing your request. Please try again.';
+            // Update message with appropriate user-friendly error
+            let displayMessage = 'I apologize, but I\'m having trouble processing your request right now. Please try again in a moment.';
             
             if (errorMessage.includes('METHOD_NOT_ALLOWED')) {
-              displayMessage = 'Technical error: The server configuration has changed. Please refresh the page and try again.';
-              console.error('METHOD ERROR: Frontend sending wrong HTTP method to backend');
-              setError('Technical error: The server configuration has changed. Please refresh the page and try again.');
+              displayMessage = 'I\'m experiencing a temporary issue. Please refresh the page and try your question again.';
+              errorManager.showError('Unable to process request', 'Please refresh the page and try again.', 'warning', 5000);
             } else if (errorMessage.includes('5 free demo searches') || errorMessage === 'DEMO_LIMIT_REACHED') {
-              displayMessage = "You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter with unlimited searches for 7 days.";
-              setError(displayMessage);
+              displayMessage = "You've reached your 5 free searches. Sign up for a free account to continue exploring RIA Hunter with unlimited searches for 7 days!";
+              errorManager.showDemoLimitError();
             } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
-              displayMessage = 'Please sign in to continue.';
-              setError('Please sign in to continue.');
+              displayMessage = 'Please sign in to access this feature.';
+              errorManager.showAuthenticationError();
             } else if (errorMessage === 'RATE_LIMITED') {
-              displayMessage = 'You are sending too many requests. Please wait a moment and try again.';
-              setError('You are sending too many requests. Please wait a moment and try again.');
+              displayMessage = 'Please wait a moment before sending another request.';
+              errorManager.showRateLimitError();
             } else if (errorMessage.includes('Stream request failed: 405')) {
-              displayMessage = 'Server configuration error. Please contact support.';
-              console.error('405 ERROR: Check that backend /api/ask-stream accepts POST');
-              setError('Server configuration error. Please contact support.');
+              displayMessage = 'I\'m having trouble connecting right now. Please try again shortly.';
+              errorManager.showError('Connection issue', 'Please try again in a few moments.', 'warning', 7000);
             } else if (errorMessage.includes('Stream request failed: 500') || errorMessage.includes('status 500')) {
-              displayMessage = 'Server configuration issue. Our team has been notified.';
-              console.error('Backend routing issue - /api endpoints may need configuration');
-              setError('Server configuration issue. Our team has been notified.');
+              displayMessage = 'I\'m temporarily unavailable. Our team is working on it - please try again soon.';
+              errorManager.showBackendError();
             } else {
-              setError('Failed to process your query. Please try again.');
+              displayMessage = 'I couldn\'t complete your request. Please try again.';
+              errorManager.showError('Request failed', 'Please try your question again.', 'warning', 5000);
             }
             
             setMessages(prev => prev.map(msg => 
@@ -204,19 +203,23 @@ function ChatInterface() {
       console.error('Failed to send query:', error);
       
       try {
-        // Handle specific error types
+        // Handle specific error types with user-friendly messages
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (errorMessage.includes('5 free demo searches') || errorMessage === 'DEMO_LIMIT_REACHED') {
-          setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter with unlimited searches for 7 days.");
+          errorManager.showDemoLimitError();
+          setError("You've reached your 5 free searches. Sign up for a free account to continue!");
         } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
+          errorManager.showAuthenticationError();
           setError('Please sign in to continue.');
         } else if (errorMessage === 'RATE_LIMITED') {
-          setError('You are sending too many requests. Please slow down.');
+          errorManager.showRateLimitError();
+          setError('Please wait a moment before trying again.');
         } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
-          setError('Server configuration issue. Our team has been notified.');
-          console.error('Backend routing issue - /api endpoints may need configuration');
+          errorManager.showBackendError();
+          setError('Service temporarily unavailable. Please try again soon.');
         } else {
-          setError('Failed to process your query. Please try again.');
+          errorManager.showError('Unable to process request', 'Please try again in a moment.', 'warning', 5000);
+          setError('Unable to process your request. Please try again.');
         }
         
         // Remove the placeholder message
