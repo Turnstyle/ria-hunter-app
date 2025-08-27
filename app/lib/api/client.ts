@@ -247,10 +247,20 @@ export class RIAHunterAPIClient {
       try {
         const errorData = await response.json();
         if (errorData.error) {
-          errorMessage = errorData.error;
+          // Provide AI-specific error feedback
+          if (errorData.error.includes('embedding') || errorData.error.includes('vertex') || errorData.error.includes('semantic')) {
+            errorMessage = 'AI search is temporarily unavailable. Showing basic results instead.';
+          } else if (errorData.error.includes('timeout') || errorData.error.includes('stream')) {
+            errorMessage = 'AI processing took too long. Please try a simpler query.';
+          } else {
+            errorMessage = errorData.error;
+          }
         }
       } catch (e) {
-        // Ignore JSON parsing errors
+        // Ignore JSON parsing errors, use generic message
+        if (response.status >= 500) {
+          errorMessage = 'AI services are temporarily unavailable. Please try again in a moment.';
+        }
       }
       
       throw new Error(errorMessage);

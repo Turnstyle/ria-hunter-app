@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useCredits } from '@/app/hooks/useCredits';
 import { apiClient, type AskResponse } from '@/app/lib/api/client';
-import { Search, MapPin, DollarSign, Users, Loader2 } from 'lucide-react';
+import { Search, MapPin, DollarSign, Users, Loader2, HelpCircle, Download } from 'lucide-react';
 
 // State abbreviations for dropdown
 const STATES = [
@@ -104,10 +104,7 @@ export default function SearchPage() {
       // Store response
       setResponse(result);
       
-      // Check if no results
-      if (!result.answer && (!result.results || result.results.length === 0)) {
-        setError('No results found. Try adjusting your search criteria.');
-      }
+      // Don't set error for empty results, let the UI handle it gracefully
     } catch (error) {
       console.error('Search failed:', error);
       
@@ -139,8 +136,8 @@ export default function SearchPage() {
       <h1 className="text-3xl font-bold mb-8">Search RIA Database</h1>
       
       {/* Search Form */}
-      <form onSubmit={handleSearch} className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <form onSubmit={handleSearch} className="bg-white rounded-lg shadow-md p-4 md:p-6 mb-8">
+        <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 mb-4">
           {/* Query Input */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -151,7 +148,7 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="e.g., RIAs with venture capital activity"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
           </div>
@@ -166,7 +163,7 @@ export default function SearchPage() {
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="e.g., Saint Louis"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
           </div>
@@ -179,7 +176,7 @@ export default function SearchPage() {
             <select
               value={state}
               onChange={(e) => setState(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             >
               <option value="">All States</option>
@@ -203,23 +200,31 @@ export default function SearchPage() {
               placeholder="e.g., 100"
               min="0"
               step="10"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={isLoading}
             />
           </div>
           
           {/* Options */}
-          <div className="flex items-center space-x-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={useHybridSearch}
-                onChange={(e) => setUseHybridSearch(e.target.checked)}
-                className="mr-2"
-                disabled={isLoading}
-              />
-              <span className="text-sm">Hybrid Search</span>
-            </label>
+          <div className="md:col-span-2 flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <div className="flex items-center space-x-2">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={useHybridSearch}
+                  onChange={(e) => setUseHybridSearch(e.target.checked)}
+                  className="mr-1"
+                  disabled={isLoading}
+                />
+                <span className="text-sm">AI-Enhanced Search</span>
+              </label>
+              <div className="group relative">
+                <HelpCircle className="w-4 h-4 text-gray-400 cursor-help" />
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
+                  Uses AI to understand query intent and find relevant firms
+                </div>
+              </div>
+            </div>
             
             <label className="flex items-center">
               <input
@@ -235,30 +240,35 @@ export default function SearchPage() {
         </div>
         
         {/* Submit Button */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
           <button
             type="submit"
             disabled={isLoading || !query.trim() || (!isSubscriber && (credits === 0 || credits === null))}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
           >
             {isLoading ? (
-              <>
+              <div className="flex items-center">
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Searching...
-              </>
+                <div className="flex flex-col">
+                  <span>AI Processing...</span>
+                  <span className="text-xs opacity-75">This may take a few seconds</span>
+                </div>
+              </div>
             ) : (
               <>
                 <Search className="w-5 h-5 mr-2" />
-                Search
+                {useHybridSearch ? 'AI Search' : 'Search'}
               </>
             )}
           </button>
           
           {/* Credits Display */}
           {!isSubscriber && (
-            <span className="text-sm text-gray-600">
-              {credits === null ? '— credits' : credits > 0 ? `${credits} credits remaining` : 'No credits remaining'}
-            </span>
+            <div className="text-center sm:text-left">
+              <span className="text-sm text-gray-600">
+                {credits === null ? '— credits' : credits > 0 ? `${credits} credits remaining` : 'No credits remaining'}
+              </span>
+            </div>
           )}
         </div>
       </form>
@@ -272,6 +282,23 @@ export default function SearchPage() {
               Upgrade your plan
             </a>
           )}
+        </div>
+      )}
+      
+      {/* AI Search Status Indicator */}
+      {response?.metadata?.searchStrategy && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-sm font-medium text-blue-900">
+              {response.metadata.searchStrategy === 'semantic-first' ? 'AI-Powered Search Results' : 'Database Search Results'}
+            </span>
+            {response.metadata.confidence && (
+              <span className="text-xs text-blue-700">
+                • Avg Confidence: {(response.metadata.confidence * 100).toFixed(0)}%
+              </span>
+            )}
+          </div>
         </div>
       )}
       
@@ -318,11 +345,14 @@ export default function SearchPage() {
           )}
           
           {/* Structured Results */}
-          {response.results && response.results.length > 0 && (
+          {response.results && response.results.length > 0 ? (
             <div>
-              <h2 className="text-xl font-semibold mb-4">
-                Results ({response.results.length})
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">
+                  Results ({response.results.length})
+                </h2>
+                <ExportResults results={response.results} />
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {response.results.map((result) => (
@@ -330,9 +360,18 @@ export default function SearchPage() {
                     key={result.id}
                     className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow"
                   >
-                    <h3 className="font-semibold text-lg mb-2">
-                      {result.firm_name}
-                    </h3>
+                    {/* Header with AI confidence indicator */}
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-semibold text-lg">
+                        {result.firm_name}
+                      </h3>
+                      {result.similarity && result.similarity > 0 && (
+                        <div className="flex items-center space-x-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                          <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                          <span>AI: {(result.similarity * 100).toFixed(0)}%</span>
+                        </div>
+                      )}
+                    </div>
                     
                     <div className="space-y-1 text-sm text-gray-600">
                       {result.city && result.state && (
@@ -349,9 +388,10 @@ export default function SearchPage() {
                         </div>
                       )}
                       
-                      {result.similarity !== undefined && (
-                        <div className="text-xs text-gray-500">
-                          Match: {(result.similarity * 100).toFixed(1)}%
+                      {result.similarity !== undefined && result.similarity > 0 && (
+                        <div className="flex items-center text-xs text-blue-600 font-medium">
+                          <div className="w-1 h-1 bg-blue-600 rounded-full mr-1"></div>
+                          Semantic Match: {(result.similarity * 100).toFixed(0)}%
                         </div>
                       )}
                     </div>
@@ -367,9 +407,72 @@ export default function SearchPage() {
                 ))}
               </div>
             </div>
+          ) : !response.answer && (
+            <div className="text-center py-12">
+              <div className="text-gray-500 mb-4">
+                <Search className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <h3 className="text-lg font-medium">No results found</h3>
+                <p className="text-sm mt-2">
+                  Try adjusting your search criteria or using different keywords.
+                </p>
+              </div>
+              
+              {/* AI-powered suggestions */}
+              <div className="bg-blue-50 rounded-lg p-4 text-left max-w-md mx-auto">
+                <h4 className="font-medium text-blue-900 mb-2">Search suggestions:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Try broader location terms (e.g., "Missouri" instead of "Saint Louis")</li>
+                  <li>• Use alternative terms (e.g., "wealth management" vs "investment advisory")</li>
+                  <li>• Check spelling of location names</li>
+                  <li>• Remove specific filters to see more results</li>
+                </ul>
+              </div>
+            </div>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+// Export Results Component
+function ExportResults({ results }: { results: any[] }) {
+  const exportToCSV = () => {
+    const headers = ['Firm Name', 'Location', 'AUM', 'AI Confidence', 'CRD Number'];
+    const csvData = results.map(r => [
+      r.firm_name || '',
+      `${r.city || ''}, ${r.state || ''}`.replace(/^, |, $/g, ''),
+      r.aum ? `$${(r.aum / 1000000).toFixed(0)}M` : '',
+      r.similarity ? `${(r.similarity * 100).toFixed(0)}%` : '',
+      r.crd_number || ''
+    ]);
+    
+    const csvContent = [headers, ...csvData]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ria-search-results-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  
+  if (!results || results.length === 0) {
+    return null;
+  }
+  
+  return (
+    <button
+      onClick={exportToCSV}
+      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+    >
+      <Download className="w-4 h-4" />
+      <span>Export CSV</span>
+    </button>
   );
 }
