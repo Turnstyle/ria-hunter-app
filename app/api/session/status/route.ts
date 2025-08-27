@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         // Check subscription status
         try {
           const subscriptionStatus = await checkUserSubscription(user.id);
-          isSubscriber = subscriptionStatus.isActive;
+          isSubscriber = subscriptionStatus.hasActiveSubscription;
         } catch (subError) {
           console.error('Error checking subscription:', subError);
         }
