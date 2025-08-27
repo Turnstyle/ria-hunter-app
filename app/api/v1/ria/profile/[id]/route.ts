@@ -19,7 +19,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     // Get backend URL - same as query endpoint
-    const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
+    // Backend is on same domain at /_backend/api/*
+    const backendBaseUrl = 'https://ria-hunter.app/_backend';
     if (!backendBaseUrl) {
       return NextResponse.json({ error: 'Backend URL not configured' }, { status: 500, headers: CORS_HEADERS });
     }

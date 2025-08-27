@@ -6,10 +6,8 @@ export async function POST(request: NextRequest) {
     const reqHeaders = await nextHeaders();
     const requestId = reqHeaders?.get?.('x-request-id') || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const backendBaseUrl = process.env.RIA_HUNTER_BACKEND_URL;
-    if (!backendBaseUrl) {
-      return NextResponse.json({ error: 'Backend URL not configured' }, { status: 500 });
-    }
+    // Backend is on same domain at /_backend/api/*
+    const backendBaseUrl = 'https://ria-hunter.app/_backend';
 
     // Extract auth token from cookies
     let authHeader = request.headers.get('authorization') || undefined;
