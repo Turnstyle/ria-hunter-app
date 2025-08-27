@@ -18,7 +18,7 @@ const nextConfig = {
     return [
       {
         source: '/_backend/:path*', 
-        destination: 'https://ria-hunter.app/:path*'
+        destination: 'https://ria-hunter.vercel.app/:path*'
       },
     ];
   },
