@@ -14,26 +14,8 @@ const nextConfig = {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/_backend/:path*', 
-        destination: 'https://ria-hunter.vercel.app/:path*'
-      },
-    ];
-  },
-
-  async headers() {
-    return [
-      {
-        // Add headers for proxied requests
-        source: '/_backend/:path*',
-        headers: [
-          { key: 'x-forwarded-host', value: 'www.ria-hunter.app' }
-        ]
-      }
-    ];
-  },
+  // Remove proxy rewrites - backend is on same domain at /_backend/api/*
+  // The backend routes are served directly from https://ria-hunter.app/_backend/api/*
   webpack: (config, { dev, isServer }) => {
     // Optimize webpack caching
     config.cache = {
