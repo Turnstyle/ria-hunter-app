@@ -157,8 +157,9 @@ export type CreditDebugResponse = z.infer<typeof CreditDebugResponseSchema>;
 
 // Configuration object - single source of truth for API settings
 const API_CONFIG = {
-  // Use proxied endpoint through Next.js rewrites to avoid CORS issues
-  baseUrl: '/_backend',
+  // Use the backend URL through the _backend prefix
+  // In production, this routes to the backend deployment
+  baseUrl: typeof window !== 'undefined' ? '/_backend' : 'https://ria-hunter.app/_backend',
   
   // CRITICAL: These are the ONLY endpoints we should call
   // Using the proxy via /_backend to avoid CORS issues
@@ -230,6 +231,7 @@ export class RIAHunterAPIClient {
       method: 'POST',
       headers: this.buildHeaders(),
       body: JSON.stringify(normalizedRequest),
+      credentials: 'include', // Include credentials for session tracking
       cache: 'no-store',
     });
     
@@ -320,7 +322,8 @@ export class RIAHunterAPIClient {
         },
         body: JSON.stringify(normalizedRequest),
         signal: controller.signal,
-        credentials: this.authToken ? 'include' : 'omit', // Only include credentials when authenticated
+        credentials: 'include', // Always include credentials for session tracking
+        mode: 'cors', // Explicit CORS mode
         cache: 'no-store', // Prevent buffering of streaming responses
       });
       
@@ -815,9 +818,9 @@ export class RIAHunterAPIClient {
     attempt = 1
   ): Promise<Response> {
     try {
-      // If credentials aren't explicitly set, set based on auth status
+      // Always include credentials for session tracking
       if (options.credentials === undefined) {
-        options.credentials = this.authToken ? 'include' : 'omit';
+        options.credentials = 'include';
       }
       
       const response = await fetch(url, {
