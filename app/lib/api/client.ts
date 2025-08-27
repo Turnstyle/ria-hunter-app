@@ -50,6 +50,7 @@ export const AskResponseSchema = z.object({
     isSubscriber: z.boolean().nullable().optional(),
     queryType: z.string().optional(),
     searchStrategy: z.string().optional(),
+    confidence: z.number().optional(),
     tokensUsed: z.number().optional(),
     debug: z.any().optional(),
   }).optional(),
