@@ -26,7 +26,7 @@ export function HeaderCredits() {
     setIsManaging(true);
     
     try {
-      const response = await fetch('/_backend/api/stripe/portal', {
+      const response = await fetch('/api/stripe/portal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

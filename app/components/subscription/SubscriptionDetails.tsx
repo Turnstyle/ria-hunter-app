@@ -168,7 +168,7 @@ function ManageBillingButton() {
   const handleClick = async () => {
     setIsLoading(true)
     try {
-      const resp = await fetch('/_backend/api/stripe/portal', {
+      const resp = await fetch('/api/stripe/portal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

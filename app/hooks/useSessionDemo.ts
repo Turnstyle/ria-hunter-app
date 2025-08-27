@@ -28,7 +28,7 @@ export function useSessionDemo(): UseSessionDemoReturn {
     setIsLoading(true);
     
     try {
-      const response = await fetch('/_backend/api/session/status', {
+      const response = await fetch('/api/session/status', {
         method: 'GET',
         credentials: 'include',
         headers: session?.access_token ? {
