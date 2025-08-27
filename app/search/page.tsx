@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { useCredits } from '@/app/hooks/useCredits';
+import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { apiClient, type AskResponse } from '@/app/lib/api/client';
 import { Search, MapPin, DollarSign, Users, Loader2, HelpCircle, Download } from 'lucide-react';
 
@@ -54,7 +54,7 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   
   const { session } = useAuth();
-  const { credits, isSubscriber, updateFromResponse } = useCredits();
+  const { searchesRemaining, isSubscriber, updateFromResponse, canSearch } = useSessionDemo();
 
   // Handle search submission
   const handleSearch = async (e: React.FormEvent) => {
@@ -65,9 +65,9 @@ export default function SearchPage() {
       return;
     }
     
-    // Check credits
-    if (!isSubscriber && (credits === 0 || credits === null)) {
-      setError('You have no credits remaining. Please upgrade your plan.');
+    // Check if user can search
+    if (!canSearch) {
+      setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter.");
       return;
     }
     
@@ -98,7 +98,7 @@ export default function SearchPage() {
       // Make API call
       const result = await apiClient.ask(searchRequest);
       
-      // Update credits
+      // Update session status
       updateFromResponse(result);
       
       // Store response
@@ -109,8 +109,8 @@ export default function SearchPage() {
       console.error('Search failed:', error);
       
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage === 'CREDITS_EXHAUSTED') {
-        setError('You have used all your credits. Please upgrade to continue.');
+      if (errorMessage.includes('5 free demo searches') || errorMessage === 'DEMO_LIMIT_REACHED') {
+        setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter.");
       } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
         setError('Please sign in to search.');
       } else if (errorMessage === 'RATE_LIMITED') {
@@ -243,7 +243,7 @@ export default function SearchPage() {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
           <button
             type="submit"
-            disabled={isLoading || !query.trim() || (!isSubscriber && (credits === 0 || credits === null))}
+            disabled={isLoading || !query.trim() || !canSearch}
             className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
           >
             {isLoading ? (
@@ -262,11 +262,11 @@ export default function SearchPage() {
             )}
           </button>
           
-          {/* Credits Display */}
+          {/* Searches Display */}
           {!isSubscriber && (
             <div className="text-center sm:text-left">
               <span className="text-sm text-gray-600">
-                {credits === null ? '— credits' : credits > 0 ? `${credits} credits remaining` : 'No credits remaining'}
+                {searchesRemaining === null ? '—' : searchesRemaining > 0 ? `${searchesRemaining} free searches remaining` : 'Demo limit reached'}
               </span>
             </div>
           )}
@@ -277,7 +277,7 @@ export default function SearchPage() {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           <p>{error}</p>
-          {error.includes('credits') && (
+          {(error.includes('demo') || error.includes('searches')) && (
             <a href="/subscription" className="underline font-semibold">
               Upgrade your plan
             </a>
@@ -291,7 +291,7 @@ export default function SearchPage() {
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
             <span className="text-sm font-medium text-blue-900">
-              {response.metadata.searchStrategy === 'semantic-first' ? 'AI-Powered Search Results' : 'Database Search Results'}
+              {response.metadata.searchStrategy === 'ai_semantic' ? 'AI-Powered Search Results' : 'Database Search Results'}
             </span>
             {response.metadata.confidence && (
               <span className="text-xs text-blue-700">

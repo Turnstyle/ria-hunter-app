@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { useCredits } from '@/app/hooks/useCredits';
+import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { X } from 'lucide-react';
 
 interface DebugInfo {
   authState: 'loading' | 'authenticated' | 'unauthenticated';
   userId?: string;
-  credits: number | null;
+  searchesRemaining: number | null;
   isSubscriber: boolean;
   lastBalanceStatus?: number;
   streamDoneObserved: boolean;
@@ -19,14 +19,14 @@ export function DebugOverlay() {
   const [isVisible, setIsVisible] = useState(false);
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({
     authState: 'loading',
-    credits: null,
+    searchesRemaining: null,
     isSubscriber: false,
     streamDoneObserved: false,
     timestamp: new Date().toISOString()
   });
 
   const { user, session, loading } = useAuth();
-  const { credits, isSubscriber } = useCredits();
+  const { searchesRemaining, isSubscriber } = useSessionDemo();
 
   // Check if debug mode is enabled
   useEffect(() => {
@@ -57,11 +57,11 @@ export function DebugOverlay() {
       ...prev,
       authState,
       userId: user?.id,
-      credits,
+      searchesRemaining,
       isSubscriber,
       timestamp: new Date().toISOString()
     }));
-  }, [loading, user, credits, isSubscriber]);
+  }, [loading, user, searchesRemaining, isSubscriber]);
 
   // Listen for balance API responses
   useEffect(() => {
@@ -71,9 +71,9 @@ export function DebugOverlay() {
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
       
-      // Check if this is a credits balance request
+      // Check if this is a session status request
       const url = args[0]?.toString() || '';
-      if (url.includes('/api/credits/balance') || url.includes('/api/balance')) {
+      if (url.includes('/api/session/status') || url.includes('/api/credits/balance')) {
         setDebugInfo(prev => ({
           ...prev,
           lastBalanceStatus: response.status
@@ -146,8 +146,8 @@ export function DebugOverlay() {
         )}
         
         <div className="flex justify-between">
-          <span className="text-gray-400">Credits:</span>
-          <span className="text-cyan-400">{debugInfo.credits ?? 'null'}</span>
+          <span className="text-gray-400">Searches Remaining:</span>
+          <span className="text-cyan-400">{debugInfo.searchesRemaining ?? 'null'}</span>
         </div>
         
         <div className="flex justify-between">

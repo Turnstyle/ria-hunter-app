@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { apiClient } from '@/app/lib/api/client';
-import { useCredits } from '@/app/hooks/useCredits';
+import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 
 interface TestResult {
   name: string;
@@ -21,7 +21,7 @@ export function TestChecklist() {
   }
   const [tests, setTests] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const { credits, isSubscriber } = useCredits();
+  const { searchesRemaining, isSubscriber } = useSessionDemo();
   
   const runTests = async () => {
     setIsRunning(true);
@@ -49,24 +49,24 @@ export function TestChecklist() {
       });
     }
     
-    // Test 2: Credits are not hardcoded to 2
+    // Test 2: Searches remaining is properly tracked
     try {
-      if (credits !== 2 || isSubscriber) {
+      if (searchesRemaining !== null || isSubscriber) {
         results.push({
-          name: 'Credits not hardcoded to 2',
+          name: 'Session demo system working',
           status: 'pass',
-          message: `Current credits: ${credits}`,
+          message: `Searches remaining: ${searchesRemaining ?? 'unlimited'}`,
         });
       } else {
         results.push({
-          name: 'Credits not hardcoded to 2',
+          name: 'Session demo system working',
           status: 'fail',
-          message: 'Credits still showing default value',
+          message: 'Cannot get session status',
         });
       }
     } catch (e: any) {
       results.push({
-        name: 'Credits not hardcoded to 2',
+        name: 'Session demo system working',
         status: 'fail',
         message: e.message,
       });
@@ -120,7 +120,7 @@ export function TestChecklist() {
       results.push({
         name: 'Ask endpoint returns natural language',
         status: 'skip',
-        message: 'Skipped to preserve credits',
+        message: 'Skipped to preserve demo searches',
       });
     }
     

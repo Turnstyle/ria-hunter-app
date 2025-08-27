@@ -5,7 +5,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { useCredits } from '@/app/hooks/useCredits';
+import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { apiClient, type AskResponse } from '@/app/lib/api/client';
 import { AlertCircle, Send, Loader2, StopCircle } from 'lucide-react';
 
@@ -26,7 +26,7 @@ function ChatInterface() {
   const [error, setError] = useState<string | null>(null);
   
   const { session } = useAuth();
-  const { credits, isSubscriber, updateFromResponse, isLoadingCredits, isSubmitting: creditsSubmitting } = useCredits();
+  const { searchesRemaining, isSubscriber, canSearch, updateFromResponse, isLoading: isLoadingSession } = useSessionDemo();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -48,10 +48,9 @@ function ChatInterface() {
       return;
     }
     
-    // Check credits - only block if we know for sure credits are zero
-    // Note: If credits are null or undefined, allow the request to proceed
-    if (!isSubscriber && credits === 0) {
-      setError('You have no credits remaining. Please upgrade your plan.');
+    // Check if user can perform search
+    if (!canSearch) {
+      setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter with unlimited searches for 7 days.");
       return;
     }
     
@@ -162,9 +161,9 @@ function ChatInterface() {
               displayMessage = 'Technical error: The server configuration has changed. Please refresh the page and try again.';
               console.error('METHOD ERROR: Frontend sending wrong HTTP method to backend');
               setError('Technical error: The server configuration has changed. Please refresh the page and try again.');
-            } else if (errorMessage === 'CREDITS_EXHAUSTED') {
-              displayMessage = 'You have used all your free searches. Please upgrade to continue.';
-              setError('You have used all your free searches. Please upgrade to continue.');
+            } else if (errorMessage.includes('5 free demo searches') || errorMessage === 'DEMO_LIMIT_REACHED') {
+              displayMessage = "You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter with unlimited searches for 7 days.";
+              setError(displayMessage);
             } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
               displayMessage = 'Please sign in to continue.';
               setError('Please sign in to continue.');
@@ -207,8 +206,8 @@ function ChatInterface() {
       try {
         // Handle specific error types
         const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage === 'CREDITS_EXHAUSTED') {
-          setError('You have used all your credits. Please upgrade to continue.');
+        if (errorMessage.includes('5 free demo searches') || errorMessage === 'DEMO_LIMIT_REACHED') {
+          setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter with unlimited searches for 7 days.");
         } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
           setError('Please sign in to continue.');
         } else if (errorMessage === 'RATE_LIMITED') {
@@ -342,7 +341,7 @@ function ChatInterface() {
           <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <p>{error}</p>
-            {error.includes('credits') && (
+            {(error.includes('demo') || error.includes('searches')) && (
               <button
                 onClick={() => window.location.href = '/subscription'}
                 className="mt-2 text-sm underline hover:no-underline"
@@ -391,14 +390,12 @@ function ChatInterface() {
           )}
         </div>
         
-        {/* Credits indicator with fallback */}
-        {!isSubscriber && (
+        {/* Search limit indicator */}
+        {!isSubscriber && searchesRemaining !== null && (
           <p className="mt-2 text-sm text-gray-600">
-            {credits === null
-              ? '—' 
-              : credits > 0 
-                ? `${credits} credits remaining` 
-                : '0 Credits Remaining'}
+            {searchesRemaining > 0 
+              ? `${searchesRemaining} free searches remaining` 
+              : 'Demo limit reached - Sign up for unlimited searches'}
           </p>
         )}
       </form>

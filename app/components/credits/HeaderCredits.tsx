@@ -3,19 +3,19 @@
 
 'use client';
 
-import { useCredits } from '@/app/hooks/useCredits';
-import { CreditCard, Infinity } from 'lucide-react';
+import { useSessionDemo } from '@/app/hooks/useSessionDemo';
+import { Search, Infinity } from 'lucide-react';
 import { useState } from 'react';
 
 export function HeaderCredits() {
-  const { credits, isSubscriber, isLoadingCredits } = useCredits();
+  const { searchesRemaining, isSubscriber, isLoading } = useSessionDemo();
   const [isManaging, setIsManaging] = useState(false);
   
   // Show loading state briefly
-  if (isLoadingCredits) {
+  if (isLoading) {
     return (
       <div className="flex items-center space-x-2 text-gray-400">
-        <CreditCard className="w-5 h-5" />
+        <Search className="w-5 h-5" />
         <span className="text-sm">Loading...</span>
       </div>
     );
@@ -59,7 +59,7 @@ export function HeaderCredits() {
             Pro
           </div>
           <Infinity className="w-5 h-5 text-green-600 ml-1" />
-          <span className="text-sm font-semibold ml-1 text-green-600">Unlimited</span>
+          <span className="text-sm font-semibold ml-1 text-green-600">Unlimited Searches</span>
         </div>
         
         <a
@@ -75,33 +75,33 @@ export function HeaderCredits() {
   }
   
   // Free user display with color coding
-  const getCreditsColor = () => {
-    if (credits === null || credits === undefined) return 'text-gray-400';
-    if (credits === 0) return 'text-red-600';
-    if (credits === 1) return 'text-orange-600';
-    if (credits <= 3) return 'text-yellow-600';
+  const getSearchesColor = () => {
+    if (searchesRemaining === null || searchesRemaining === undefined) return 'text-gray-400';
+    if (searchesRemaining === 0) return 'text-red-600';
+    if (searchesRemaining === 1) return 'text-orange-600';
+    if (searchesRemaining <= 2) return 'text-yellow-600';
     return 'text-gray-600';
   };
   
-  // Ensure credits is displayed as a number (default to 15 for anonymous)
-  const displayCredits = credits ?? 15;
+  // Ensure searches is displayed as a number (default to 5 for anonymous)
+  const displaySearches = searchesRemaining ?? 5;
   
   return (
-    <div className={`flex items-center space-x-2 ${getCreditsColor()}`}>
-      <CreditCard className="w-5 h-5" />
+    <div className={`flex items-center space-x-2 ${getSearchesColor()}`}>
+      <Search className="w-5 h-5" />
       <span className="text-sm font-semibold">
-        {`${displayCredits} ${displayCredits === 1 ? 'Credit' : 'Credits'} Remaining`}
+        {displaySearches === 0 
+          ? 'Demo limit reached'
+          : `${displaySearches} Free ${displaySearches === 1 ? 'Search' : 'Searches'} Left`}
       </span>
       
-      {/* Only show Upgrade link for non-subscribers */}
-      {!isSubscriber && (
-        <a
-          href="/subscription"
-          className="text-xs underline hover:no-underline"
-        >
-          Upgrade
-        </a>
-      )}
+      {/* Show Get Unlimited link for demo users */}
+      <a
+        href={displaySearches === 0 ? "/signup" : "/subscription"}
+        className="text-xs underline hover:no-underline"
+      >
+        {displaySearches === 0 ? 'Sign Up' : 'Get Unlimited'}
+      </a>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCredits } from '@/app/hooks/useCredits';
+import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import UpgradeButton from '@/app/components/subscription/UpgradeButton';
 import { HeaderCredits } from '@/app/components/credits/HeaderCredits';
 
@@ -30,7 +30,7 @@ interface RIAResult {
 }
 
 export default function BrowsePage() {
-  const { isSubscriber, credits } = useCredits();
+  const { isSubscriber, searchesRemaining } = useSessionDemo();
   const router = useRouter();
   const [filters, setFilters] = useState<FilterOptions>({
     fundType: '',
@@ -137,8 +137,8 @@ export default function BrowsePage() {
   ];
 
   const handleSearch = async (page = 1) => {
-    if ((credits === 0 || credits === null) && !isSubscriber) {
-      setError('You need credits or an active subscription to browse RIAs.');
+    if ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber) {
+      setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter.");
       return;
     }
 
@@ -175,9 +175,9 @@ export default function BrowsePage() {
       setTotalCount(data.totalCount || 0);
       setFilters(prev => ({ ...prev, page }));
       
-      // Only decrement credits if user is not a subscriber
+      // Session tracking handled automatically by backend
       if (!isSubscriber) {
-        // Logic to decrement credits would go here
+        // Backend will track demo search usage via cookie
       }
     } catch (error) {
       console.error('Search failed:', error);
@@ -334,9 +334,9 @@ export default function BrowsePage() {
         <div className="flex justify-between items-center">
           <button
             onClick={() => handleSearch(1)}
-            disabled={loading || ((credits === 0 || credits === null) && !isSubscriber)}
+            disabled={loading || ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber)}
             className={`px-4 py-2 rounded-md text-white ${
-              loading || ((credits === 0 || credits === null) && !isSubscriber)
+              loading || ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber)
                 ? 'bg-secondary-400 cursor-not-allowed'
                 : 'bg-primary-600 hover:bg-primary-700'
             }`}
@@ -344,12 +344,12 @@ export default function BrowsePage() {
             {loading ? 'Searching...' : 'Search RIAs'}
           </button>
 
-          {!isSubscriber && credits !== null && credits <= 2 && (
+          {!isSubscriber && searchesRemaining !== null && searchesRemaining <= 2 && (
             <div className="text-right">
               <p className="text-sm text-secondary-600 mb-2">
-                You have {credits} credit{credits === 1 ? '' : 's'} remaining
+                You have {searchesRemaining} free search{searchesRemaining === 1 ? '' : 'es'} remaining
               </p>
-              <UpgradeButton size="sm" buttonText="Upgrade Now" />
+              <UpgradeButton size="sm" buttonText="Get Unlimited" />
             </div>
           )}
         </div>
@@ -366,8 +366,8 @@ export default function BrowsePage() {
         </div>
       )}
 
-      {/* Upgrade Prompt for Non-Subscribers with no credits */}
-      {!isSubscriber && credits !== null && credits <= 0 && (
+      {/* Upgrade Prompt for Non-Subscribers with no searches */}
+      {!isSubscriber && searchesRemaining !== null && searchesRemaining <= 0 && (
         <div className="bg-gradient-to-r from-primary-50 to-secondary-50 border border-primary-200 rounded-lg p-6 mb-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="mb-4 md:mb-0 md:mr-6">
@@ -398,7 +398,7 @@ export default function BrowsePage() {
       )}
 
       {/* Results Section */}
-      {hasSearched && ((credits !== null && credits > 0) || isSubscriber) && (
+      {hasSearched && ((searchesRemaining !== null && searchesRemaining > 0) || isSubscriber) && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-secondary-800">

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import UpgradeButton from '@/app/components/subscription/UpgradeButton'
 import { useAuth } from '@/app/contexts/AuthContext'
-import { useCredits } from '@/app/hooks/useCredits'
+import { useSessionDemo } from '@/app/hooks/useSessionDemo'
 
 interface SubscriptionDetailsProps {
   userId: string
@@ -11,7 +11,7 @@ interface SubscriptionDetailsProps {
 
 export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps) {
   const { session } = useAuth()
-  const { credits, isSubscriber, isLoadingCredits } = useCredits()
+  const { searchesRemaining, isSubscriber, isLoading: isLoadingCredits } = useSessionDemo()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null)
 
@@ -105,7 +105,7 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
         
         {!isSubscriber && (
           <div className="text-sm text-secondary-600 mt-1 ml-5">
-            Available credits: <span className="font-medium">{credits ?? '—'}</span>
+            Searches remaining: <span className="font-medium">{searchesRemaining ?? '—'}</span>
           </div>
         )}
         
@@ -124,7 +124,7 @@ export default function SubscriptionDetails({ userId }: SubscriptionDetailsProps
               <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
               </svg>
-              {isSubscriber ? 'Unlimited searches' : `${credits ?? '—'} searches remaining`}
+              {isSubscriber ? 'Unlimited searches' : `${searchesRemaining ?? '—'} searches remaining`}
             </li>
             <li className="flex items-start">
               <svg className="h-4 w-4 text-accent-500 mt-0.5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">

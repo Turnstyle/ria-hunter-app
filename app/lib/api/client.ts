@@ -43,13 +43,14 @@ export const AskResponseSchema = z.object({
     snippet: z.string().optional(),
   })).optional(),
   
-  // CRITICAL: This metadata contains the remaining credits
-  // This is what fixes the "always shows 2 credits" bug
+  // Metadata for session-based demo system
   metadata: z.object({
-    remaining: z.number().nullable().optional(),
+    searchesRemaining: z.number().nullable().optional(),
+    searchesUsed: z.number().nullable().optional(),
     isSubscriber: z.boolean().nullable().optional(),
+    remaining: z.number().nullable().optional(), // Keep for backwards compatibility
     queryType: z.string().optional(),
-    searchStrategy: z.string().optional(),
+    searchStrategy: z.enum(['ai_semantic', 'structured_query']).optional(),
     confidence: z.number().optional(),
     tokensUsed: z.number().optional(),
     debug: z.any().optional(),
@@ -166,8 +167,9 @@ const API_CONFIG = {
     askStream: '/api/ask-stream',        // Streaming version of ask
     profile: '/api/v1/ria/profile',      // Individual profile details
     subscriptionStatus: '/api/subscription-status',
-    creditsBalance: '/api/credits/balance', // Get credit balance - UPDATED PATH
-    creditsDebug: '/api/credits/debug',   // Credit debug info
+    sessionStatus: '/api/session/status',  // New session status endpoint
+    creditsBalance: '/api/credits/balance', // Deprecated - kept for compatibility
+    creditsDebug: '/api/credits/debug',   // Deprecated
     health: '/api/health',
   },
   
@@ -341,7 +343,7 @@ export class RIAHunterAPIClient {
         if (response.status === 405) {
           throw new Error('METHOD_NOT_ALLOWED: Backend expects POST but may be receiving GET');
         } else if (response.status === 402) {
-          throw new Error('CREDITS_EXHAUSTED');
+          throw new Error("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter with unlimited searches for 7 days.");
         } else if (response.status === 401) {
           throw new Error('AUTHENTICATION_REQUIRED');
         } else if (response.status === 429) {
@@ -500,7 +502,63 @@ export class RIAHunterAPIClient {
     return parsed.data;
   }
   
-  // Get credit balance
+  // Get session status (new method for demo system)
+  async getSessionStatus(): Promise<{
+    searchesRemaining: number;
+    searchesUsed: number;
+    isSubscriber: boolean;
+  }> {
+    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.sessionStatus}`;
+    
+    if (DEBUG_MODE) {
+      console.log('[getSessionStatus] Request URL:', url);
+      console.log('[getSessionStatus] Has auth token:', !!this.authToken);
+    }
+    
+    try {
+      const response = await this.fetchWithRetry(url, {
+        method: 'GET',
+        headers: this.buildHeaders(),
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      
+      if (!response.ok) {
+        console.log(`[getSessionStatus] Response status: ${response.status}`);
+        // Return default demo values for failures
+        return {
+          searchesRemaining: 5,
+          searchesUsed: 0,
+          isSubscriber: false
+        };
+      }
+      
+      const data = await response.json();
+      
+      // Extract session data with defaults
+      const result = {
+        searchesRemaining: data.searchesRemaining ?? 5,
+        searchesUsed: data.searchesUsed ?? 0,
+        isSubscriber: !!data.isSubscriber
+      };
+      
+      if (DEBUG_MODE) {
+        console.log('[getSessionStatus] Response:', result);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('[getSessionStatus] Error:', error);
+      // Return default demo values on error
+      return {
+        searchesRemaining: 5,
+        searchesUsed: 0,
+        isSubscriber: false
+      };
+    }
+  }
+  
+  // Get credit balance (DEPRECATED - use getSessionStatus instead)
   async getCreditsBalance(): Promise<CreditBalanceResponse> {
     const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.creditsBalance}`;
     

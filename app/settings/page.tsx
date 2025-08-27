@@ -5,12 +5,12 @@ import { getSession } from '@/app/lib/supabase-client';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { checkUserSubscription, SubscriptionStatus } from '@/app/lib/subscription-utils';
 import UpgradeButton from '@/app/components/subscription/UpgradeButton';
-import { useCredits } from '@/app/hooks/useCredits';
+import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { HeaderCredits } from '@/app/components/credits/HeaderCredits';
 
 export default function SettingsPage() {
   const { user, loading, signOut } = useAuth();
-  const { isSubscriber } = useCredits();
+  const { isSubscriber } = useSessionDemo();
   const [settings, setSettings] = useState({
     marketingEmails: false,
     searchHistory: false,
@@ -322,7 +322,7 @@ export default function SettingsPage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center px-4 py-2 bg-[#0077B5] text-white rounded-md hover:bg-[#0369a1] transition-colors"
                 onClick={() => {
-                  // In a real implementation, we would call the earnCredits function from useCredits
+                  // Track LinkedIn share for marketing purposes
                   localStorage.setItem('ria-hunter-linkedin-shared', 'true');
                 }}
               >
