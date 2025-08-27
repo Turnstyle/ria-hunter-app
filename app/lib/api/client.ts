@@ -107,7 +107,7 @@ export const CreditBalanceResponseSchema = z.object({
   balance: z.number().nullable().optional(),
   isSubscriber: z.boolean(),
   userId: z.string().optional(),
-  source: z.enum(['cookie', 'db']).optional()
+  source: z.enum(['cookie', 'db', 'guest-default', 'test-fixed']).optional()
 });
 
 export type CreditBalanceResponse = z.infer<typeof CreditBalanceResponseSchema>;
