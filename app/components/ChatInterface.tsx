@@ -32,6 +32,7 @@ function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom when new messages arrive, but only when there's already content
   useEffect(() => {
@@ -40,6 +41,14 @@ function ChatInterface() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+  
+  // Handle keyboard shortcut for submitting (Ctrl+Enter or Cmd+Enter)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !isSubmitting && !isStreaming) {
+      e.preventDefault();
+      handleSubmit(e as any);
+    }
+  };
   
   // Handle message submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,6 +74,9 @@ function ChatInterface() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setError(null);
+    
+    // Keep focus on input field for better UX
+    inputRef.current?.focus();
     
     // Create placeholder for assistant message
     const assistantMessageId = (Date.now() + 1).toString();
@@ -366,12 +378,15 @@ function ChatInterface() {
       <form onSubmit={handleSubmit} className="p-4 border-t">
         <div className="flex space-x-2">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about RIAs, venture capital activity, executives..."
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about RIAs, venture capital activity, executives... (Ctrl+Enter to send)"
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isStreaming || isSubmitting}
+            aria-label="Chat input"
           />
           
           {isStreaming ? (
@@ -379,6 +394,7 @@ function ChatInterface() {
               type="button"
               onClick={handleCancelStream}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              aria-label="Stop streaming"
             >
               <StopCircle className="w-5 h-5" />
             </button>
@@ -387,6 +403,8 @@ function ChatInterface() {
               type="submit"
               disabled={!input.trim() || isStreaming || isSubmitting}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Send message"
+              title="Send message (Ctrl+Enter)"
             >
               <Send className="w-5 h-5" />
             </button>
