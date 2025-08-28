@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/_backend/api/:path*",
-      "destination": "/api/:path*"
+      "destination": "https://ria-hunter.vercel.app/api/:path*"
     }
   ]
 }
