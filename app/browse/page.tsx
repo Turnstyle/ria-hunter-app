@@ -230,7 +230,10 @@ export default function BrowsePage() {
 
       // Extract results from response
       setResults(response.results || []);
-      setTotalCount(response.totalCount || response.results?.length || 0);
+      // totalCount might be in metadata or just use the results length
+      const totalFromMetadata = response.metadata?.totalCount;
+      const resultsLength = response.results?.length || 0;
+      setTotalCount(totalFromMetadata || resultsLength);
       setFilters(prev => ({ ...prev, page }));
       
     } catch (error) {
