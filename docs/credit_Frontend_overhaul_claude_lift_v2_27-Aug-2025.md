@@ -51,8 +51,10 @@ export function useSessionDemo(): UseSessionDemoReturn {
   const refreshStatus = useCallback(async () => {
     setIsLoading(true);
     
+    // DEPRECATED: /_backend path structure was deprecated on August 29, 2025
+    // New path structure uses standard /api/* pattern
     try {
-      const response = await fetch('/_backend/api/session/status', {
+      const response = await fetch('/api/session/status', {
         method: 'GET',
         credentials: 'include',
         headers: session?.access_token ? {

@@ -1,33 +1,15 @@
 // app/api/balance/route.ts
-// New consolidated balance endpoint that replaces credits/balance
+// This endpoint is handled by the backend through the proxy
+// This file exists only to prevent 404s during the transition
+// The Next.js rewrite in next.config.js will handle forwarding to the backend
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-// Re-export the handler from the existing balance endpoint
-export async function GET(request: NextRequest) {
-  try {
-    // Forward to the existing handler with the same request
-    const response = await fetch(new URL('/api/credits/balance', request.url), {
-      method: 'GET',
-      headers: request.headers,
-      credentials: 'include',
-    });
-
-    // Get the response data
-    const data = await response.json();
-
-    // Return the same response
-    return NextResponse.json(data, {
-      status: response.status,
-      headers: {
-        'Cache-Control': 'no-store, max-age=0',
-      }
-    });
-  } catch (error) {
-    console.error('Error in balance endpoint:', error);
-    return NextResponse.json(
-      { credits: null, isSubscriber: false, error: 'Failed to fetch credit balance' },
-      { status: 500 }
-    );
-  }
+export async function GET() {
+  // This should never be reached because the rewrite handles it
+  // But if it is, return an error to indicate misconfiguration
+  return NextResponse.json(
+    { error: 'This endpoint should be handled by the backend proxy' },
+    { status: 500 }
+  );
 }

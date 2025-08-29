@@ -14,8 +14,16 @@ const nextConfig = {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
-  // Remove proxy rewrites - backend is on same domain at /_backend/api/*
-  // The backend routes are served directly from https://ria-hunter.app/_backend/api/*
+  // Proxy API requests to the backend Vercel project
+  // Backend has been consolidated to use standard /api/* paths only
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://ria-hunter.vercel.app/api/:path*',
+      },
+    ];
+  },
   webpack: (config, { dev, isServer }) => {
     // Optimize webpack caching
     config.cache = {

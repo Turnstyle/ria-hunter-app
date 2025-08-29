@@ -1,11 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs",
-  "rewrites": [
-    {
-      "source": "/_backend/api/:path*",
-      "destination": "https://ria-hunter.vercel.app/api/:path*"
-    }
-  ]
+  "framework": "nextjs"
 }

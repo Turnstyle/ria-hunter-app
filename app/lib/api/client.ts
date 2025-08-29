@@ -157,21 +157,21 @@ export type CreditDebugResponse = z.infer<typeof CreditDebugResponseSchema>;
 
 // Configuration object - single source of truth for API settings
 const API_CONFIG = {
-  // Use the backend URL through the _backend prefix
-  // In production, this routes to the backend deployment
-  baseUrl: typeof window !== 'undefined' ? '/_backend' : 'https://ria-hunter.app/_backend',
+  // Use the standard /api path - backend is now consolidated to standard paths
+  // Frontend proxy in next.config.js forwards /api/* to backend
+  baseUrl: '/api',
   
   // CRITICAL: These are the ONLY endpoints we should call
-  // Using the proxy via /_backend to avoid CORS issues
+  // All backend endpoints now use standard /api/* paths
   endpoints: {
-    ask: '/api/ask',                    // Main RAG endpoint - USE THIS
-    askStream: '/api/ask-stream',        // Streaming version of ask
-    profile: '/api/v1/ria/profile',      // Individual profile details
-    subscriptionStatus: '/api/subscription-status',
-    sessionStatus: '/api/session/status',  // New session status endpoint
-    creditsBalance: '/api/credits/balance', // Deprecated - kept for compatibility
-    creditsDebug: '/api/credits/debug',   // Deprecated
-    health: '/api/health',
+    ask: '/ask',                         // Main RAG endpoint - USE THIS
+    askStream: '/ask-stream',            // Streaming version of ask
+    profile: '/v1/ria/profile',          // Individual profile details
+    subscriptionStatus: '/subscription-status',
+    sessionStatus: '/session/status',    // Session status endpoint
+    creditsBalance: '/credits/balance',  // Deprecated - kept for compatibility
+    creditsDebug: '/credits/debug',      // Deprecated
+    health: '/health',
   },
   
   // Retry configuration
