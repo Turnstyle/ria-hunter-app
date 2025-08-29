@@ -144,6 +144,28 @@ export default function BrowsePage() {
     { value: 'name', label: 'Name' }
   ];
 
+  // Helper function to parse AUM range into minimum value
+  const parseAumRange = (range: string): number | undefined => {
+    switch(range) {
+      case '0-100m': return 0;
+      case '100m-1b': return 100000000;
+      case '1b-10b': return 1000000000;
+      case '10b+': return 10000000000;
+      default: return undefined;
+    }
+  };
+
+  // Helper function to parse VC activity level
+  const parseVcActivity = (activity: string): number | undefined => {
+    switch(activity) {
+      case 'high': return 7;
+      case 'medium': return 3;
+      case 'low': return 1;
+      case 'none': return 0;
+      default: return undefined;
+    }
+  };
+
   const handleSearch = async (page = 1) => {
     if ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber) {
       setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter.");
@@ -191,23 +213,13 @@ export default function BrowsePage() {
       // Use the API client to make the request
       const response = await apiClient.ask({
         query: searchQuery,
-        type: 'browse',
         options: {
-          filters: {
-            fundType: filters.fundType || undefined,
-            aumRange: filters.aumRange || undefined,
-            state: filters.state || undefined,
-            city: filters.location || undefined,
-            vcActivity: filters.vcActivity || undefined,
-          },
-          sort: {
-            field: filters.sortBy,
-            order: filters.sortOrder as 'asc' | 'desc'
-          },
-          pagination: {
-            page: page,
-            limit: filters.limit
-          }
+          state: filters.state || undefined,
+          city: filters.location || undefined,
+          minAum: filters.aumRange ? parseAumRange(filters.aumRange) : undefined,
+          minVcActivity: filters.vcActivity ? parseVcActivity(filters.vcActivity) : undefined,
+          maxResults: filters.limit,
+          useHybridSearch: false
         }
       });
 
