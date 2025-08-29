@@ -1,15 +1,32 @@
 // app/api/balance/route.ts
-// This endpoint is handled by the backend through the proxy
-// This file exists only to prevent 404s during the transition
-// The Next.js rewrite in next.config.js will handle forwarding to the backend
+// Simple proxy for the backend balance endpoint
+// Required because the client still expects this endpoint
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
-  // This should never be reached because the rewrite handles it
-  // But if it is, return an error to indicate misconfiguration
-  return NextResponse.json(
-    { error: 'This endpoint should be handled by the backend proxy' },
-    { status: 500 }
-  );
+export async function GET(request: NextRequest) {
+  // Forward the request to the /api/credits/balance endpoint through the proxy
+  const response = await fetch('https://ria-hunter.vercel.app/api/credits/balance', {
+    method: 'GET',
+    headers: request.headers,
+  });
+
+  try {
+    // Get the response data
+    const data = await response.json();
+
+    // Return the same response
+    return NextResponse.json(data, {
+      status: response.status,
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      }
+    });
+  } catch (error) {
+    console.error('Error in balance endpoint:', error);
+    return NextResponse.json(
+      { credits: 15, balance: 15, isSubscriber: false, source: 'guest-default' },
+      { status: 200 }
+    );
+  }
 }
