@@ -53,6 +53,7 @@ export const AskResponseSchema = z.object({
     searchStrategy: z.enum(['ai_semantic', 'structured_query']).optional(),
     confidence: z.number().optional(),
     tokensUsed: z.number().optional(),
+    totalCount: z.number().optional(), // Add totalCount for browse results
     debug: z.any().optional(),
   }).optional(),
   
