@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import UpgradeButton from '@/app/components/subscription/UpgradeButton';
 import { HeaderCredits } from '@/app/components/credits/HeaderCredits';
+import { RIAHunterAPIClient } from '@/app/lib/api/client';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 interface FilterOptions {
   fundType: string;
@@ -20,18 +22,24 @@ interface FilterOptions {
 
 interface RIAResult {
   id: string;
-  name: string;
-  state: string;
-  city: string;
-  aum: number;
-  employee_count: number;
-  fundTypes: string[];
-  vcActivity: number;
+  firm_name?: string;
+  name?: string;  // Support both firm_name and name
+  state?: string;
+  city?: string;
+  aum?: number;
+  employee_count?: number;
+  fundTypes?: string[];
+  vcActivity?: number;
+  crd_number?: string;
+  website?: string;
+  services?: string[];
 }
 
 export default function BrowsePage() {
-  const { isSubscriber, searchesRemaining } = useSessionDemo();
+  const { isSubscriber, searchesRemaining, updateFromResponse } = useSessionDemo();
+  const { session } = useAuth();
   const router = useRouter();
+  const [apiClient] = useState(() => new RIAHunterAPIClient());
   const [filters, setFilters] = useState<FilterOptions>({
     fundType: '',
     aumRange: '',
@@ -147,41 +155,87 @@ export default function BrowsePage() {
     setError(null);
     
     try {
-      // Call the API endpoint to get paginated RIAs
-      const response = await fetch('/api/ask', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fundType: filters.fundType,
-          aumRange: filters.aumRange,
-          state: filters.state,
-          location: filters.location,
-          vcActivity: filters.vcActivity,
-          sortBy: filters.sortBy,
-          sortOrder: filters.sortOrder,
-          page: page,
-          limit: filters.limit
-        }),
+      // Update auth token in API client if we have a session
+      if (session?.access_token) {
+        apiClient.setAuthToken(session.access_token);
+      }
+
+      // Build search query based on filters
+      let searchQuery = 'Find RIAs';
+      const queryParts = [];
+      
+      if (filters.state) {
+        const stateLabel = stateOptions.find(opt => opt.value === filters.state)?.label || filters.state;
+        queryParts.push(`in ${stateLabel}`);
+      }
+      if (filters.location) {
+        queryParts.push(`in ${filters.location}`);
+      }
+      if (filters.fundType) {
+        const fundLabel = fundTypeOptions.find(opt => opt.value === filters.fundType)?.label || filters.fundType;
+        queryParts.push(`with ${fundLabel} funds`);
+      }
+      if (filters.aumRange) {
+        const aumLabel = aumRangeOptions.find(opt => opt.value === filters.aumRange)?.label || filters.aumRange;
+        queryParts.push(`with AUM ${aumLabel}`);
+      }
+      if (filters.vcActivity) {
+        const vcLabel = vcActivityOptions.find(opt => opt.value === filters.vcActivity)?.label || filters.vcActivity;
+        queryParts.push(`with ${vcLabel} VC activity`);
+      }
+      
+      if (queryParts.length > 0) {
+        searchQuery += ' ' + queryParts.join(', ');
+      }
+
+      // Use the API client to make the request
+      const response = await apiClient.ask({
+        query: searchQuery,
+        type: 'browse',
+        options: {
+          filters: {
+            fundType: filters.fundType || undefined,
+            aumRange: filters.aumRange || undefined,
+            state: filters.state || undefined,
+            city: filters.location || undefined,
+            vcActivity: filters.vcActivity || undefined,
+          },
+          sort: {
+            field: filters.sortBy,
+            order: filters.sortOrder as 'asc' | 'desc'
+          },
+          pagination: {
+            page: page,
+            limit: filters.limit
+          }
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch RIAs');
+      // Update session status from response metadata
+      if (response.metadata) {
+        updateFromResponse({ metadata: response.metadata });
       }
 
-      const data = await response.json();
-      setResults(data.results || []);
-      setTotalCount(data.totalCount || 0);
+      // Extract results from response
+      setResults(response.results || []);
+      setTotalCount(response.totalCount || response.results?.length || 0);
       setFilters(prev => ({ ...prev, page }));
       
-      // Session tracking handled automatically by backend
-      if (!isSubscriber) {
-        // Backend will track demo search usage via cookie
-      }
     } catch (error) {
       console.error('Search failed:', error);
-      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+      
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message === 'CREDITS_EXHAUSTED') {
+          setError("You've used all your searches. Please upgrade to continue.");
+        } else if (error.message === 'AUTHENTICATION_REQUIRED') {
+          setError("Please sign in to continue searching.");
+        } else {
+          setError(error.message);
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -427,36 +481,52 @@ export default function BrowsePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 {results.map((ria) => (
                   <div 
-                    key={ria.id} 
+                    key={ria.id || ria.crd_number} 
                     className="border border-secondary-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all cursor-pointer"
-                    onClick={() => router.push(`/profile/${ria.id}`)}
+                    onClick={() => router.push(`/profile/${ria.id || ria.crd_number}`)}
                   >
                     <div className="flex flex-col h-full">
                       <div className="mb-2">
-                        <h3 className="font-semibold text-secondary-800 line-clamp-2">{ria.name}</h3>
-                        <p className="text-secondary-600 text-sm">
-                          {ria.city}, {ria.state}
-                        </p>
+                        <h3 className="font-semibold text-secondary-800 line-clamp-2">
+                          {ria.firm_name || ria.name || 'Unknown Firm'}
+                        </h3>
+                        {(ria.city || ria.state) && (
+                          <p className="text-secondary-600 text-sm">
+                            {ria.city}{ria.city && ria.state ? ', ' : ''}{ria.state}
+                          </p>
+                        )}
                       </div>
                       
                       <div className="flex-grow">
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm text-secondary-600">AUM:</span>
-                          <span className="text-sm font-medium text-secondary-800">
-                            ${(ria.aum / 1000000).toFixed(1)}M
-                          </span>
-                        </div>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm text-secondary-600">Employees:</span>
-                          <span className="text-sm font-medium text-secondary-800">
-                            {ria.employee_count || 'N/A'}
-                          </span>
-                        </div>
-                        {ria.vcActivity > 0 && (
+                        {ria.aum !== undefined && (
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm text-secondary-600">AUM:</span>
+                            <span className="text-sm font-medium text-secondary-800">
+                              ${(ria.aum / 1000000).toFixed(1)}M
+                            </span>
+                          </div>
+                        )}
+                        {ria.employee_count !== undefined && (
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm text-secondary-600">Employees:</span>
+                            <span className="text-sm font-medium text-secondary-800">
+                              {ria.employee_count}
+                            </span>
+                          </div>
+                        )}
+                        {ria.vcActivity !== undefined && ria.vcActivity > 0 && (
                           <div className="flex justify-between">
                             <span className="text-sm text-secondary-600">VC Activity:</span>
                             <span className="text-sm font-medium text-secondary-800">
                               {ria.vcActivity > 7 ? 'High' : ria.vcActivity > 3 ? 'Medium' : 'Low'}
+                            </span>
+                          </div>
+                        )}
+                        {ria.crd_number && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-secondary-600">CRD:</span>
+                            <span className="text-sm font-medium text-secondary-800">
+                              {ria.crd_number}
                             </span>
                           </div>
                         )}
@@ -472,6 +542,24 @@ export default function BrowsePage() {
                               {type}
                             </span>
                           ))}
+                        </div>
+                      )}
+                      
+                      {ria.services && ria.services.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {ria.services.slice(0, 3).map((service) => (
+                            <span 
+                              key={service}
+                              className="px-2 py-1 bg-secondary-100 text-secondary-700 text-xs rounded"
+                            >
+                              {service}
+                            </span>
+                          ))}
+                          {ria.services.length > 3 && (
+                            <span className="px-2 py-1 text-secondary-500 text-xs">
+                              +{ria.services.length - 3} more
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
