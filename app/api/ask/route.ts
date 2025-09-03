@@ -63,9 +63,9 @@ export async function POST(request: NextRequest) {
 
     console.log('🔧 Search filters:', { stateFilter, fundTypeFilter });
 
-    // Build the query
+    // Build the query - using the correct table name
     let dbQuery = supabase
-      .from('investment_advisor_public_reporting')
+      .from('advisers')
       .select(`
         crd_number,
         legal_name,
