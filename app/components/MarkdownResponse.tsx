@@ -95,8 +95,19 @@ export default function MarkdownResponse({ content, sources }: MarkdownResponseP
   // Enhance the content with RIA profile links
   const enhancedContent = enhanceTextWithRIALinks(content, sources);
 
+  // Debug: Add visual indicator and log
+  console.log('[MarkdownResponse] Rendering with:', { 
+    contentLength: content.length, 
+    sourcesCount: sources?.length || 0,
+    enhanced: enhancedContent !== content 
+  });
+
   return (
-    <div className="prose prose-sm max-w-none prose-blue">
+    <div className="prose prose-sm max-w-none prose-blue border-l-4 border-green-500 pl-3">
+      {/* Temporary debug indicator */}
+      <div className="mb-2 text-xs text-green-600 font-mono">
+        ✓ MarkdownResponse Active | Sources: {sources?.length || 0}
+      </div>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
