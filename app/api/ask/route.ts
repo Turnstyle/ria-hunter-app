@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         searchesRemaining: null,
         isSubscriber: false,
-        searchStrategy: 'database-fallback',
+        searchStrategy: 'structured_query',
         confidence: 0.7
       }
     };
