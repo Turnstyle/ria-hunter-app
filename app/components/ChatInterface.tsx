@@ -9,6 +9,8 @@ import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { apiClient, type AskResponse } from '@/app/lib/api/client';
 import { AlertCircle, Send, Loader2, StopCircle } from 'lucide-react';
 import { errorManager } from '@/app/components/ErrorBanner';
+import MarkdownResponse from '@/app/components/MarkdownResponse';
+import Link from 'next/link';
 
 interface Message {
   id: string;
@@ -306,7 +308,11 @@ function ChatInterface() {
                 }`}
               >
                 {/* Message content */}
-                <div className="whitespace-pre-wrap">{message.content}</div>
+                {message.role === 'assistant' ? (
+                  <MarkdownResponse content={message.content} sources={message.sources} />
+                ) : (
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                )}
                 
                 {/* Streaming indicator */}
                 {message.isStreaming && (
@@ -326,17 +332,24 @@ function ChatInterface() {
                     <ul className="text-sm space-y-1">
                       {message.sources.map((source, idx) => (
                         <li key={idx}>
-                          {source.url ? (
+                          {source.crd ? (
+                            <Link 
+                              href={`/profile/${source.crd}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            >
+                              {source.title || `RIA Profile (CRD: ${source.crd})`}
+                            </Link>
+                          ) : source.url ? (
                             <a
                               href={source.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline"
                             >
-                              {source.title || source.crd || 'Source'}
+                              {source.title || source.url}
                             </a>
                           ) : (
-                            <span>{source.title || source.crd || 'Source'}</span>
+                            <span>{source.title || 'Source'}</span>
                           )}
                         </li>
                       ))}
