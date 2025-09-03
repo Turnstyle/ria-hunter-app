@@ -216,6 +216,7 @@ export default function BrowsePage() {
         options: {
           state: filters.state || undefined,
           city: filters.location || undefined,
+          fundType: filters.fundType || undefined,
           minAum: filters.aumRange ? parseAumRange(filters.aumRange) : undefined,
           minVcActivity: filters.vcActivity ? parseVcActivity(filters.vcActivity) : undefined,
           maxResults: filters.limit,

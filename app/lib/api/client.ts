@@ -71,6 +71,7 @@ export const AskRequestSchema = z.object({
     // CRITICAL: These must be separate fields, not concatenated
     city: z.string().optional(),
     state: z.string().optional(),
+    fundType: z.string().optional(),
     minAum: z.number().optional(),
     minVcActivity: z.number().optional(),
     includeDetails: z.boolean().optional(),
