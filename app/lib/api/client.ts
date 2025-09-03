@@ -81,7 +81,7 @@ export const AskRequestSchema = z.object({
 
 export type AskRequest = z.infer<typeof AskRequestSchema>;
 
-// Profile response schema for /api/v1/ria/profile/:id
+// Profile response schema for /api/ria-profile/:id
 export const ProfileResponseSchema = z.object({
   id: z.string(),
   firm_name: z.string(),
@@ -167,7 +167,7 @@ const API_CONFIG = {
   endpoints: {
     ask: '/ask',                         // Main RAG endpoint - USE THIS
     askStream: '/ask-stream',            // Streaming version of ask
-    profile: '/v1/ria/profile',          // Individual profile details
+    profile: '/ria-profile',             // Individual profile details (NO V1!)
     subscriptionStatus: '/subscription-status',
     sessionStatus: '/session/status',    // Session status endpoint
     creditsBalance: '/credits/balance',  // Deprecated - kept for compatibility

@@ -112,8 +112,8 @@ function RIAProfileContent() {
     try {
       setIsLoading(true);
       
-      // Try direct profile endpoint first
-      const directUrl = `/api/v1/ria/profile/${id}`;
+      // Use the new non-v1 profile endpoint
+      const directUrl = `/api/ria-profile/${id}`;
       const response = await fetch(directUrl);
       
       if (response.ok) {

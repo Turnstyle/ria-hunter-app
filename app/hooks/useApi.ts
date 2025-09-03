@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { queryRia } from '@/services/ria';
-import { type AskResponse } from '@/app/lib/api/client';
+import { apiClient, type AskResponse } from '@/app/lib/api/client';
 import type { ApiError } from '@/lib/types';
 import { useAuth } from '@/app/contexts/AuthContext';
 
@@ -21,7 +20,11 @@ export function useAskApi() {
 		setError(null);
 
 		try {
-			const response = await queryRia(query, options, session);
+			// Set auth token if we have a session
+			if (session?.access_token) {
+				apiClient.setAuthToken(session.access_token);
+			}
+			const response = await apiClient.ask({ query, options });
 			return response;
 		} catch (err: any) {
 			if (err.code === 'PAYMENT_REQUIRED') {
