@@ -778,6 +778,14 @@ export class RIAHunterAPIClient {
       if (request.options.useHybridSearch !== undefined) flattened.useHybridSearch = request.options.useHybridSearch;
     }
     
+    // DEBUG: Log the flattening process
+    if (process.env.NODE_ENV === 'development' || typeof window !== 'undefined') {
+      console.log('🔧 API Client - Flattening request:', {
+        original: request,
+        flattened: flattened
+      });
+    }
+    
     return flattened;
   }
   
