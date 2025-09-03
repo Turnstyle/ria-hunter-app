@@ -167,10 +167,11 @@ export default function BrowsePage() {
   };
 
   const handleSearch = async (page = 1) => {
-    if ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber) {
-      setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter.");
-      return;
-    }
+    // Temporarily bypass subscription check for MVP functionality
+    // if ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber) {
+    //   setError("You've used your 5 free demo searches. Create a free account to continue exploring RIA Hunter.");
+    //   return;
+    // }
 
     setLoading(true);
     setHasSearched(true);
@@ -404,9 +405,9 @@ export default function BrowsePage() {
         <div className="flex justify-between items-center">
           <button
             onClick={() => handleSearch(1)}
-            disabled={loading || ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber)}
+            disabled={loading}
             className={`px-4 py-2 rounded-md text-white ${
-              loading || ((searchesRemaining === 0 || searchesRemaining === null) && !isSubscriber)
+              loading
                 ? 'bg-secondary-400 cursor-not-allowed'
                 : 'bg-primary-600 hover:bg-primary-700'
             }`}
@@ -414,7 +415,8 @@ export default function BrowsePage() {
             {loading ? 'Searching...' : 'Search RIAs'}
           </button>
 
-          {!isSubscriber && searchesRemaining !== null && searchesRemaining <= 2 && (
+          {/* Temporarily hidden for MVP functionality */}
+          {false && !isSubscriber && searchesRemaining !== null && searchesRemaining <= 2 && (
             <div className="text-right">
               <p className="text-sm text-secondary-600 mb-2">
                 You have {searchesRemaining} free search{searchesRemaining === 1 ? '' : 'es'} remaining
@@ -437,7 +439,7 @@ export default function BrowsePage() {
       )}
 
       {/* Upgrade Prompt for Non-Subscribers with no searches */}
-      {!isSubscriber && searchesRemaining !== null && searchesRemaining <= 0 && (
+      {false && !isSubscriber && searchesRemaining !== null && searchesRemaining <= 0 && (
         <div className="bg-gradient-to-r from-primary-50 to-secondary-50 border border-primary-200 rounded-lg p-6 mb-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="mb-4 md:mb-0 md:mr-6">
@@ -468,7 +470,7 @@ export default function BrowsePage() {
       )}
 
       {/* Results Section */}
-      {hasSearched && ((searchesRemaining !== null && searchesRemaining > 0) || isSubscriber) && (
+      {hasSearched && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-secondary-800">

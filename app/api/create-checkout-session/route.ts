@@ -15,8 +15,18 @@ export async function POST(request: NextRequest) {
   console.log('Create checkout session request received');
   try {
     if (!stripe) {
-      console.error('Stripe not configured');
-      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 });
+      console.error('Stripe not configured - temporarily disabled for MVP');
+      return NextResponse.json({ 
+        error: 'Subscription features are temporarily unavailable. Please try the search functionality without subscription for now.' 
+      }, { status: 503 });
+    }
+
+    // Check for required environment variables
+    if (!process.env.STRIPE_PRICE_ID) {
+      console.error('STRIPE_PRICE_ID not configured');
+      return NextResponse.json({ 
+        error: 'Subscription features are not fully configured. Please try again later.' 
+      }, { status: 503 });
     }
 
     const authHeader = request.headers.get('Authorization');
