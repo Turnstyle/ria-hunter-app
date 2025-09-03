@@ -63,36 +63,32 @@ export async function POST(request: NextRequest) {
 
     console.log('🔧 Search filters:', { stateFilter, fundTypeFilter });
 
-    // Build the query - using the correct table name
+    // Build the query - using the correct table name and column names
     let dbQuery = supabase
       .from('advisers')
       .select(`
-        crd_number,
+        adviser_pk,
+        cik,
         legal_name,
-        business_name,
-        city,
-        state,
-        zip_code,
-        website,
-        phone,
-        aum_total,
-        client_count_individual,
-        client_count_institutional,
-        services_offered
+        main_addr_street1,
+        main_addr_city,
+        main_addr_state,
+        main_addr_zip,
+        main_addr_country
       `)
       .limit(20);
 
-    // Apply filters
+    // Apply filters using correct column names
     if (stateFilter) {
-      dbQuery = dbQuery.eq('state', stateFilter);
+      dbQuery = dbQuery.eq('main_addr_state', stateFilter);
     }
 
-    // Text search in firm names
+    // Text search in firm names using correct column names
     const searchWords = query.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
     if (searchWords.length > 0) {
       dbQuery = dbQuery.or(
         searchWords.map(word => 
-          `legal_name.ilike.%${word}%,business_name.ilike.%${word}%,services_offered.ilike.%${word}%`
+          `legal_name.ilike.%${word}%`
         ).join(',')
       );
     }
@@ -110,17 +106,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔧 Found ${results?.length || 0} results`);
 
-    // Transform results to match expected format
+    // Transform results to match expected format using correct column names
     const transformedResults = results?.map(row => ({
-      id: row.crd_number || 'unknown',
-      firm_name: row.business_name || row.legal_name || 'Unknown Firm',
-      crd_number: row.crd_number || 'Unknown',
-      city: row.city || undefined,
-      state: row.state || undefined,
-      aum: row.aum_total || undefined,
-      website: row.website || undefined,
-      phone: row.phone || undefined,
-      services: row.services_offered ? [row.services_offered] : undefined,
+      id: row.cik || row.adviser_pk?.toString() || 'unknown',
+      firm_name: row.legal_name || 'Unknown Firm',
+      crd_number: row.cik || 'Unknown',
+      city: row.main_addr_city || undefined,
+      state: row.main_addr_state || undefined,
+      aum: undefined, // AUM not available in current schema
+      website: undefined, // Website not available in current schema
+      phone: undefined, // Phone not available in current schema  
+      services: undefined, // Services not available in current schema
       similarity: 0.8, // Mock similarity score
     })) || [];
 
