@@ -42,11 +42,16 @@ function enhanceTextWithRIALinks(text: string, sources?: Array<any>): string {
   }
   
   // Enhanced pattern matching for RIA firm names in numbered lists
-  // This specifically targets the format we see in the AI responses
-  const riaFirmPattern = /^(\d+\.\s*)([A-Z][A-Z\s&,.-]*(?:WEALTH|CAPITAL|ADVISORS?|MANAGEMENT|PARTNERS?|GROUP|LLC|INC|CORP)[A-Z\s&,.-]*)/gm;
+  // This targets the format we see: "1.\nFIRM NAME" or "1.\nFIRM NAME LLC" etc.
+  const riaFirmPattern = /^(\d+\.\s*)([A-Z][A-Z\s&,.-]+?)(?=\s*\n|\s*$)/gm;
   
   enhancedText = enhancedText.replace(riaFirmPattern, (match, number, firmName) => {
     const trimmedFirmName = firmName.trim();
+    
+    // Skip if the firm name is too short (likely not a real firm name)
+    if (trimmedFirmName.length < 3) {
+      return match;
+    }
     
     // Check if we have CRD data for this firm from sources
     const matchedSource = Array.from(riaMap.keys()).find(name => 
@@ -60,7 +65,7 @@ function enhanceTextWithRIALinks(text: string, sources?: Array<any>): string {
       return `${number}**${trimmedFirmName}** [🔗 View Profile](/profile/${crdNumber})`;
     }
     
-    // For now, just bold the firm name and add a generic profile search link
+    // For all firm names (even without sources), make them bold and searchable
     return `${number}**${trimmedFirmName}** [🔍 Search Profile](/search?q=${encodeURIComponent(trimmedFirmName)})`;
   });
   
@@ -95,19 +100,8 @@ export default function MarkdownResponse({ content, sources }: MarkdownResponseP
   // Enhance the content with RIA profile links
   const enhancedContent = enhanceTextWithRIALinks(content, sources);
 
-  // Debug: Add visual indicator and log
-  console.log('[MarkdownResponse] Rendering with:', { 
-    contentLength: content.length, 
-    sourcesCount: sources?.length || 0,
-    enhanced: enhancedContent !== content 
-  });
-
   return (
-    <div className="prose prose-sm max-w-none prose-blue border-l-4 border-green-500 pl-3">
-      {/* Temporary debug indicator */}
-      <div className="mb-2 text-xs text-green-600 font-mono">
-        ✓ MarkdownResponse Active | Sources: {sources?.length || 0}
-      </div>
+    <div className="prose prose-sm max-w-none prose-blue">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}

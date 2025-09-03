@@ -142,6 +142,10 @@ function ChatInterface() {
             // Update credits from response
             updateFromResponse(response);
             
+            // Debug: Log the complete response to understand source structure
+            console.log('[ChatInterface] Complete response:', response);
+            console.log('[ChatInterface] Response sources:', response.sources);
+            
             // Update message with final content and sources
             setMessages(prev => prev.map(msg => 
               msg.id === assistantMessageId
