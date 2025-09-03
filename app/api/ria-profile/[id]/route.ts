@@ -1,6 +1,8 @@
 // app/api/ria-profile/[id]/route.ts
 // API endpoint for RIA profile data
-// Returns mock/demo data for now to allow profile pages to work
+// Force Node.js runtime for full database access (fixes Edge runtime limitations)
+
+export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 

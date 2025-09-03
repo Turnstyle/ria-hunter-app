@@ -2,6 +2,9 @@
 // Simple proxy for the backend balance endpoint
 // Required because the client still expects this endpoint
 
+// Force Node.js runtime for fetch operations (fixes Edge runtime limitations)
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
