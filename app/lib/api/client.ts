@@ -50,7 +50,7 @@ export const AskResponseSchema = z.object({
     isSubscriber: z.boolean().nullable().optional(),
     remaining: z.number().nullable().optional(), // Keep for backwards compatibility
     queryType: z.string().optional(),
-    searchStrategy: z.enum(['ai_semantic', 'structured_query']).optional(),
+    searchStrategy: z.enum(['ai_semantic', 'structured_query', 'semantic-first']).optional(),
     confidence: z.number().optional(),
     tokensUsed: z.number().optional(),
     totalCount: z.number().optional(), // Add totalCount for browse results
