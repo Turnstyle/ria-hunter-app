@@ -416,10 +416,10 @@ export default function BrowsePage() {
           </button>
 
           {/* Temporarily hidden for MVP functionality */}
-          {false && !isSubscriber && searchesRemaining !== null && searchesRemaining <= 2 && (
+          {false && !isSubscriber && searchesRemaining !== null && (searchesRemaining ?? 0) <= 2 && (
             <div className="text-right">
               <p className="text-sm text-secondary-600 mb-2">
-                You have {searchesRemaining} free search{searchesRemaining === 1 ? '' : 'es'} remaining
+                You have {searchesRemaining ?? 0} free search{(searchesRemaining ?? 0) === 1 ? '' : 'es'} remaining
               </p>
               <UpgradeButton size="sm" buttonText="Get Unlimited" />
             </div>
@@ -439,7 +439,7 @@ export default function BrowsePage() {
       )}
 
       {/* Upgrade Prompt for Non-Subscribers with no searches */}
-      {false && !isSubscriber && searchesRemaining !== null && searchesRemaining <= 0 && (
+      {false && !isSubscriber && searchesRemaining !== null && (searchesRemaining ?? 0) <= 0 && (
         <div className="bg-gradient-to-r from-primary-50 to-secondary-50 border border-primary-200 rounded-lg p-6 mb-6">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="mb-4 md:mb-0 md:mr-6">
