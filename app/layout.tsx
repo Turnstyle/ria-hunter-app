@@ -9,6 +9,13 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "RIA Hunter - Investment Advisor Intelligence",
   description: "Search and analyze Registered Investment Advisors using AI-powered natural language queries",
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '32x32' }
+    ],
+    apple: '/favicon.svg',
+  },
   openGraph: {
     title: "RIA Hunter - Investment Advisor Intelligence",
     description: "Search and analyze Registered Investment Advisors using AI-powered natural language queries",
@@ -35,6 +42,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="bg-gray-50 min-h-screen overflow-x-hidden">
         <ErrorBoundary>

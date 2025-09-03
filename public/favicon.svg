@@ -1,0 +1,14 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="4" fill="#007BFF"/>
+  <!-- Chart/Analytics representation -->
+  <path d="M6 24 L10 18 L14 20 L18 14 L22 16 L26 10" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Data points -->
+  <circle cx="6" cy="24" r="2" fill="white"/>
+  <circle cx="10" cy="18" r="2" fill="white"/>
+  <circle cx="14" cy="20" r="2" fill="white"/>
+  <circle cx="18" cy="14" r="2" fill="white"/>
+  <circle cx="22" cy="16" r="2" fill="white"/>
+  <circle cx="26" cy="10" r="2" fill="white"/>
+  <!-- RH monogram in corner -->
+  <text x="24" y="28" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="white">RH</text>
+</svg>

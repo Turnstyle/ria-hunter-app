@@ -1,0 +1,16 @@
+{
+  "name": "RIA Hunter - Investment Advisor Intelligence",
+  "short_name": "RIA Hunter",
+  "description": "Search and analyze Registered Investment Advisors using AI-powered natural language queries",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#007BFF",
+  "theme_color": "#007BFF",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
