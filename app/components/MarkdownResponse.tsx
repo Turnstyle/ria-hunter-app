@@ -27,26 +27,65 @@ interface MarkdownResponseProps {
 
 // Utility function to detect RIA mentions and create profile links
 function enhanceTextWithRIALinks(text: string, sources?: Array<any>): string {
-  if (!sources || sources.length === 0) return text;
-  
   let enhancedText = text;
   
   // Create a map of RIA names to CRD numbers from sources
   const riaMap = new Map<string, string>();
-  sources.forEach(source => {
-    const crdNumber = source.crd || source.crd_number;
-    const firmName = source.firm_name || source.legal_name || source.title;
-    if (crdNumber && firmName) {
-      riaMap.set(firmName, crdNumber);
+  if (sources && sources.length > 0) {
+    sources.forEach(source => {
+      const crdNumber = source.crd || source.crd_number;
+      const firmName = source.firm_name || source.legal_name || source.title;
+      if (crdNumber && firmName) {
+        riaMap.set(firmName, crdNumber);
+      }
+    });
+  }
+  
+  // Enhanced pattern matching for RIA firm names in numbered lists
+  // This specifically targets the format we see in the AI responses
+  const riaFirmPattern = /^(\d+\.\s*)([A-Z][A-Z\s&,.-]*(?:WEALTH|CAPITAL|ADVISORS?|MANAGEMENT|PARTNERS?|GROUP|LLC|INC|CORP)[A-Z\s&,.-]*)/gm;
+  
+  enhancedText = enhancedText.replace(riaFirmPattern, (match, number, firmName) => {
+    const trimmedFirmName = firmName.trim();
+    
+    // Check if we have CRD data for this firm from sources
+    const matchedSource = Array.from(riaMap.keys()).find(name => 
+      name.toLowerCase() === trimmedFirmName.toLowerCase() ||
+      name.toLowerCase().includes(trimmedFirmName.toLowerCase()) ||
+      trimmedFirmName.toLowerCase().includes(name.toLowerCase())
+    );
+    
+    if (matchedSource) {
+      const crdNumber = riaMap.get(matchedSource);
+      return `${number}**${trimmedFirmName}** [🔗 View Profile](/profile/${crdNumber})`;
     }
+    
+    // For now, just bold the firm name and add a generic profile search link
+    return `${number}**${trimmedFirmName}** [🔍 Search Profile](/search?q=${encodeURIComponent(trimmedFirmName)})`;
   });
   
-  // Replace RIA firm names with markdown links
-  riaMap.forEach((crdNumber, firmName) => {
-    // Create a case-insensitive regex to match the firm name
-    const regex = new RegExp(`\\b${firmName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-    const replacement = `[${firmName}](/profile/${crdNumber})`;
-    enhancedText = enhancedText.replace(regex, replacement);
+  // Also handle RIA names that might not be in numbered lists
+  const generalRiaPattern = /\b([A-Z][A-Z\s&,.-]*(?:WEALTH|CAPITAL|ADVISORS?|MANAGEMENT|PARTNERS?|GROUP|LLC|INC|CORP)[A-Z\s&,.-]*)/g;
+  
+  enhancedText = enhancedText.replace(generalRiaPattern, (match) => {
+    const trimmedMatch = match.trim();
+    
+    // Skip if this is already processed (contains markdown)
+    if (enhancedText.includes(`**${trimmedMatch}**`)) {
+      return match;
+    }
+    
+    // Check sources
+    const matchedSource = Array.from(riaMap.keys()).find(name => 
+      name.toLowerCase() === trimmedMatch.toLowerCase()
+    );
+    
+    if (matchedSource) {
+      const crdNumber = riaMap.get(matchedSource);
+      return `**${trimmedMatch}** [🔗 View Profile](/profile/${crdNumber})`;
+    }
+    
+    return match; // Leave as-is if no match in sources
   });
   
   return enhancedText;
@@ -68,7 +107,18 @@ export default function MarkdownResponse({ content, sources }: MarkdownResponseP
               return (
                 <Link
                   href={href}
-                  className="text-blue-600 hover:text-blue-800 underline font-medium"
+                  className="inline-flex items-center text-blue-600 hover:text-blue-800 underline font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md text-sm transition-colors ml-2"
+                  {...props}
+                >
+                  {children}
+                </Link>
+              );
+            }
+            if (href?.startsWith('/search')) {
+              return (
+                <Link
+                  href={href}
+                  className="inline-flex items-center text-blue-600 hover:text-blue-800 underline font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md text-sm transition-colors ml-2"
                   {...props}
                 >
                   {children}
@@ -104,16 +154,22 @@ export default function MarkdownResponse({ content, sources }: MarkdownResponseP
               {children}
             </h3>
           ),
-          // Style lists
+          // Style lists with better spacing
           ul: ({ children, ...props }) => (
-            <ul className="list-disc list-inside mb-2 space-y-1" {...props}>
+            <ul className="list-disc list-inside mb-3 space-y-0.5" {...props}>
               {children}
             </ul>
           ),
           ol: ({ children, ...props }) => (
-            <ol className="list-decimal list-inside mb-2 space-y-1" {...props}>
+            <ol className="list-decimal list-inside mb-3 space-y-0.5" {...props}>
               {children}
             </ol>
+          ),
+          // Style list items
+          li: ({ children, ...props }) => (
+            <li className="leading-relaxed text-gray-800 mb-0.5" {...props}>
+              {children}
+            </li>
           ),
           // Style paragraphs
           p: ({ children, ...props }) => (
