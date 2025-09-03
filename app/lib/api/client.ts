@@ -228,11 +228,15 @@ export class RIAHunterAPIClient {
     // Normalize the request data
     const normalizedRequest = this.normalizeAskRequest(request);
     
+    // CRITICAL: Backend expects parameters at top level, not in options object
+    // Flatten the options object to top level before sending
+    const backendRequest = this.flattenOptionsForBackend(normalizedRequest);
+    
     // Make the API call with retry logic
     const response = await this.fetchWithRetry(url, {
       method: 'POST',
       headers: this.buildHeaders(),
-      body: JSON.stringify(normalizedRequest),
+      body: JSON.stringify(backendRequest),
       credentials: 'include', // Include credentials for session tracking
       cache: 'no-store',
     });
@@ -753,6 +757,28 @@ export class RIAHunterAPIClient {
     }
     
     return normalized;
+  }
+  
+  // CRITICAL: Flatten options object to top level for backend compatibility
+  // Backend expects: {query, state, fundType, ...} not {query, options: {state, fundType}}
+  private flattenOptionsForBackend(request: AskRequest): any {
+    const flattened: any = {
+      query: request.query
+    };
+    
+    // Move all options to top level
+    if (request.options) {
+      if (request.options.state) flattened.state = request.options.state;
+      if (request.options.city) flattened.city = request.options.city;
+      if (request.options.fundType) flattened.fundType = request.options.fundType;
+      if (request.options.minAum !== undefined) flattened.minAum = request.options.minAum;
+      if (request.options.minVcActivity !== undefined) flattened.minVcActivity = request.options.minVcActivity;
+      if (request.options.maxResults !== undefined) flattened.maxResults = request.options.maxResults;
+      if (request.options.includeDetails !== undefined) flattened.includeDetails = request.options.includeDetails;
+      if (request.options.useHybridSearch !== undefined) flattened.useHybridSearch = request.options.useHybridSearch;
+    }
+    
+    return flattened;
   }
   
   // Normalize city names (e.g., "st. louis" -> "Saint Louis")
