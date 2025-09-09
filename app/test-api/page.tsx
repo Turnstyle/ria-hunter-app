@@ -88,19 +88,19 @@ export default function TestAPIPage() {
         </div>
         
         <div className="space-y-4">
-          <h2 className="text-lg font-bold">Ask Stream Tests</h2>
+          <h2 className="text-lg font-bold">Ask API Tests (Consolidated Endpoint)</h2>
           <button
-            onClick={() => testEndpoint('/api/ask-stream', 'GET', { query })}
-            className="px-4 py-2 bg-red-500 text-white rounded"
+            onClick={() => testEndpoint('/api/ask', 'POST', { query, streaming: false })}
+            className="px-4 py-2 bg-blue-500 text-white rounded"
           >
-            Test Stream (GET) - Should Fail with 405
+            Test Ask (Non-Streaming) - Should Work
           </button>
           
           <button
-            onClick={() => testEndpoint('/api/ask-stream', 'POST', { query })}
+            onClick={() => testEndpoint('/api/ask', 'POST', { query, streaming: true })}
             className="px-4 py-2 bg-green-500 text-white rounded"
           >
-            Test Stream (POST) - Should Work
+            Test Ask (Streaming) - Should Work
           </button>
         </div>
         

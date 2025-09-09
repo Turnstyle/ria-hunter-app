@@ -242,11 +242,10 @@ const API_CONFIG = {
   // CRITICAL: These are the ONLY endpoints we should call
   // All backend endpoints now use standard /api/ask/* paths
   endpoints: {
-    ask: '/ask',                         // Main search endpoint
+    ask: '/ask',                         // Main search endpoint (now handles both streaming and non-streaming)
     askSearch: '/ask/search',            // Explicit search endpoint (same as /ask)
     askBrowse: '/ask/browse',            // Browse RIAs by filters (no query needed)
     askProfile: '/ask/profile',          // Profile endpoint base (use with /{crd})
-    askStream: '/ask-stream',            // Streaming version of ask
     askHybridComprehensive: '/ask/hybrid-comprehensive', // NEW: Hybrid comprehensive search
     askComprehensiveSearch: '/ask/comprehensive-search', // NEW: Database-only comprehensive search
     profile: '/ask/profile',             // NEW: Use /api/ask/profile/{crd} instead of /api/ria-profile
@@ -312,6 +311,9 @@ export class RIAHunterAPIClient {
     // CRITICAL: Backend expects parameters at top level, not in options object
     // Flatten the options object to top level before sending
     const backendRequest = this.flattenOptionsForBackend(normalizedRequest);
+    
+    // Add streaming: false for non-streaming requests
+    backendRequest.streaming = false;
     
     // Make the API call with retry logic
     const response = await this.fetchWithRetry(url, {
@@ -386,8 +388,8 @@ export class RIAHunterAPIClient {
     onComplete: (response: AskResponse) => void,
     onError: (error: Error) => void
   ): Promise<AbortController> {
-    // Build absolute URL
-    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.askStream}`;
+    // Build absolute URL - now uses the same /ask endpoint with streaming: true
+    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.ask}`;
     const controller = new AbortController();
     
     if (DEBUG_MODE) {
@@ -399,6 +401,10 @@ export class RIAHunterAPIClient {
     try {
       const normalizedRequest = this.normalizeAskRequest(request);
       
+      // Flatten options and add streaming: true for streaming requests
+      const backendRequest = this.flattenOptionsForBackend(normalizedRequest);
+      backendRequest.streaming = true;
+      
       const response = await fetch(url, {
         method: 'POST', // MUST BE POST
         headers: {
@@ -407,7 +413,7 @@ export class RIAHunterAPIClient {
           'X-Request-Id': `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
           ...(this.authToken ? { 'Authorization': `Bearer ${this.authToken}` } : {})
         },
-        body: JSON.stringify(normalizedRequest),
+        body: JSON.stringify(backendRequest),
         signal: controller.signal,
         credentials: 'include', // Always include credentials for session tracking
         mode: 'cors', // Explicit CORS mode
