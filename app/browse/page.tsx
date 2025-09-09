@@ -183,59 +183,57 @@ export default function BrowsePage() {
         apiClient.setAuthToken(session.access_token);
       }
 
-      // Build search query based on filters
-      let searchQuery = 'Find RIAs';
-      const queryParts = [];
-      
-      if (filters.state) {
-        const stateLabel = stateOptions.find(opt => opt.value === filters.state)?.label || filters.state;
-        queryParts.push(`in ${stateLabel}`);
-      }
-      if (filters.location) {
-        queryParts.push(`in ${filters.location}`);
-      }
-      if (filters.fundType) {
-        const fundLabel = fundTypeOptions.find(opt => opt.value === filters.fundType)?.label || filters.fundType;
-        queryParts.push(`with ${fundLabel} funds`);
-      }
-      if (filters.aumRange) {
-        const aumLabel = aumRangeOptions.find(opt => opt.value === filters.aumRange)?.label || filters.aumRange;
-        queryParts.push(`with AUM ${aumLabel}`);
-      }
-      if (filters.vcActivity) {
-        const vcLabel = vcActivityOptions.find(opt => opt.value === filters.vcActivity)?.label || filters.vcActivity;
-        queryParts.push(`with ${vcLabel} VC activity`);
-      }
-      
-      if (queryParts.length > 0) {
-        searchQuery += ' ' + queryParts.join(', ');
+      // Map fund type to backend expected values
+      let fundType: string | undefined;
+      switch(filters.fundType) {
+        case 'vc': fundType = 'Venture Capital'; break;
+        case 'pe': fundType = 'Private Equity'; break;
+        case 'cre': fundType = 'Commercial Real Estate'; break;
+        case 'hedge': fundType = 'Hedge Fund'; break;
+        case 'other': fundType = 'Other'; break;
+        default: fundType = undefined;
       }
 
-      // Use the API client to make the request
-      const response = await apiClient.ask({
-        query: searchQuery,
-        options: {
-          state: filters.state || undefined,
-          city: filters.location || undefined,
-          fundType: filters.fundType || undefined,
-          minAum: filters.aumRange ? parseAumRange(filters.aumRange) : undefined,
-          minVcActivity: filters.vcActivity ? parseVcActivity(filters.vcActivity) : undefined,
-          maxResults: filters.limit,
-          useHybridSearch: false
-        }
+      // Determine if hasVcActivity filter should be applied
+      let hasVcActivity: boolean | undefined;
+      if (filters.vcActivity) {
+        hasVcActivity = filters.vcActivity !== 'none';
+      }
+
+      // Calculate offset for pagination
+      const offset = (page - 1) * filters.limit;
+
+      // Use the new browse endpoint
+      const response = await apiClient.browse({
+        state: filters.state || undefined,
+        city: filters.location || undefined,
+        fundType: fundType,
+        minAum: filters.aumRange ? parseAumRange(filters.aumRange) : undefined,
+        hasVcActivity: hasVcActivity,
+        limit: filters.limit,
+        offset: offset,
+        sortBy: filters.sortBy as 'aum' | 'name' | 'fund_count' || 'aum',
+        sortOrder: filters.sortOrder as 'asc' | 'desc' || 'desc'
       });
 
-      // Update session status from response metadata
-      if (response.metadata) {
-        updateFromResponse({ metadata: response.metadata });
-      }
+      // Map the response data to match our component's expected format
+      const mappedResults = response.results.map(ria => ({
+        id: ria.crd_number?.toString() || '',
+        firm_name: ria.legal_name,
+        name: ria.legal_name,
+        state: ria.state,
+        city: ria.city,
+        aum: ria.aum,
+        employee_count: ria.employee_count,
+        fundTypes: ria.fund_types,
+        vcActivity: ria.has_vc_activity ? 10 : 0, // Simple boolean to numeric mapping
+        crd_number: ria.crd_number?.toString(),
+        website: ria.website,
+        services: []  // Services not provided by browse endpoint
+      }));
 
-      // Extract results from response
-      setResults(response.results || []);
-      // totalCount might be in metadata or just use the results length
-      const totalFromMetadata = response.metadata?.totalCount;
-      const resultsLength = response.results?.length || 0;
-      setTotalCount(totalFromMetadata || resultsLength);
+      setResults(mappedResults);
+      setTotalCount(response.pagination.total);
       setFilters(prev => ({ ...prev, page }));
       
     } catch (error) {
@@ -243,9 +241,9 @@ export default function BrowsePage() {
       
       // Handle specific error types
       if (error instanceof Error) {
-        if (error.message === 'CREDITS_EXHAUSTED') {
+        if (error.message.includes('CREDITS_EXHAUSTED')) {
           setError("You've used all your searches. Please upgrade to continue.");
-        } else if (error.message === 'AUTHENTICATION_REQUIRED') {
+        } else if (error.message.includes('AUTHENTICATION_REQUIRED')) {
           setError("Please sign in to continue searching.");
         } else {
           setError(error.message);

@@ -112,51 +112,84 @@ function RIAProfileContent() {
     try {
       setIsLoading(true);
       
-      // Use the new non-v1 profile endpoint
-      const directUrl = `/api/ria-profile/${id}`;
+      // Use the new /api/ask/profile/{crd} endpoint
+      const directUrl = `/api/ask/profile/${id}`;
       const response = await fetch(directUrl);
       
       if (response.ok) {
-        const data = await response.json();
+        const responseData = await response.json();
         
-        // Validate API response before normalization
-        if (!data || !data.legal_name) {
-          throw new Error(`Invalid profile data for identifier ${id}: missing legal_name`);
+        // Handle the new API response structure
+        if (responseData.success && responseData.profile) {
+          const data = responseData.profile;
+          
+          // Validate API response before normalization
+          if (!data || !data.legal_name) {
+            throw new Error(`Invalid profile data for identifier ${id}: missing legal_name`);
+          }
+          
+          // Map control_persons to executives
+          const executives = Array.isArray(data.control_persons) 
+            ? data.control_persons.map((person: any) => ({
+                name: person.person_name || person.name,
+                title: person.title || null
+              }))
+            : [];
+          
+          // Map narratives to a simple description if needed
+          const description = Array.isArray(data.narratives) && data.narratives.length > 0
+            ? data.narratives[0].narrative
+            : null;
+          
+          // Data is already normalized from our API
+          const normalized: RIAProfile = {
+            cik: Number(data.cik || data.crd_number),
+            crd_number: data.crd_number,
+            legal_name: data.legal_name,
+            main_addr_street1: data.address || data.main_addr_street1 || null,
+            main_addr_street2: data.main_addr_street2 || null,
+            main_addr_city: data.city || data.main_addr_city || null,
+            main_addr_state: data.state || data.main_addr_state || null,
+            main_addr_zip: data.zip || data.main_addr_zip || null,
+            main_addr_country: data.country || data.main_addr_country || null,
+            phone_number: data.business_phone || data.phone_number || null,
+            fax_number: data.business_fax || data.fax_number || null,
+            website: data.website || null,
+            is_st_louis_msa: data.is_st_louis_msa ?? null,
+            executives: executives,
+            filings: Array.isArray(data.filings) ? data.filings.map((f: any) => ({
+              filing_id: String(f.filing_id || ''),
+              filing_date: f.filing_date,
+              total_aum: f.total_aum ?? null,
+              manages_private_funds_flag: f.manages_private_funds_flag ?? null,
+              report_period_end_date: f.report_period_end_date ?? null,
+            })) : [],
+            private_funds: Array.isArray(data.ria_private_funds) 
+              ? data.ria_private_funds.map((pf: any) => ({
+                  fund_id: String(pf.fund_id || ''),
+                  fund_name: pf.fund_name,
+                  fund_type: pf.fund_type ?? null,
+                  gross_asset_value: pf.gross_asset_value ?? null,
+                  min_investment: pf.min_investment ?? null,
+                }))
+              : (Array.isArray(data.private_funds) 
+                  ? data.private_funds.map((pf: any) => ({
+                      fund_id: String(pf.fund_id || ''),
+                      fund_name: pf.fund_name,
+                      fund_type: pf.fund_type ?? null,
+                      gross_asset_value: pf.gross_asset_value ?? null,
+                      min_investment: pf.min_investment ?? null,
+                    }))
+                  : []),
+          };
+          setProfile(normalized);
+          return;
+        } else if (responseData.error) {
+          throw new Error(responseData.error);
+        } else {
+          // Legacy format support (shouldn't happen with new API)
+          throw new Error('Unexpected response format from profile API');
         }
-        
-        // Data is already normalized from our API
-        const normalized: RIAProfile = {
-          cik: Number(data.cik || data.crd_number),
-          crd_number: data.crd_number,
-          legal_name: data.legal_name,
-          main_addr_street1: data.main_addr_street1,
-          main_addr_street2: data.main_addr_street2 || null,
-          main_addr_city: data.main_addr_city,
-          main_addr_state: data.main_addr_state,
-          main_addr_zip: data.main_addr_zip,
-          main_addr_country: data.main_addr_country || null,
-          phone_number: data.phone_number,
-          fax_number: data.fax_number,
-          website: data.website,
-          is_st_louis_msa: data.is_st_louis_msa ?? null,
-          executives: Array.isArray(data.executives) ? data.executives : [],
-          filings: Array.isArray(data.filings) ? data.filings.map((f: any) => ({
-            filing_id: String(f.filing_id || ''),
-            filing_date: f.filing_date,
-            total_aum: f.total_aum ?? null,
-            manages_private_funds_flag: f.manages_private_funds_flag ?? null,
-            report_period_end_date: f.report_period_end_date ?? null,
-          })) : [],
-          private_funds: Array.isArray(data.private_funds) ? data.private_funds.map((pf: any) => ({
-            fund_id: String(pf.fund_id || ''),
-            fund_name: pf.fund_name,
-            fund_type: pf.fund_type ?? null,
-            gross_asset_value: pf.gross_asset_value ?? null,
-            min_investment: pf.min_investment ?? null,
-          })) : [],
-        };
-        setProfile(normalized);
-        return;
       }
       
       // Profile not found with direct lookup, show not found state

@@ -164,11 +164,14 @@ const API_CONFIG = {
   baseUrl: '/api',
   
   // CRITICAL: These are the ONLY endpoints we should call
-  // All backend endpoints now use standard /api/* paths
+  // All backend endpoints now use standard /api/ask/* paths
   endpoints: {
-    ask: '/ask',                         // Main RAG endpoint - USE THIS
+    ask: '/ask',                         // Main search endpoint
+    askSearch: '/ask/search',            // Explicit search endpoint (same as /ask)
+    askBrowse: '/ask/browse',            // Browse RIAs by filters (no query needed)
+    askProfile: '/ask/profile',          // Profile endpoint base (use with /{crd})
     askStream: '/ask-stream',            // Streaming version of ask
-    profile: '/ria-profile',             // Individual profile details (NO V1!)
+    profile: '/ask/profile',             // NEW: Use /api/ask/profile/{crd} instead of /api/ria-profile
     subscriptionStatus: '/subscription-status',
     sessionStatus: '/session/status',    // Session status endpoint
     creditsBalance: '/credits/balance',  // Deprecated - kept for compatibility
@@ -483,7 +486,54 @@ export class RIAHunterAPIClient {
     return controller;
   }
   
-  // Fetch individual RIA profile
+  // Browse RIAs by filters (NEW - uses /api/ask/browse)
+  async browse(request: BrowseRequest): Promise<BrowseResponse> {
+    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.askBrowse}`;
+    
+    // Build query params
+    const params = new URLSearchParams();
+    if (request.state) params.append('state', request.state);
+    if (request.city) params.append('city', request.city);
+    if (request.fundType) params.append('fundType', request.fundType);
+    if (request.minAum !== undefined) params.append('minAum', request.minAum.toString());
+    if (request.hasVcActivity !== undefined) params.append('hasVcActivity', request.hasVcActivity.toString());
+    params.append('limit', (request.limit || 50).toString());
+    params.append('offset', (request.offset || 0).toString());
+    params.append('sortBy', request.sortBy || 'aum');
+    params.append('sortOrder', request.sortOrder || 'desc');
+    
+    const response = await this.fetchWithRetry(`${url}?${params}`, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Browse request failed: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    const parsed = BrowseResponseSchema.safeParse(data);
+    
+    if (!parsed.success) {
+      console.error('Invalid browse response:', parsed.error);
+      // Return a fallback response with the raw data
+      return {
+        success: false,
+        filters: {},
+        pagination: { limit: 50, offset: 0, total: 0, hasMore: false },
+        sorting: { sortBy: 'aum', sortOrder: 'desc' },
+        results: [],
+        metadata: { requestId: '', timestamp: new Date().toISOString(), totalResults: 0 }
+      };
+    }
+    
+    return parsed.data;
+  }
+  
+  // Fetch individual RIA profile (UPDATED - uses /api/ask/profile/{crd})
   async getProfile(id: string): Promise<ProfileResponse> {
     const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.profile}/${id}`;
     
@@ -501,6 +551,33 @@ export class RIAHunterAPIClient {
     }
     
     const data = await response.json();
+    
+    // The new API returns a different structure, let's handle both
+    if (data.success && data.profile) {
+      // New API structure from /api/ask/profile/{crd}
+      const profile = data.profile;
+      return {
+        id: profile.crd_number?.toString() || profile.id,
+        firm_name: profile.legal_name || profile.firm_name,
+        crd_number: profile.crd_number?.toString(),
+        sec_number: profile.sec_number,
+        city: profile.city,
+        state: profile.state,
+        address: profile.main_addr_street1,
+        phone: profile.business_phone || profile.phone,
+        website: profile.website,
+        aum: profile.aum,
+        aum_range: profile.aum_range,
+        employee_count: profile.employee_count,
+        services: profile.services,
+        client_types: profile.client_types,
+        year_founded: profile.year_founded,
+        description: profile.narrative || profile.description,
+        last_updated: profile.last_updated,
+      };
+    }
+    
+    // Try to parse as old format
     const parsed = ProfileResponseSchema.safeParse(data);
     
     if (!parsed.success) {
@@ -896,6 +973,65 @@ export class RIAHunterAPIClient {
     }
   }
 }
+
+// Browse endpoint request/response schemas
+export const BrowseRequestSchema = z.object({
+  state: z.string().optional(),
+  city: z.string().optional(),
+  fundType: z.string().optional(),
+  minAum: z.number().optional(),
+  hasVcActivity: z.boolean().optional(),
+  limit: z.number().min(1).max(100).default(50),
+  offset: z.number().min(0).default(0),
+  sortBy: z.enum(['aum', 'name', 'fund_count']).default('aum'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export type BrowseRequest = z.infer<typeof BrowseRequestSchema>;
+
+export const BrowseResponseSchema = z.object({
+  success: z.boolean(),
+  filters: z.record(z.any()),
+  pagination: z.object({
+    limit: z.number(),
+    offset: z.number(),
+    total: z.number(),
+    hasMore: z.boolean(),
+  }),
+  sorting: z.object({
+    sortBy: z.string(),
+    sortOrder: z.string(),
+  }),
+  results: z.array(z.object({
+    crd_number: z.number(),
+    legal_name: z.string(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    aum: z.number().optional(),
+    private_fund_count: z.number().optional(),
+    private_fund_aum: z.number().optional(),
+    website: z.string().optional(),
+    business_phone: z.string().optional(),
+    business_email: z.string().optional(),
+    employee_count: z.number().optional(),
+    total_accounts: z.number().optional(),
+    funds: z.array(z.object({
+      fund_name: z.string(),
+      fund_type: z.string(),
+      gross_asset_value: z.number().optional(),
+    })).optional(),
+    fund_types: z.array(z.string()).optional(),
+    funds_by_type: z.record(z.number()).optional(),
+    has_vc_activity: z.boolean().optional(),
+  })),
+  metadata: z.object({
+    requestId: z.string(),
+    timestamp: z.string(),
+    totalResults: z.number(),
+  }),
+});
+
+export type BrowseResponse = z.infer<typeof BrowseResponseSchema>;
 
 // Export singleton instance
 export const apiClient = new RIAHunterAPIClient();
