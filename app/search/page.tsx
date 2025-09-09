@@ -59,7 +59,7 @@ const transformHybridResponseToAskResponse = (hybridResult: HybridComprehensiveR
       isSubscriber: hybridResult.metadata?.isSubscriber || false,
       remaining: hybridResult.metadata?.remaining || null,
       queryType: 'hybrid-comprehensive',
-      searchStrategy: 'hybrid' as const, // Properly typed constant
+      searchStrategy: 'ai_semantic', // Hybrid uses semantic ranking among database results
       confidence: hybridResult.results?.[0]?.relevance_scores?.combined_score,
       tokensUsed: hybridResult.metadata?.tokensUsed,
       totalCount: hybridResult.summary?.total_database_results,
