@@ -416,7 +416,7 @@ export default function BrowsePage() {
           </button>
 
           {/* Temporarily hidden for MVP functionality */}
-          {false && !isSubscriber && searchesRemaining !== null && searchesRemaining <= 2 && (
+          {false && !isSubscriber && typeof searchesRemaining === 'number' && searchesRemaining <= 2 && (
             <div className="text-right">
               <p className="text-sm text-secondary-600 mb-2">
                 You have {searchesRemaining ?? 0} free search{(searchesRemaining ?? 0) === 1 ? '' : 'es'} remaining
