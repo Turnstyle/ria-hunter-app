@@ -415,7 +415,8 @@ export default function BrowsePage() {
             {loading ? 'Searching...' : 'Search RIAs'}
           </button>
 
-          {/* Temporarily hidden for MVP functionality */}
+          {/* Temporarily hidden for MVP functionality - commented out to fix build */}
+          {/*
           {false && !isSubscriber && typeof searchesRemaining === 'number' && searchesRemaining <= 2 && (
             <div className="text-right">
               <p className="text-sm text-secondary-600 mb-2">
@@ -424,6 +425,7 @@ export default function BrowsePage() {
               <UpgradeButton size="sm" buttonText="Get Unlimited" />
             </div>
           )}
+          */}
         </div>
       </div>
 
