@@ -5,7 +5,7 @@
  * This tests the new /api/ask/browse endpoint
  */
 
-const BASE_URL = 'https://ria-hunter-2xv2cp9bb-turnerpeters-6002s-projects.vercel.app';
+const BASE_URL = 'https://ria-hunter-lbss3xb0g-turnerpeters-6002s-projects.vercel.app';
 
 async function testBrowseEndpoint() {
   console.log('🧪 Testing /api/ask/browse endpoint for St. Louis VC RIAs...\n');

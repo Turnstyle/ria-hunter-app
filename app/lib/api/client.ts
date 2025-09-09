@@ -157,6 +157,82 @@ export const CreditDebugResponseSchema = z.object({
 
 export type CreditDebugResponse = z.infer<typeof CreditDebugResponseSchema>;
 
+// Schema for hybrid-comprehensive search request
+export const HybridComprehensiveRequestSchema = z.object({
+  query: z.string().min(1).max(500),
+  filters: z.object({
+    state: z.string().optional(),
+    city: z.string().optional(), 
+    hasVcActivity: z.boolean().optional(),
+    minAum: z.number().optional(),
+    fundType: z.string().optional(),
+  }).optional(),
+  limit: z.number().min(1).max(200).optional(),
+  semanticWeight: z.number().min(0).max(1).optional(),
+  databaseWeight: z.number().min(0).max(1).optional(),
+});
+
+export type HybridComprehensiveRequest = z.infer<typeof HybridComprehensiveRequestSchema>;
+
+// Schema for hybrid-comprehensive search response
+export const HybridComprehensiveResponseSchema = z.object({
+  success: z.boolean(),
+  query: z.string(),
+  filters: z.object({
+    state: z.string().optional(),
+    city: z.string().optional(),
+    hasVcActivity: z.boolean().optional(),
+    minAum: z.number().optional(),
+    fundType: z.string().optional(),
+  }).optional(),
+  summary: z.object({
+    total_database_results: z.number(),
+    total_with_semantic_match: z.number().optional(),
+    semantic_weight_used: z.number().optional(),
+    database_weight_used: z.number().optional(),
+  }),
+  results: z.array(z.object({
+    id: z.string(),
+    firm_name: z.string(),
+    crd_number: z.string(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    aum: z.number().optional(),
+    description: z.string().optional(),
+    website: z.string().optional(),
+    phone: z.string().optional(),
+    services: z.array(z.string()).optional(),
+    executives: z.array(z.object({
+      name: z.string(),
+      title: z.string(),
+    })).optional(),
+    private_funds: z.array(z.object({
+      name: z.string(),
+      type: z.string(),
+      aum: z.number().optional(),
+    })).optional(),
+    relevance_scores: z.object({
+      semantic_score: z.number().optional(),
+      database_score: z.number().optional(), 
+      combined_score: z.number().optional(),
+    }).optional(),
+  })),
+  metadata: z.object({
+    searchesRemaining: z.number().nullable().optional(),
+    searchesUsed: z.number().nullable().optional(),
+    isSubscriber: z.boolean().nullable().optional(),
+    remaining: z.number().nullable().optional(),
+    queryType: z.string().optional(),
+    searchStrategy: z.string().optional(),
+    tokensUsed: z.number().optional(),
+    requestId: z.string().optional(),
+    timestamp: z.string().optional(),
+  }).optional(),
+  error: z.string().optional(),
+});
+
+export type HybridComprehensiveResponse = z.infer<typeof HybridComprehensiveResponseSchema>;
+
 // Configuration object - single source of truth for API settings
 const API_CONFIG = {
   // Use the standard /api path - backend is now consolidated to standard paths
@@ -171,6 +247,8 @@ const API_CONFIG = {
     askBrowse: '/ask/browse',            // Browse RIAs by filters (no query needed)
     askProfile: '/ask/profile',          // Profile endpoint base (use with /{crd})
     askStream: '/ask-stream',            // Streaming version of ask
+    askHybridComprehensive: '/ask/hybrid-comprehensive', // NEW: Hybrid comprehensive search
+    askComprehensiveSearch: '/ask/comprehensive-search', // NEW: Database-only comprehensive search
     profile: '/ask/profile',             // NEW: Use /api/ask/profile/{crd} instead of /api/ria-profile
     subscriptionStatus: '/subscription-status',
     sessionStatus: '/session/status',    // Session status endpoint
@@ -527,6 +605,70 @@ export class RIAHunterAPIClient {
         sorting: { sortBy: 'aum', sortOrder: 'desc' },
         results: [],
         metadata: { requestId: '', timestamp: new Date().toISOString(), totalResults: 0 }
+      };
+    }
+    
+    return parsed.data;
+  }
+  
+  // NEW: Hybrid Comprehensive Search - combines database completeness with AI semantic ranking
+  async askHybridComprehensive(request: HybridComprehensiveRequest): Promise<HybridComprehensiveResponse> {
+    const url = `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.askHybridComprehensive}`;
+    
+    // Set default weights if not provided
+    const requestWithDefaults = {
+      ...request,
+      limit: request.limit || 100,
+      semanticWeight: request.semanticWeight ?? 0.7,
+      databaseWeight: request.databaseWeight ?? 0.3,
+    };
+    
+    const response = await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: JSON.stringify(requestWithDefaults),
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    
+    if (!response.ok) {
+      // Handle specific error codes
+      if (response.status === 402) {
+        throw new Error('CREDITS_EXHAUSTED');
+      }
+      if (response.status === 401) {
+        throw new Error('AUTHENTICATION_REQUIRED');
+      }
+      if (response.status === 429) {
+        throw new Error('RATE_LIMITED');
+      }
+      
+      const errorText = await response.text();
+      throw new Error(`Hybrid comprehensive search failed: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    const parsed = HybridComprehensiveResponseSchema.safeParse(data);
+    
+    if (!parsed.success) {
+      console.error('Invalid hybrid comprehensive response:', parsed.error);
+      console.error('Raw response:', data);
+      
+      // Return a fallback response with the raw data
+      return {
+        success: false,
+        query: request.query,
+        filters: request.filters || {},
+        summary: {
+          total_database_results: 0,
+          total_with_semantic_match: 0,
+        },
+        results: [],
+        metadata: {
+          searchesRemaining: null,
+          isSubscriber: false,
+        },
+        error: 'Invalid response format received'
       };
     }
     

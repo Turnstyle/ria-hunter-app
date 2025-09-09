@@ -81,22 +81,69 @@ export default function SearchPage() {
         apiClient.setAuthToken(session.access_token);
       }
       
-      // Build search request
+      // Build search request for new hybrid-comprehensive endpoint
       const searchRequest = {
         query: query.trim(),
-        options: {
+        filters: {
           // CRITICAL: Send city and state as separate fields
           ...(city && { city: city.trim() }),
           ...(state && { state }),
           ...(minAum && { minAum: parseFloat(minAum) * 1000000 }), // Convert millions to dollars
-          includeDetails,
-          maxResults: 20,
-          useHybridSearch,
         },
+        limit: 50, // Increased from 20 to get more comprehensive results
+        semanticWeight: 0.7, // Default semantic weight
+        databaseWeight: 0.3, // Default database weight
       };
       
-      // Make API call
-      const result = await apiClient.ask(searchRequest);
+      // Make API call using new hybrid comprehensive search
+      const hybridResult = await apiClient.askHybridComprehensive(searchRequest);
+      
+      // Transform hybrid response to match expected AskResponse format
+      const result: AskResponse = {
+        // The new API doesn't return a natural language answer, so we'll create a summary
+        answer: hybridResult.summary ? 
+          `Found ${hybridResult.summary.total_database_results} matching RIAs` +
+          (hybridResult.summary.total_with_semantic_match ? 
+            ` (${hybridResult.summary.total_with_semantic_match} with semantic relevance)` : '') +
+          '. Results are ranked by combined relevance score.' : 
+          undefined,
+        
+        // Transform results to match expected format
+        results: hybridResult.results?.map(r => ({
+          id: r.id,
+          firm_name: r.firm_name,
+          crd_number: r.crd_number,
+          city: r.city,
+          state: r.state,
+          aum: r.aum,
+          similarity: r.relevance_scores?.combined_score,
+          description: r.description,
+          website: r.website,
+          phone: r.phone,
+          services: r.services,
+          executives: r.executives,
+          private_funds: r.private_funds,
+        })),
+        
+        // No sources in hybrid response
+        sources: [],
+        
+        // Transform metadata
+        metadata: {
+          searchesRemaining: hybridResult.metadata?.searchesRemaining,
+          searchesUsed: hybridResult.metadata?.searchesUsed,
+          isSubscriber: hybridResult.metadata?.isSubscriber,
+          remaining: hybridResult.metadata?.remaining,
+          queryType: 'hybrid-comprehensive',
+          searchStrategy: 'hybrid' as any,
+          confidence: hybridResult.results?.[0]?.relevance_scores?.combined_score,
+          tokensUsed: hybridResult.metadata?.tokensUsed,
+          totalCount: hybridResult.summary?.total_database_results,
+        },
+        
+        error: hybridResult.error,
+        success: hybridResult.success,
+      };
       
       // Update session status
       updateFromResponse(result);
