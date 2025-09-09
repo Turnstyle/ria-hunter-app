@@ -6,8 +6,69 @@
 import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useSessionDemo } from '@/app/hooks/useSessionDemo';
-import { apiClient, type AskResponse } from '@/app/lib/api/client';
+import { apiClient, type AskResponse, type HybridComprehensiveResponse } from '@/app/lib/api/client';
 import { Search, MapPin, DollarSign, Users, Loader2, HelpCircle, Download } from 'lucide-react';
+
+/**
+ * Transforms a HybridComprehensiveResponse to AskResponse format for UI compatibility
+ * @param hybridResult - The response from the hybrid comprehensive search endpoint
+ * @returns AskResponse formatted for existing UI components
+ */
+const transformHybridResponseToAskResponse = (hybridResult: HybridComprehensiveResponse): AskResponse => {
+  // Generate a user-friendly summary message
+  const generateSummaryAnswer = (summary: typeof hybridResult.summary): string | undefined => {
+    if (!summary) return undefined;
+    
+    const { total_database_results, total_with_semantic_match } = summary;
+    let message = `Found ${total_database_results} matching RIAs`;
+    
+    if (total_with_semantic_match && total_with_semantic_match > 0) {
+      message += ` (${total_with_semantic_match} with semantic relevance)`;
+    }
+    
+    return `${message}. Results are ranked by combined relevance score.`;
+  };
+
+  return {
+    answer: generateSummaryAnswer(hybridResult.summary),
+    
+    // Transform results to match expected format with proper null safety
+    results: hybridResult.results?.map(r => ({
+      id: r.id,
+      firm_name: r.firm_name,
+      crd_number: r.crd_number,
+      city: r.city,
+      state: r.state,
+      aum: r.aum,
+      similarity: r.relevance_scores?.combined_score,
+      description: r.description,
+      website: r.website,
+      phone: r.phone,
+      services: r.services,
+      executives: r.executives,
+      private_funds: r.private_funds,
+    })) || [],
+    
+    // No sources in hybrid response
+    sources: [],
+    
+    // Transform metadata with proper typing
+    metadata: {
+      searchesRemaining: hybridResult.metadata?.searchesRemaining || null,
+      searchesUsed: hybridResult.metadata?.searchesUsed || null,
+      isSubscriber: hybridResult.metadata?.isSubscriber || false,
+      remaining: hybridResult.metadata?.remaining || null,
+      queryType: 'hybrid-comprehensive',
+      searchStrategy: 'hybrid' as const, // Properly typed constant
+      confidence: hybridResult.results?.[0]?.relevance_scores?.combined_score,
+      tokensUsed: hybridResult.metadata?.tokensUsed,
+      totalCount: hybridResult.summary?.total_database_results,
+    },
+    
+    error: hybridResult.error,
+    success: hybridResult.success,
+  };
+};
 
 // State abbreviations for dropdown
 const STATES = [
@@ -98,52 +159,8 @@ export default function SearchPage() {
       // Make API call using new hybrid comprehensive search
       const hybridResult = await apiClient.askHybridComprehensive(searchRequest);
       
-      // Transform hybrid response to match expected AskResponse format
-      const result: AskResponse = {
-        // The new API doesn't return a natural language answer, so we'll create a summary
-        answer: hybridResult.summary ? 
-          `Found ${hybridResult.summary.total_database_results} matching RIAs` +
-          (hybridResult.summary.total_with_semantic_match ? 
-            ` (${hybridResult.summary.total_with_semantic_match} with semantic relevance)` : '') +
-          '. Results are ranked by combined relevance score.' : 
-          undefined,
-        
-        // Transform results to match expected format
-        results: hybridResult.results?.map(r => ({
-          id: r.id,
-          firm_name: r.firm_name,
-          crd_number: r.crd_number,
-          city: r.city,
-          state: r.state,
-          aum: r.aum,
-          similarity: r.relevance_scores?.combined_score,
-          description: r.description,
-          website: r.website,
-          phone: r.phone,
-          services: r.services,
-          executives: r.executives,
-          private_funds: r.private_funds,
-        })),
-        
-        // No sources in hybrid response
-        sources: [],
-        
-        // Transform metadata
-        metadata: {
-          searchesRemaining: hybridResult.metadata?.searchesRemaining,
-          searchesUsed: hybridResult.metadata?.searchesUsed,
-          isSubscriber: hybridResult.metadata?.isSubscriber,
-          remaining: hybridResult.metadata?.remaining,
-          queryType: 'hybrid-comprehensive',
-          searchStrategy: 'hybrid' as any,
-          confidence: hybridResult.results?.[0]?.relevance_scores?.combined_score,
-          tokensUsed: hybridResult.metadata?.tokensUsed,
-          totalCount: hybridResult.summary?.total_database_results,
-        },
-        
-        error: hybridResult.error,
-        success: hybridResult.success,
-      };
+      // Transform hybrid response using our helper function for better maintainability
+      const result = transformHybridResponseToAskResponse(hybridResult);
       
       // Update session status
       updateFromResponse(result);
