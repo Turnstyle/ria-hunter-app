@@ -35,7 +35,7 @@ export default function TestStLouisVC() {
         // Check for known RIAs
         const knownRIAs = ['EDWARD JONES', 'WELLS FARGO', 'STIFEL', 'MONETA'];
         const foundRIAs = knownRIAs.filter(name => 
-          response.results.some((r: any) => 
+          response.results?.some((r: any) => 
             r.firm_name?.toUpperCase().includes(name) || 
             r.name?.toUpperCase().includes(name)
           )
@@ -79,7 +79,7 @@ export default function TestStLouisVC() {
         // Check for known RIAs
         const knownRIAs = ['EDWARD JONES', 'WELLS FARGO', 'STIFEL', 'MONETA'];
         const foundRIAs = knownRIAs.filter(name => 
-          response.results.some((r: any) => 
+          response.results?.some((r: any) => 
             r.legal_name?.toUpperCase().includes(name)
           )
         );
