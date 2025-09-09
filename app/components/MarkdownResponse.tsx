@@ -99,9 +99,31 @@ function enhanceTextWithRIALinks(text: string, sources?: Array<any>): string {
 export default function MarkdownResponse({ content, sources }: MarkdownResponseProps) {
   // Enhance the content with RIA profile links
   const enhancedContent = enhanceTextWithRIALinks(content, sources);
+  
+  // Detect if this is a fallback response (indicating AI service degradation)
+  const isFallbackResponse = content.includes('AI summarization temporarily unavailable') ||
+                            content.includes('AI processing temporarily unavailable') ||
+                            content.includes('Based on search results... Note:') ||
+                            content.includes('fallback');
+  
+  // Detect if this is a circuit breaker response
+  const isCircuitBreakerResponse = content.includes('circuit breaker') ||
+                                  content.includes('service temporarily unavailable');
 
   return (
     <div className="prose prose-sm max-w-none prose-blue">
+      {/* Show resilience indicator for fallback responses */}
+      {(isFallbackResponse || isCircuitBreakerResponse) && (
+        <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+          <div className="flex items-center">
+            <div className="w-2 h-2 bg-amber-500 rounded-full mr-2 animate-pulse"></div>
+            <span className="text-amber-800 font-medium">
+              AI services are experiencing high demand - showing search results with basic analysis
+            </span>
+          </div>
+        </div>
+      )}
+      
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}

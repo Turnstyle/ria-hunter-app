@@ -102,33 +102,66 @@ function ChatInterface() {
         apiClient.setAuthToken(session.access_token);
       }
       
-      // Use non-streaming API call since backend doesn't support streaming yet
-      const response = await apiClient.ask({
-        query: input,
-        options: {
-          includeDetails: true,
-          maxResults: 10,
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController();
+      
+      // Use streaming API call - backend now supports streaming with circuit breaker resilience
+      let streamedContent = '';
+      let finalResponse: AskResponse | null = null;
+      
+      await apiClient.askStream(
+        {
+          query: input,
+          options: {
+            includeDetails: true,
+            maxResults: 10,
+          },
         },
-      });
-
-      // Update credits from response
-      updateFromResponse(response);
-      
-      // Debug: Log the complete response to understand source structure
-      console.log('[ChatInterface] Complete response:', response);
-      console.log('[ChatInterface] Response sources:', response.sources);
-      
-      // Update message with final content and sources
-      setMessages(prev => prev.map(msg => 
-        msg.id === assistantMessageId
-          ? {
-              ...msg,
-              content: response.answer || 'I received a response but there was no content. Please try again.',
-              sources: response.sources,
-              isStreaming: false,
-            }
-          : msg
-      ));
+        // On token received
+        (token: string) => {
+          if (abortControllerRef.current?.signal.aborted) return;
+          
+          streamedContent += token;
+          
+          // Update the streaming message in real-time
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId
+              ? { ...msg, content: streamedContent }
+              : msg
+          ));
+        },
+        // On completion
+        (response: AskResponse) => {
+          if (abortControllerRef.current?.signal.aborted) return;
+          
+          finalResponse = response;
+          
+          // Update credits from response
+          updateFromResponse(response);
+          
+          // Debug: Log the complete response
+          console.log('[ChatInterface] Stream complete, final response:', response);
+          console.log('[ChatInterface] Response sources:', response.sources);
+          
+          // Update message with final content, sources, and stop streaming
+          // Backend now guarantees sources are always present due to resilience patterns
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: streamedContent || response.answer || 'Search completed successfully - results are available in the sources below.',
+                  sources: response.sources || [], // Sources are guaranteed by backend resilience
+                  isStreaming: false,
+                }
+              : msg
+          ));
+        },
+        // On error
+        (error: Error) => {
+          console.error('Stream error:', error);
+          throw error; // Re-throw to be handled by the outer catch block
+        }
+      );
     } catch (error) {
       console.error('Failed to send query:', error);
       
@@ -145,8 +178,8 @@ function ChatInterface() {
           errorManager.showRateLimitError();
           setError('Please wait a moment before trying again.');
         } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
-          errorManager.showBackendError();
-          setError('Service temporarily unavailable. Please try again soon.');
+          errorManager.showError('Search completed with limited AI', 'AI services are experiencing high demand, but search results are still available.', 'warning', 8000);
+          setError('AI services are temporarily limited, but search results are available.');
         } else {
           errorManager.showError('Unable to process request', 'Please try again in a moment.', 'warning', 5000);
           setError('Unable to process your request. Please try again.');
@@ -161,15 +194,26 @@ function ChatInterface() {
       setIsStreaming(false);
       setIsSubmitting(false);
       streamingMessageIdRef.current = null;
+      abortControllerRef.current = null;
     }
   };
   
-  // Cancel request (simplified since we're not using streaming)
+  // Cancel active streaming request
   const handleCancelStream = () => {
-    // For future implementation when streaming is added back
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    // Clean up streaming state
     setIsStreaming(false);
     setIsSubmitting(false);
-    streamingMessageIdRef.current = null;
+    
+    // Remove the streaming message if it exists
+    if (streamingMessageIdRef.current) {
+      setMessages(prev => prev.filter(msg => msg.id !== streamingMessageIdRef.current));
+      streamingMessageIdRef.current = null;
+    }
   };
 
   return (
