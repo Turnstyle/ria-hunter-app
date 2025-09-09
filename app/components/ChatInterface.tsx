@@ -102,121 +102,33 @@ function ChatInterface() {
         apiClient.setAuthToken(session.access_token);
       }
       
-      // Stream the response
-      abortControllerRef.current = await apiClient.askStream(
-        {
-          query: input,
-          options: {
-            includeDetails: true,
-            maxResults: 10,
-          },
+      // Use non-streaming API call since backend doesn't support streaming yet
+      const response = await apiClient.ask({
+        query: input,
+        options: {
+          includeDetails: true,
+          maxResults: 10,
         },
-        // On token received
-        (token: string) => {
-          // Check if we're in debug mode
-          const urlParams = new URLSearchParams(window.location.search);
-          const isDebugMode = urlParams.get('debug') === '1';
-          
-          // Process token if needed for gobbledygook text
-          let processedToken = token;
-          if (isDebugMode && token.length > 50) {
-            // Check if this looks like raw context (long runs of text without spaces)
-            const noSpaceRuns = token.match(/[A-Za-z]{20,}/g);
-            if (noSpaceRuns && noSpaceRuns.length > 2) {
-              console.log('[ChatInterface] Detected possible gobbledygook, applying normalizer');
-              // Simple normalizer: add spaces between capital letters that seem to start new words
-              processedToken = token.replace(/([a-z])([A-Z])/g, '$1 $2')
-                                   .replace(/([A-Z]{2,})([A-Z][a-z])/g, '$1 $2');
+      });
+
+      // Update credits from response
+      updateFromResponse(response);
+      
+      // Debug: Log the complete response to understand source structure
+      console.log('[ChatInterface] Complete response:', response);
+      console.log('[ChatInterface] Response sources:', response.sources);
+      
+      // Update message with final content and sources
+      setMessages(prev => prev.map(msg => 
+        msg.id === assistantMessageId
+          ? {
+              ...msg,
+              content: response.answer || 'I received a response but there was no content. Please try again.',
+              sources: response.sources,
+              isStreaming: false,
             }
-          }
-          
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId
-              ? { ...msg, content: msg.content + processedToken }
-              : msg
-          ));
-        },
-        // On complete
-        (response: AskResponse) => {
-          try {
-            // Update credits from response
-            updateFromResponse(response);
-            
-            // Debug: Log the complete response to understand source structure
-            console.log('[ChatInterface] Complete response:', response);
-            console.log('[ChatInterface] Response sources:', response.sources);
-            
-            // Update message with final content and sources
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantMessageId
-                ? {
-                    ...msg,
-                    content: response.answer || msg.content,
-                    sources: response.sources,
-                    isStreaming: false,
-                  }
-                : msg
-            ));
-          } catch (innerError) {
-            console.error("Error in completion handler:", innerError);
-          } finally {
-            setIsStreaming(false);
-            setIsSubmitting(false);
-            streamingMessageIdRef.current = null;
-          }
-        },
-        // On error
-        (error: Error) => {
-          try {
-            console.error('[ChatInterface] Streaming error:', error);
-            
-            // Parse error message for specific handling
-            const errorMessage = error.message;
-            
-            // Update message with appropriate user-friendly error
-            let displayMessage = 'I apologize, but I\'m having trouble processing your request right now. Please try again in a moment.';
-            
-            if (errorMessage.includes('METHOD_NOT_ALLOWED')) {
-              displayMessage = 'I\'m experiencing a temporary issue. Please refresh the page and try your question again.';
-              errorManager.showError('Unable to process request', 'Please refresh the page and try again.', 'warning', 5000);
-            } else if (errorMessage.includes('5 free demo searches') || errorMessage === 'DEMO_LIMIT_REACHED') {
-              displayMessage = "You've reached your 5 free searches. Sign up for a free account to continue exploring RIA Hunter with unlimited searches for 7 days!";
-              errorManager.showDemoLimitError();
-            } else if (errorMessage === 'AUTHENTICATION_REQUIRED') {
-              displayMessage = 'Please sign in to access this feature.';
-              errorManager.showAuthenticationError();
-            } else if (errorMessage === 'RATE_LIMITED') {
-              displayMessage = 'Please wait a moment before sending another request.';
-              errorManager.showRateLimitError();
-            } else if (errorMessage.includes('Stream request failed: 405')) {
-              displayMessage = 'I\'m having trouble connecting right now. Please try again shortly.';
-              errorManager.showError('Connection issue', 'Please try again in a few moments.', 'warning', 7000);
-            } else if (errorMessage.includes('Stream request failed: 500') || errorMessage.includes('status 500')) {
-              displayMessage = 'I\'m temporarily unavailable. Our team is working on it - please try again soon.';
-              errorManager.showBackendError();
-            } else {
-              displayMessage = 'I couldn\'t complete your request. Please try again.';
-              errorManager.showError('Request failed', 'Please try your question again.', 'warning', 5000);
-            }
-            
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantMessageId
-                ? {
-                    ...msg,
-                    content: displayMessage,
-                    isStreaming: false,
-                  }
-                : msg
-            ));
-          } catch (innerError) {
-            console.error("Error in error handler:", innerError);
-          } finally {
-            setIsStreaming(false);
-            setIsSubmitting(false);
-            streamingMessageIdRef.current = null;
-          }
-        }
-      );
+          : msg
+      ));
     } catch (error) {
       console.error('Failed to send query:', error);
       
@@ -244,32 +156,19 @@ function ChatInterface() {
         setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
       } catch (innerError) {
         console.error("Error in catch handler:", innerError);
-      } finally {
-        setIsStreaming(false);
-        setIsSubmitting(false);
-        streamingMessageIdRef.current = null;
       }
+    } finally {
+      setIsStreaming(false);
+      setIsSubmitting(false);
+      streamingMessageIdRef.current = null;
     }
   };
   
-  // Cancel streaming
+  // Cancel request (simplified since we're not using streaming)
   const handleCancelStream = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    
-    // Mark streaming as complete
-    if (streamingMessageIdRef.current) {
-      const messageId = streamingMessageIdRef.current;
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId
-          ? { ...msg, isStreaming: false }
-          : msg
-      ));
-    }
-    
+    // For future implementation when streaming is added back
     setIsStreaming(false);
+    setIsSubmitting(false);
     streamingMessageIdRef.current = null;
   };
 
