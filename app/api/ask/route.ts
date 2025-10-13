@@ -1,168 +1,396 @@
-// Force Node.js runtime for full database access (fixes Edge runtime limitations)
-export const runtime = 'nodejs';
+import { NextResponse, type NextRequest } from 'next/server';
+import { callLLMToDecomposeQuery } from './planner-v2'; // Use enhanced planner with Gemini function calling
+import { unifiedSemanticSearch } from './unified-search';
+import { buildAnswerContext } from './context-builder';
+import { generateNaturalLanguageAnswer, streamAnswerTokens } from './generator';
+import { checkDemoLimit } from '@/lib/demo-session';
+import { corsHeaders, handleOptionsRequest, corsError } from '@/lib/cors';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+// Handle OPTIONS requests for CORS
+export function OPTIONS(req: NextRequest) {
+  return handleOptionsRequest(req);
+}
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-export async function POST(request: NextRequest) {
+// Simple JWT decoder
+function decodeJwtSub(authorizationHeader: string | null): string | null {
+  if (!authorizationHeader) return null;
+  const parts = authorizationHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
+  const token = parts[1];
+  const segments = token.split('.');
+  if (segments.length < 2) return null;
   try {
-    console.log('🔧 /api/ask endpoint called');
-    
-    const body = await request.json();
-    const { query } = body;
-    
-    console.log('🔧 Ask request:', { query, body });
-    
-    if (!query || typeof query !== 'string') {
-      return NextResponse.json(
-        { error: 'Query is required and must be a string' },
-        { status: 400 }
-      );
-    }
-
-    // For now, let's do a simple text search in the database
-    // This is a fallback implementation until the backend AI search is properly connected
-    
-    console.log('🔧 Performing database search for:', query);
-    
-    // Extract search terms from the query
-    const searchTerms = query.toLowerCase();
-    let stateFilter = null;
-    let fundTypeFilter = null;
-    
-    // Simple pattern matching for state
-    const stateMatch = searchTerms.match(/\b(missouri|mo|kansas|ks|california|ca|texas|tx|new york|ny|florida|fl)\b/i);
-    if (stateMatch) {
-      const stateMap: { [key: string]: string } = {
-        'missouri': 'MO',
-        'mo': 'MO',
-        'kansas': 'KS',
-        'ks': 'KS',
-        'california': 'CA',
-        'ca': 'CA',
-        'texas': 'TX',
-        'tx': 'TX',
-        'new york': 'NY',
-        'ny': 'NY',
-        'florida': 'FL',
-        'fl': 'FL'
-      };
-      stateFilter = stateMap[stateMatch[1].toLowerCase()];
-    }
-    
-    // Simple pattern matching for fund types
-    if (searchTerms.includes('venture capital') || searchTerms.includes('vc')) {
-      fundTypeFilter = 'vc';
-    } else if (searchTerms.includes('private equity') || searchTerms.includes('pe')) {
-      fundTypeFilter = 'pe';
-    } else if (searchTerms.includes('hedge fund')) {
-      fundTypeFilter = 'hedge';
-    }
-
-    console.log('🔧 Search filters:', { stateFilter, fundTypeFilter });
-
-    // Build the query - using the correct table name and column names
-    let dbQuery = supabase
-      .from('advisers')
-      .select(`
-        adviser_pk,
-        cik,
-        legal_name,
-        main_addr_street1,
-        main_addr_city,
-        main_addr_state,
-        main_addr_zip,
-        main_addr_country
-      `)
-      .limit(20);
-
-    // Apply filters using correct column names
-    if (stateFilter) {
-      dbQuery = dbQuery.eq('main_addr_state', stateFilter);
-    }
-
-    // Text search in firm names using correct column names
-    const searchWords = query.replace(/[^\w\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-    if (searchWords.length > 0) {
-      dbQuery = dbQuery.or(
-        searchWords.map(word => 
-          `legal_name.ilike.%${word}%`
-        ).join(',')
-      );
-    }
-
-    console.log('🔧 Executing database query...');
-    const { data: results, error } = await dbQuery;
-
-    if (error) {
-      console.error('🔧 Database error:', error);
-      return NextResponse.json(
-        { error: 'Database query failed: ' + error.message },
-        { status: 500 }
-      );
-    }
-
-    console.log(`🔧 Found ${results?.length || 0} results`);
-
-    // Transform results to match expected format using correct column names
-    const transformedResults = results?.map(row => ({
-      id: row.cik || row.adviser_pk?.toString() || 'unknown',
-      firm_name: row.legal_name || 'Unknown Firm',
-      crd_number: row.cik || 'Unknown',
-      city: row.main_addr_city || undefined,
-      state: row.main_addr_state || undefined,
-      aum: undefined, // AUM not available in current schema
-      website: undefined, // Website not available in current schema
-      phone: undefined, // Phone not available in current schema  
-      services: undefined, // Services not available in current schema
-      similarity: 0.8, // Mock similarity score
-    })) || [];
-
-    // Generate a natural language answer
-    let answer = '';
-    if (transformedResults.length > 0) {
-      const stateText = stateFilter ? ` in ${stateFilter}` : '';
-      const fundText = fundTypeFilter ? ` with ${fundTypeFilter} capabilities` : '';
-      answer = `I found ${transformedResults.length} RIA firm${transformedResults.length !== 1 ? 's' : ''}${stateText}${fundText} matching your search. Here are the results:`;
-    } else {
-      answer = `I couldn't find any RIA firms matching your search criteria. Try adjusting your search terms or expanding your geographic area.`;
-    }
-
-    const response = {
-      answer,
-      results: transformedResults,
-      metadata: {
-        searchesRemaining: null,
-        isSubscriber: false,
-        searchStrategy: 'structured_query',
-        confidence: 0.7
-      }
-    };
-
-    console.log('🔧 Returning response:', { 
-      answerLength: answer.length, 
-      resultsCount: transformedResults.length 
-    });
-
-    return NextResponse.json(response);
-
-  } catch (error) {
-    console.error('🔧 /api/ask error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error: ' + (error instanceof Error ? error.message : 'Unknown error') },
-      { status: 500 }
-    );
+    const payload = JSON.parse(Buffer.from(segments[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    return payload?.sub || null;
+  } catch {
+    return null;
   }
 }
 
-export async function GET() {
-  return NextResponse.json(
-    { error: 'Method not allowed. Use POST.' },
-    { status: 405 }
-  );
+// Main /api/ask endpoint - unified for both streaming and non-streaming
+export async function POST(req: NextRequest) {
+  console.log('ask route')
+  const requestId = `ask-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  
+  console.log(`[${requestId}] === UNIFIED ASK ENDPOINT ===`);
+  console.log(`[${requestId}] Using unified semantic search`);
+  
+  try {
+    // Parse request body
+    const body = await req.json().catch(() => ({} as any));
+    const query = typeof body?.query === 'string' ? body.query : '';
+    const isStreaming = body?.streaming === true;
+    
+    if (!query) {
+      return corsError(req, 'Query is required', 400);
+    }
+    
+    console.log(`[${requestId}] Query: "${query}"`);
+    console.log(`[${requestId}] Streaming mode: ${isStreaming}`);
+    
+    // Check authentication
+    const authHeader = req.headers.get('authorization');
+    const userId = decodeJwtSub(authHeader);
+    
+    console.log(`[${requestId}] User ID: ${userId || 'anonymous'}`);
+    
+    // Check subscription status
+    let isSubscriber = false;
+    if (userId) {
+      isSubscriber = true; // Treating authenticated users as subscribers for now
+    }
+    
+    // Check demo limits for anonymous users
+    if (!userId) {
+      const demoCheck = checkDemoLimit(req, isSubscriber);
+      console.log(`[${requestId}] Demo check:`, {
+        allowed: demoCheck.allowed,
+        searchesUsed: demoCheck.searchesUsed,
+        searchesRemaining: demoCheck.searchesRemaining
+      });
+      
+      if (!demoCheck.allowed) {
+        console.log(`[${requestId}] Demo limit reached, returning 402`);
+        return new Response(
+          JSON.stringify({
+            error: 'You\'ve used your 5 free demo searches. Sign up for unlimited access.',
+            code: 'DEMO_LIMIT_REACHED',
+            searchesUsed: demoCheck.searchesUsed,
+            searchesRemaining: 0,
+            upgradeRequired: true
+          }),
+          { 
+            status: 402,
+            headers: {
+              ...corsHeaders(req),
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      }
+    }
+    
+    // Process the query with filters from body
+    const filters = body?.filters || {};
+    console.log(`[${requestId}] Filters from body:`, filters);
+    
+    // Decompose the query using AI - let Gemini handle ALL location understanding naturally
+    const decomposition = await callLLMToDecomposeQuery(query);
+    console.log(`[${requestId}] AI Query decomposed:`, JSON.stringify({
+      query: query,
+      semantic_query: decomposition.semantic_query,
+      structured_filters: decomposition.structured_filters
+    }));
+    
+    // NO MORE BYPASSES - Let the AI handle everything naturally
+    
+    // Execute unified semantic search
+    console.log(`[${requestId}] Starting unified semantic search...`);
+    
+    // Trust the AI's decomposition - it understands locations naturally
+    // The enhanced planner now provides city and state separately
+    let extractedCity = filters.city || decomposition.structured_filters?.city || null;
+    let extractedState = filters.state || decomposition.structured_filters?.state || null;
+    
+    // Also check the combined location field for backward compatibility
+    if (!extractedCity && !extractedState && decomposition.structured_filters?.location) {
+      const extractedLocation = decomposition.structured_filters.location;
+      console.log(`[${requestId}] Using AI-decomposed location (legacy): ${extractedLocation}`);
+      
+      const locationParts = extractedLocation.split(',').map(p => p.trim());
+      if (locationParts.length === 2) {
+        extractedCity = locationParts[0];
+        extractedState = locationParts[1];
+      } else if (locationParts.length === 1) {
+        const loc = locationParts[0];
+        if (loc.length === 2 && loc === loc.toUpperCase()) {
+          extractedState = loc;
+        } else {
+          extractedCity = loc;
+        }
+      }
+    }
+    
+    console.log(`[${requestId}] AI location extraction:`, JSON.stringify({
+      query: query,
+      decomposedFilters: decomposition.structured_filters,
+      city: extractedCity,
+      state: extractedState
+    }));
+    
+    // Force structured search for location-based superlative queries
+    const isSuperlativeQuery = /\b(largest|biggest|top\s+\d+)\b/i.test(query);
+    const hasLocation = !!(extractedCity || extractedState);
+    const shouldForceStructured = !!filters.hasVcActivity || (isSuperlativeQuery && hasLocation);
+    
+    // Build filters object only with defined values
+    const structuredFilters: any = {};
+    if (extractedState) structuredFilters.state = extractedState;
+    if (extractedCity) structuredFilters.city = extractedCity;
+    if (filters.fundType) structuredFilters.fundType = filters.fundType;
+    
+    const searchOptions = { 
+      limit: body?.limit || 10,
+      structuredFilters,
+      forceStructured: shouldForceStructured
+    };
+    console.log(`[${requestId}] 🚨 CRITICAL: Search options:`, JSON.stringify({
+      ...searchOptions,
+      detectedLocation: { city: extractedCity, state: extractedState },
+      isSuperlative: isSuperlativeQuery,
+      hasLocation: hasLocation,
+      shouldForce: shouldForceStructured
+    }, null, 2));
+    
+    let searchResult;
+    try {
+      searchResult = await unifiedSemanticSearch(query, searchOptions);
+      console.log(`[${requestId}] Search result metadata:`, searchResult.metadata);
+    } catch (searchError) {
+      console.error(`[${requestId}] ❌ Unified search failed:`, searchError);
+      return corsError(req, 'Search failed', 500);
+    }
+    
+    const rows = searchResult.results;
+    console.log(`[${requestId}] Search complete, ${rows.length} results found`);
+    
+    // Apply hasVcActivity filter if specified (post-search filtering)
+    let filteredRows = rows;
+    if (filters.hasVcActivity) {
+      console.log(`[${requestId}] Applying hasVcActivity filter...`);
+      filteredRows = rows.filter(ria => {
+        const hasFunds = ria.private_funds && ria.private_funds.length > 0;
+        if (!hasFunds) return false;
+        
+        return ria.private_funds.some((fund: any) => {
+          const fundType = (fund.fund_type || '').toLowerCase();
+          return fundType.includes('venture') || 
+                 fundType.includes('vc') || 
+                 fundType.includes('private equity') || 
+                 fundType.includes('pe');
+        });
+      });
+      console.log(`[${requestId}] After VC filtering: ${filteredRows.length} results`);
+    }
+    
+    // Build context for AI generation
+    const context = buildAnswerContext(filteredRows as any, query);
+    
+    // Calculate metadata for the response
+    const demoCheck = checkDemoLimit(req, isSubscriber);
+    const metadata = {
+      remaining: isSubscriber ? -1 : demoCheck.searchesRemaining - 1,
+      isSubscriber: isSubscriber
+    };
+    
+    // Update demo counter for anonymous users
+    const headers = corsHeaders(req);
+    if (!userId) {
+      const newCount = demoCheck.searchesUsed + 1;
+      console.log(`[${requestId}] Updating demo session from ${demoCheck.searchesUsed} to ${newCount}`);
+      headers.set('Set-Cookie', `rh_demo=${newCount}; HttpOnly; Secure; SameSite=Lax; Max-Age=${24 * 60 * 60}; Path=/`);
+    }
+    
+    // Handle streaming vs non-streaming response
+    if (isStreaming) {
+      console.log(`[${requestId}] Returning streaming response`);
+      return handleStreamingResponse(req, requestId, query, context, filteredRows, metadata, headers);
+    } else {
+      console.log(`[${requestId}] Returning non-streaming response`);
+      const answer = await generateNaturalLanguageAnswer(query, context);
+      
+      const response = {
+        answer: answer,
+        sources: filteredRows,
+        metadata: metadata
+      };
+      
+      console.log(`[${requestId}] Returning ${filteredRows.length} results with answer`);
+      return NextResponse.json(response, { headers });
+    }
+    
+  } catch (error) {
+    console.error(`[${requestId}] Error in /api/ask:`, error);
+    return corsError(req, 'An internal error occurred', 500);
+  }
+}
+
+// GET request also supported for simple queries
+export async function GET(req: NextRequest) {
+  const searchParams = req.nextUrl.searchParams;
+  
+  // Convert GET params to POST body format
+  const body = {
+    query: searchParams.get('q') || searchParams.get('query') || '',
+    filters: {
+      state: searchParams.get('state'),
+      city: searchParams.get('city'),
+      fundType: searchParams.get('fundType'),
+      minAum: searchParams.get('minAum') ? parseInt(searchParams.get('minAum')!) : undefined,
+      hasVcActivity: searchParams.get('hasVcActivity') === 'true' || searchParams.get('vc') === 'true'
+    },
+    limit: parseInt(searchParams.get('limit') || '10'),
+    streaming: searchParams.get('streaming') === 'true'
+  };
+
+  // Create a mock POST request with the body
+  const mockRequest = new NextRequest(req.url, {
+    method: 'POST',
+    headers: req.headers,
+    body: JSON.stringify(body)
+  });
+
+  return POST(mockRequest);
+}
+
+// Handle streaming response (extracted from ask-stream endpoint)
+async function handleStreamingResponse(
+  req: NextRequest,
+  requestId: string, 
+  query: string,
+  context: string,
+  filteredRows: any[],
+  metadata: any,
+  headers: Headers
+): Promise<Response> {
+  // Set up SSE headers
+  headers.set('Content-Type', 'text/event-stream; charset=utf-8');
+  headers.set('Cache-Control', 'no-cache, no-transform');
+  headers.set('Connection', 'keep-alive');
+  headers.set('X-Accel-Buffering', 'no');
+  
+  // Create streaming response
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let streamStarted = false;
+      let lastTokenTime = Date.now();
+      
+      // Heartbeat function to prevent inactivity timeout
+      const sendHeartbeat = () => {
+        try {
+          const heartbeat = JSON.stringify('.');
+          controller.enqueue(encoder.encode(`data: {"token":${heartbeat}}\n\n`));
+          lastTokenTime = Date.now();
+        } catch (err) {
+          console.error(`[${requestId}] Heartbeat error:`, err);
+        }
+      };
+      
+      // Set up heartbeat interval (every 2 seconds)
+      const heartbeatInterval = setInterval(() => {
+        const timeSinceLastToken = Date.now() - lastTokenTime;
+        // Send heartbeat if more than 3 seconds since last token
+        if (timeSinceLastToken > 3000) {
+          sendHeartbeat();
+        }
+      }, 2000);
+      
+      try {
+        // Send initial connection confirmation with metadata
+        controller.enqueue(encoder.encode(`data: {"type":"connected","metadata":${JSON.stringify(metadata)}}\n\n`));
+        streamStarted = true;
+        
+        // Send processing status update
+        const statusToken = JSON.stringify('🔍 Searching database...');
+        controller.enqueue(encoder.encode(`data: {"token":${statusToken}}\n\n`));
+        lastTokenTime = Date.now();
+        
+        console.log(`[${requestId}] Starting token stream...`);
+        
+        // Send another status update before AI generation
+        const aiStatusToken = JSON.stringify('\n\n✨ Generating response...\n\n');
+        controller.enqueue(encoder.encode(`data: {"token":${aiStatusToken}}\n\n`));
+        lastTokenTime = Date.now();
+        
+        // Collect all tokens to build final response
+        let fullAnswer = '';
+        
+        // Stream tokens with proper SSE format and timeout protection
+        for await (const token of streamAnswerTokens(query, context)) {
+          // Clear heartbeat since we got a real token
+          lastTokenTime = Date.now();
+          
+          // Collect token for final response
+          fullAnswer += token;
+          
+          // Properly format each token for SSE (escape newlines if needed)
+          const escapedToken = JSON.stringify(token);
+          controller.enqueue(encoder.encode(`data: {"token":${escapedToken}}\n\n`));
+        }
+        
+        console.log(`[${requestId}] Token streaming complete`);
+        
+        // Send metadata and sources at the end
+        const sourcesToken = JSON.stringify(`\n\n📊 **Sources**: ${filteredRows.length} RIAs found`);
+        controller.enqueue(encoder.encode(`data: {"token":${sourcesToken}}\n\n`));
+        
+        // Send final complete response object for frontend
+        const completeResponse = {
+          answer: fullAnswer.trim(),
+          sources: filteredRows,
+          metadata: metadata
+        };
+        controller.enqueue(encoder.encode(`data: {"type":"complete","response":${JSON.stringify(completeResponse)}}\n\n`));
+        controller.enqueue(encoder.encode(`data: {"type":"metadata","metadata":${JSON.stringify(metadata)}}\n\n`));
+        
+      } catch (err) {
+        console.error(`[${requestId}] Stream error:`, err);
+        
+        // If we haven't started streaming yet, send a fallback message
+        if (!streamStarted) {
+          controller.enqueue(encoder.encode(`data: {"type":"connected","metadata":${JSON.stringify(metadata)}}\n\n`));
+        }
+        
+        // Send error as a proper message instead of error event
+        const errorMessage = `I encountered an issue processing your request. Here's what I found: ${context ? context.substring(0, 500) + '...' : 'No context available'}`;
+        controller.enqueue(encoder.encode(`data: {"token":${JSON.stringify(errorMessage)}}\n\n`));
+        
+        // Send error response object for frontend
+        const errorResponse = {
+          answer: errorMessage,
+          sources: filteredRows || [],
+          metadata: metadata
+        };
+        controller.enqueue(encoder.encode(`data: {"type":"complete","response":${JSON.stringify(errorResponse)}}\n\n`));
+      } finally {
+        // Clear heartbeat interval
+        clearInterval(heartbeatInterval);
+        
+        // ALWAYS send completion marker, no matter what happened
+        try {
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.enqueue(encoder.encode('event: end\n\n'));
+        } catch (closeErr) {
+          console.error(`[${requestId}] Error sending completion marker:`, closeErr);
+        }
+        
+        // Close the stream
+        controller.close();
+      }
+    },
+  });
+  
+  return new Response(stream, { headers });
 }
