@@ -6,7 +6,7 @@ These smoke tests verify that the UI works correctly for both anonymous and auth
 
 - Application deployed at https://ria-hunter.app
 - Chrome DevTools or equivalent browser developer tools
-- A Google account for authentication testing
+- Access to an email inbox for magic link sign-in tests
 
 ## Test 1: Anonymous User Experience
 
@@ -21,16 +21,16 @@ These smoke tests verify that the UI works correctly for both anonymous and auth
 
 3. **Check console for API calls**
    - Open DevTools Console (F12)
-   - Look for `GET /_backend/api/credits/balance`
+   - Look for `GET /api/credits/balance`
    - Expected: Status 200 with `{ credits: 15, isSubscriber: false }`
    - Fallback: If status 401, header should still show "15 Credits" (client-side fallback)
 
 ## Test 2: Authentication Flow
 
-1. **Sign in with Google**
-   - Click "Sign in with Google" button
-   - Complete Google authentication
-   - You should be redirected back to the app
+1. **Send magic link**
+   - Click the `Sign In` button in the header
+   - Enter your email address and submit the form
+   - Open the email and follow the magic link back to the app
 
 2. **Verify Pro status (for subscribers)**
    - If account has Stripe subscription:
@@ -44,7 +44,7 @@ These smoke tests verify that the UI works correctly for both anonymous and auth
 
 3. **Credits refresh after auth**
    - Credits should update within 1-2 seconds after sign-in
-   - Console should show successful `GET /_backend/api/credits/balance` call
+   - Console should show successful `GET /api/credits/balance` call
 
 ## Test 3: Chat Streaming
 

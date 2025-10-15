@@ -1,9 +1,13 @@
+/** @jsxRuntime classic */
+/** @jsx React.createElement */
+
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { AuthProvider } from '@/app/contexts/AuthContext';
 import { Header } from '@/app/components/layout/Header';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { DebugOverlay } from '@/app/components/DebugOverlay';
+import React from 'react';
 import "./globals.css";
 
 export const metadata: Metadata = {

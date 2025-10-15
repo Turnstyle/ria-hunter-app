@@ -46,14 +46,17 @@ A Next.js application for searching and analyzing Registered Investment Advisor 
 
 Required environment variables:
 
-- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL (should be `https://llusjnpltqxhokycwzry.supabase.co`)
+- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key
-- `AI_PROVIDER`: Set to `vertex` for Google AI Studio (using Gemini 1.5 Flash) or `openai` for OpenAI
-- `GOOGLE_AI_STUDIO_API_KEY`: Your Google AI Studio API key (when using `vertex` as AI provider)
 - `NEXT_PUBLIC_APP_URL`: Your app's URL (e.g., http://localhost:3000 for development)
+- `BACKEND_URL`: URL of the backend deployment used for API proxying (defaults to https://ria-hunter.vercel.app)
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Your Stripe publishable key
 - `STRIPE_SECRET_KEY`: Your Stripe secret key
 - `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook signing secret
 - `STRIPE_PRICE_ID`: The ID of your subscription price
+- `GCP_SA_KEY_BASE64`: Base64-encoded Google Cloud service account JSON used for Vertex AI access
 
 See `.env.example` for a complete list of environment variables.
+
+AI requests are proxied to the backend, which handles all Vertex AI interactions. No OpenAI credentials are required on the frontend.

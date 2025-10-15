@@ -5,26 +5,35 @@ import { supabase } from '@/app/lib/supabase-client';
 
 export default function TestAuthPage() {
   const [status, setStatus] = useState('');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const testGoogleOAuth = async () => {
+  const sendMagicLink = async () => {
+    if (!email) {
+      setStatus('❌ Please provide a valid email address');
+      return;
+    }
     setLoading(true);
-    setStatus('Testing Google OAuth...');
-    
+    setStatus('Sending magic link...');
+
     try {
-      // This is the exact call you wanted me to test
-      const result = await supabase.auth.signInWithOAuth({ provider: 'google' });
-      
-      if (result.error) {
-        setStatus(`❌ Error: ${result.error.message}`);
-        console.error('OAuth Error:', result.error);
+      const response = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, redirectTo: `${window.location.origin}/auth/callback` }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const message = data?.error || response.statusText;
+        setStatus(`❌ Error: ${message}`);
+        console.error('Magic link error:', message);
       } else {
-        setStatus('✅ OAuth call successful! Check browser for redirect...');
-        console.log('OAuth Success:', result);
+        setStatus('✅ Magic link sent! Check your inbox.');
       }
     } catch (error) {
       setStatus(`❌ Exception: ${error}`);
-      console.error('OAuth Exception:', error);
+      console.error('Magic link exception:', error);
     } finally {
       setLoading(false);
     }
@@ -54,17 +63,30 @@ export default function TestAuthPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-center mb-6">Google OAuth Test</h1>
-        
+        <h1 className="text-2xl font-bold text-center mb-6">Magic Link Auth Test</h1>
+
         <div className="space-y-4">
+          <label className="w-full text-sm text-gray-700">
+            Email address
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+              required
+            />
+          </label>
+
           <button
-            onClick={testGoogleOAuth}
+            onClick={sendMagicLink}
             disabled={loading}
             className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            {loading ? 'Testing...' : 'Test Google OAuth'}
+            {loading ? 'Sending…' : 'Send Magic Link'}
           </button>
-          
+
           <button
             onClick={checkSession}
             disabled={loading}
@@ -84,6 +106,7 @@ export default function TestAuthPage() {
           <p><strong>Environment Check:</strong></p>
           <p>Supabase URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? '✅ Set' : '❌ Missing'}</p>
           <p>Supabase Key: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing'}</p>
+          <p>App URL: {process.env.NEXT_PUBLIC_APP_URL ? '✅ Set' : 'ℹ️ Using localhost fallback'}</p>
         </div>
       </div>
     </div>

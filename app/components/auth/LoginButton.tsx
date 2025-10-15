@@ -1,7 +1,7 @@
 'use client';
 
+import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { useState, useEffect } from 'react';
 
 interface LoginButtonProps {
   className?: string;
@@ -9,98 +9,115 @@ interface LoginButtonProps {
 }
 
 export default function LoginButton({ className = '', redirectTo }: LoginButtonProps) {
-  const { signInWithGoogle, loading } = useAuth();
-  const [isSigningIn, setIsSigningIn] = useState(false);
-  const [showButton, setShowButton] = useState(false);
-  
-  // Always show the button by default
-  useEffect(() => {
-    // Always set showButton to true - we'll only hide if a hard error occurs during auth
-    setShowButton(true);
-    
-    // Optional log for debugging
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('Some Supabase environment variables are missing, but auth will be attempted anyway');
-    }
-  }, []);
+  const { signInWithMagicLink, loading: authLoading } = useAuth();
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
-  const handleSignIn = async () => {
-    setIsSigningIn(true);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setMessage({ type: 'error', text: 'Please enter a valid email address' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage(null);
+
     try {
-      const { error } = await signInWithGoogle(redirectTo);
+      const { error } = await signInWithMagicLink(email, redirectTo);
+
       if (error) {
-        console.error('Login error:', error);
-        // Only hide the button on catastrophic auth configuration errors
-        if (error.message && (
-          error.message.includes('configuration') || 
-          error.message.includes('not configured') ||
-          error.message.includes('Invalid provider')
-        )) {
-          setShowButton(false);
-          alert('Authentication is not available. Please try again later.');
-        } else {
-          // For normal auth errors, just show a message but keep the button
-          alert('Failed to sign in. Please try again.');
-        }
+        setMessage({ type: 'error', text: error.message || 'Failed to send magic link' });
+      } else {
+        setMessage({
+          type: 'success',
+          text: 'Check your email! We sent you a sign-in link.',
+        });
+        setEmail('');
+        setTimeout(() => setShowForm(false), 3000);
       }
     } catch (error) {
-      console.error('Unexpected login error:', error);
-      // Don't hide the button for unexpected errors
-      alert('An unexpected error occurred. Please try again.');
+      console.error('Unexpected magic link error:', error);
+      setMessage({
+        type: 'error',
+        text: 'An unexpected error occurred. Please try again.',
+      });
     } finally {
-      setIsSigningIn(false);
+      setIsSubmitting(false);
     }
   };
 
-  // Don't render anything if required environment variables are missing
-  if (!showButton) {
-    return null;
+  if (!showForm) {
+    return (
+      <button
+        onClick={() => setShowForm(true)}
+        className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+        disabled={authLoading}
+      >
+        Sign In
+      </button>
+    );
   }
 
-  const isLoading = loading || isSigningIn;
-
   return (
-    <button
-      onClick={handleSignIn}
-      disabled={isLoading}
-      className={`
-        flex items-center justify-center gap-2 sm:gap-3 px-3 sm:px-6 py-2 sm:py-3 
-        bg-white border border-gray-300 rounded-lg shadow-sm
-        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-        disabled:opacity-50 disabled:cursor-not-allowed
-        transition-colors duration-200 text-sm sm:text-base
-        ${className}
-      `}
-    >
-      {isLoading ? (
-        <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-      ) : (
-        <svg className="w-5 h-5" viewBox="0 0 24 24">
-          <path
-            fill="#4285F4"
-            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    <div className={`relative ${className}`}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 p-4 bg-white rounded-lg shadow-lg min-w-[280px]">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="font-semibold text-gray-900">Sign In</h3>
+          <button
+            type="button"
+            onClick={() => {
+              setShowForm(false);
+              setMessage(null);
+              setEmail('');
+            }}
+            className="text-gray-400 hover:text-gray-600"
+            aria-label="Close sign-in form"
+          >
+            ✕
+          </button>
+        </div>
+
+        <label className="flex flex-col gap-2 text-sm text-gray-700">
+          Email
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="you@example.com"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isSubmitting}
+            required
           />
-          <path
-            fill="#34A853"
-            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-          />
-          <path
-            fill="#EA4335"
-            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-          />
-        </svg>
-      )}
-      <span className="text-gray-700 font-medium whitespace-nowrap">
-        <span className="hidden sm:inline">{isLoading ? 'Signing in...' : 'Sign in with Google'}</span>
-        <span className="sm:hidden">{isLoading ? 'Signing in...' : 'Sign in'}</span>
-      </span>
-    </button>
+        </label>
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? 'Sending…' : 'Send Magic Link'}
+        </button>
+
+        {message && (
+          <div
+            className={`text-sm p-2 rounded ${
+              message.type === 'success'
+                ? 'bg-green-50 text-green-800'
+                : 'bg-red-50 text-red-800'
+            }`}
+          >
+            {message.text}
+          </div>
+        )}
+
+        <p className="text-xs text-gray-500 text-center">
+          We’ll email you a secure link so you can sign in without a password.
+        </p>
+      </form>
+    </div>
   );
 }

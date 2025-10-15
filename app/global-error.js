@@ -1,5 +1,10 @@
 'use client';
 
+/** @jsxRuntime classic */
+/** @jsx React.createElement */
+
+import React from 'react';
+
 export default function GlobalError({ error, reset }) {
   // Keep this minimal to avoid bundler issues in dev
   return (

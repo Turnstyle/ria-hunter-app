@@ -1,6 +1,9 @@
 // app/components/ErrorBoundary.tsx
 // Prevents the entire app from crashing on component errors
 
+/** @jsxRuntime classic */
+/** @jsx React.createElement */
+
 'use client';
 
 import React from 'react';

@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+/** @jsxRuntime classic */
+/** @jsx React.createElement */
+
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { X } from 'lucide-react';

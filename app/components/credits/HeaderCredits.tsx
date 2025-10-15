@@ -1,11 +1,14 @@
 // app/components/credits/HeaderCredits.tsx
 // Shows real credit count in the header
 
+/** @jsxRuntime classic */
+/** @jsx React.createElement */
+
 'use client';
 
 import { useSessionDemo } from '@/app/hooks/useSessionDemo';
 import { Search, Infinity } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 export function HeaderCredits() {
   const { searchesRemaining, isSubscriber, isLoading } = useSessionDemo();

@@ -21,7 +21,7 @@ export function useSessionDemo(): UseSessionDemoReturn {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | undefined>(undefined);
   
-  const { user, session } = useAuth();
+  const { user, session, account } = useAuth();
   
   // Simplified refresh - no caching, no localStorage
   const refreshStatus = useCallback(async () => {
@@ -73,6 +73,24 @@ export function useSessionDemo(): UseSessionDemoReturn {
       }
     }
   }, []);
+
+  // Prefer backend account sync for subscriber flag when available
+  useEffect(() => {
+    if (!account) {
+      return;
+    }
+
+    const subscriberFlag =
+      typeof account.isSubscriber === 'boolean'
+        ? account.isSubscriber
+        : typeof account.is_subscriber === 'boolean'
+          ? account.is_subscriber
+          : undefined;
+
+    if (typeof subscriberFlag === 'boolean') {
+      setIsSubscriber(subscriberFlag);
+    }
+  }, [account]);
   
   // Refresh on mount and auth changes
   useEffect(() => {

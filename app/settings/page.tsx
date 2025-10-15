@@ -15,7 +15,6 @@ export default function SettingsPage() {
     marketingEmails: false,
     searchHistory: false,
     autoSave: false,
-    defaultAIProvider: 'vertex' as 'openai' | 'vertex',
     defaultResultLimit: 10,
     theme: 'light' as 'light' | 'dark' | 'system',
   });
@@ -182,18 +181,11 @@ export default function SettingsPage() {
         <div className="bg-white shadow rounded-lg p-6 border border-secondary-200">
           <h2 className="text-xl font-semibold text-secondary-800 mb-4">Search Preferences</h2>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
-                Default AI Provider
-              </label>
-              <select
-                value={settings.defaultAIProvider}
-                onChange={(e) => setSettings(prev => ({ ...prev, defaultAIProvider: e.target.value as 'openai' | 'vertex' }))}
-                className="w-full px-3 py-2 border border-secondary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="openai">OpenAI (GPT-4 Turbo)</option>
-                <option value="vertex">Google Vertex AI</option>
-              </select>
+            <div className="p-3 bg-secondary-50 border border-secondary-200 rounded-md">
+              <p className="text-sm font-medium text-secondary-800">AI Provider</p>
+              <p className="text-sm text-secondary-600">
+                Searches now run exclusively through our managed Google Vertex AI backend for consistency and quality.
+              </p>
             </div>
 
             <div>

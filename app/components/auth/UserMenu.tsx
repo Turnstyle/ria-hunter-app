@@ -1,5 +1,8 @@
 'use client';
 
+/** @jsxRuntime classic */
+/** @jsx React.createElement */
+
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/contexts/AuthContext';
